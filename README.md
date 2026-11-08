@@ -161,9 +161,41 @@ GET /api/token            # token source, redacted value, and live probes
 GET /api/token?fresh=1    # re-mint first
 ```
 
-It spends the token against the API *and* both signer relays, and answers
-`lectureSigning: "working" | "unavailable"` — so a "lectures don't play" report has an answer
-instead of a guess.
+It spends the token against the API *and* both signer relays, and answers two separate
+questions:
+
+| field | meaning |
+| --- | --- |
+| `lectureSigning` | the relays accept the token, so any folder it is told about can be signed |
+| `entitlement` | `{lectures, withVideoUrl, sampleTitle}` from a live batch listing |
+| `lecturePlayback` | `working` · `metadata-only` · `unavailable` |
+
+**Signing and entitlement are not the same thing, and mixing them up is what makes
+"lectures don't play" so hard to read.** A guest token signs happily — it just never learns
+*which* file a lecture is, because the schedule record only carries
+`videoDetails.videoUrl` for a token that holds the batch. With a guest token the API returns
+titles, durations and thumbnails but an empty `videoUrl`, and every lecture resolves as
+"not published". `metadata-only` says exactly that.
+
+To play lectures, pin a bearer that holds the batch as `PW_TOKEN` (Vercel → project →
+Settings → Environment Variables). Nothing else changes: the same proxy, the same
+`/api/sign` chain and the same player are then used.
+
+### Failover is per endpoint, not per host
+
+The allowlisted hosts are mirrors of the same API but they do not overlap completely, so a
+`4xx` from one means "wrong host for this path", not "bad request":
+
+| endpoint | first host | serves it |
+| --- | --- | --- |
+| `/v1/videos/get-hls-key` | `401` on `api.penpencil.co` | `vidcloud.eu.org/api` |
+| `GetPdf` | `404` on `api.penpencil.co` | `vidcloud.eu.org/api` |
+| `/Schedule?BatchId=…` | `404` everywhere now (retired) | use `/v1/.../schedule-details` |
+| `/TopicInfo?...` | `404` everywhere now (retired) | use `/v2/.../contents?tag=<chapter>` |
+
+Both transports apply that rule — the HTTP route and `pwFetch()`, which is what the site's
+own pages call — and a test pins them together. The signer endpoints also take the bearer as
+an `authorization` **query parameter**; data routes keep it in the header.
 
 ## Is a lecture actually playable?
 
