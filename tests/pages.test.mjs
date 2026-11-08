@@ -185,6 +185,66 @@ test("the sidebar is a complete panel: three bands, foldable groups, a rail", as
   dom.window.close();
 });
 
+test("the rail folds away and comes back, and the choice is sticky", async () => {
+  const { doc, dom } = await render("/", {
+    waitForSelector: "#side",
+    extraModules: ["/assets/shell.mjs"],
+  });
+  const toggle = doc.querySelector("#side [data-side-collapse]");
+  assert.ok(toggle, "no control to leave the collapsed rail");
+
+  // Open by default: a first-time reader gets the full panel.
+  assert.equal(doc.body.classList.contains("side-rail"), false, "the sidebar starts folded");
+
+  toggle.click();
+  assert.equal(
+    doc.body.classList.contains("side-rail"),
+    true,
+    "the rail control does not actually fold the sidebar"
+  );
+  // The choice is a preference, so it survives navigation.
+  const prefs = JSON.parse(doc.defaultView.localStorage.getItem("arsvibe.prefs") || "{}");
+  assert.equal(prefs.sideRail, true, "the rail is not remembered");
+
+  toggle.click();
+  assert.equal(
+    doc.body.classList.contains("side-rail"),
+    false,
+    "the rail cannot be opened again from inside itself"
+  );
+
+  dom.window.close();
+});
+
+test("the phone drawer opens from the top bar and closes on the scrim", async () => {
+  const { doc, dom } = await render("/", {
+    waitForSelector: "#side",
+    extraModules: ["/assets/shell.mjs"],
+  });
+
+  const toggle = doc.getElementById("navToggle");
+  const scrim = doc.querySelector(".side-scrim");
+  assert.ok(toggle, "the top bar lost its menu button");
+  assert.ok(scrim, "the drawer has no scrim to close it");
+
+  toggle.click();
+  assert.equal(doc.body.classList.contains("nav-open"), true, "the menu button does not open the drawer");
+
+  scrim.click();
+  assert.equal(doc.body.classList.contains("nav-open"), false, "the scrim does not close the drawer");
+
+  // Following a link in the drawer should also put it away.
+  toggle.click();
+  doc.querySelector("#side .side-link").click();
+  assert.equal(
+    doc.body.classList.contains("nav-open"),
+    false,
+    "a drawer link leaves the drawer open behind the new page"
+  );
+
+  dom.window.close();
+});
+
 test("batches page lists catalogue with pager and result count", async () => {
   const { doc, dom } = await render("/batches.html", { waitForSelector: "#grid .batch-card" });
   assert.ok(doc.querySelectorAll("#grid .batch-card").length >= 2);
