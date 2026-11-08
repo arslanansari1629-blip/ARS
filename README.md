@@ -54,10 +54,16 @@ browser ──► /api/batches | /api/batch | /api/contents | /api/lecture | /ap
 * **PDFs and thumbnails** are relayed through `/api/media` (PW hosts send no CORS headers),
   with HTTP `Range` forwarding so large notes stream progressively.
 * **Lecture streams** are resolved by `/api/stream`. PW publishes signed CloudFront
-  DASH/HLS URLs; CloudFront does not send CORS headers on segments, so manifests and
-  segments are streamed through `/api/hls` (the manifest is rewritten so every child
-  request stays on our domain). If a lecture's URL lost its signature, `/api/sign` asks
-  PW's public signing relay for a freshly signed playlist.
+  DASH/HLS URLs; CloudFront sends no CORS headers on segments, so playback goes through our
+  own origin and every child request stays on our domain:
+  * HLS — what every lecture we have checked actually uses — is relayed by `/api/sign`, which
+    asks the signing relay for a fresh signed playlist, rewrites the `EXT-X-KEY` and segment
+    URIs through itself, and streams the 16-byte AES key and the media segments byte for byte.
+  * DASH (`master.mpd`) is relayed by `/api/hls`, which rewrites the manifest's `BaseURL`.
+    CloudFront will not serve an unsigned `.mpd` (403), and the public signer stores HLS
+    renditions only, so a DASH-only lecture cannot be relayed: `/api/sign` answers that
+    explicitly (with an `hlsHint`) rather than failing as a generic 404. HLS covers the
+    lectures here, so this is a documented limit rather than the playback path.
 * Renditions differ per video, so `/api/stream` asks the signing relay for `720`, `480`, `360`
   and then `240` and takes the first one that exists. A lecture published only at 480p used to
   be reported as "no video"; it now plays.
