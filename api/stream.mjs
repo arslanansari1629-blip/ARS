@@ -1,5 +1,5 @@
 import { cors, json, query, badRequest, methodNotAllowed, modeOf, relayUrl } from "../lib/http.mjs";
-import { resolveStream, parseFolder } from "../lib/api-data.mjs";
+import { resolveStream, parseFolder, fetchSchedule } from "../lib/api-data.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
 
 /**
@@ -16,40 +16,29 @@ import { explainNoVideo } from "../lib/playback.mjs";
  * state, not a server error, and the page shows that reason verbatim.
  */
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
-
-function scheduleTarget(batch, subject, id) {
-  return `https://www.learnxpw.site/api/Schedule?BatchId=${encodeURIComponent(
-    batch
-  )}&SubjectId=${encodeURIComponent(subject)}&ContentId=${encodeURIComponent(id)}`;
-}
-
+/**
+ * The schedule record for a lecture, via the shared reader.
+ *
+ * This route used to fetch a hard-coded mirror URL itself, which meant the
+ * player and every other page could disagree about the same lecture: the mirror
+ * hands back a real `videoDetails.videoUrl` while the modern route leaves it
+ * empty, and only one of them was being asked depending on which page you were on.
+ */
 async function readSchedule(batch, subject, id) {
-  const res = await fetch(scheduleTarget(batch, subject, id), {
-    headers: {
-      Accept: "application/json, text/plain, */*",
-      "User-Agent": UA,
-      Origin: "https://www.learnxpw.site",
-      Referer: "https://www.learnxpw.site/study/batches",
-    },
-    signal: AbortSignal.timeout(20000),
-  });
-  const body = await res.json().catch(() => null);
-  const d = (body && body.data) || null;
-  if (!d) return { ok: false, rawUrl: "", detail: null };
-  const vd = d.videoDetails || {};
+  const res = await fetchSchedule(batch, subject, id);
+  if (!res.ok) return { ok: false, rawUrl: "", detail: null, error: res.error };
+  const l = res.lecture;
   return {
     ok: true,
-    rawUrl: vd.videoUrl || d.url || "",
+    rawUrl: l.videoUrl,
     detail: {
-      title: vd.name || d.topic || "",
-      status: vd.status || d.status || "",
-      lectureType: d.lectureType || d.urlType || "",
-      drm: Boolean(vd.drmProtected || d.isDrmEnabled),
-      isVideoLecture: d.isVideoLecture !== false,
-      hasNotes: Array.isArray(d.homeworkIds) && d.homeworkIds.length > 0,
-      startTime: d.startTime || d.date || "",
+      title: l.title,
+      status: l.videoStatus,
+      lectureType: l.urlType,
+      drm: l.drm,
+      isVideoLecture: l.isVideoLecture,
+      hasNotes: res.docs.length > 0,
+      startTime: l.date,
     },
   };
 }
@@ -78,7 +67,11 @@ export default async function handler(req, res) {
           success: true,
           playable: false,
           needsClientResolve: true,
-          relay: relayUrl(scheduleTarget(batch, subject, id)),
+          relay: relayUrl(
+            `/api/pw/Schedule?BatchId=${encodeURIComponent(batch)}&SubjectId=${encodeURIComponent(
+              subject
+            )}&ContentId=${encodeURIComponent(id)}`
+          ),
           hint: "Fetch the relay, read data.videoDetails.videoUrl, then call /api/stream?url=",
         });
       }

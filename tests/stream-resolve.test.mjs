@@ -246,3 +246,65 @@ test("site reads go through the in-process PW dispatcher", async () => {
     globalThis.fetch = realFetch;
   }
 });
+
+/**
+ * Two schedule routes, and only one of them carries the stream URL.
+ *
+ * The modern `/v1/.../schedule-details` answers with the full record but an empty
+ * `videoDetails.videoUrl`; the legacy `/Schedule` is 404 on api.penpencil.co yet
+ * returns the signed `master.mpd` on the vidcloud mirror. Preferring "modern"
+ * unconditionally silently unmounted every lecture, so the reader must take
+ * whichever record actually has a stream.
+ */
+test("fetchSchedule prefers the record that carries a video URL", async () => {
+  const { fetchSchedule } = await import("../lib/api-data.mjs");
+
+  const modern = {
+    _id: "lec-1",
+    topic: "Modern record",
+    videoDetails: { name: "Modern record", videoUrl: "", status: "Ready" },
+  };
+  const legacy = {
+    _id: "lec-1",
+    topic: "Legacy record",
+    videoDetails: {
+      name: "Legacy record",
+      videoUrl: "https://d1d34p8vz63oiq.cloudfront.net/abc-123/master.mpd",
+      status: "Ready",
+    },
+  };
+
+  await withFetch(
+    async (url) => {
+      const u = String(url);
+      if (u.includes("schedule-details")) return jsonResponseSafe({ success: true, data: modern });
+      if (u.includes("/Schedule?")) return jsonResponseSafe({ success: true, data: legacy });
+      return jsonResponseSafe({ success: false }, 404);
+    },
+    async () => {
+      const res = await fetchSchedule("b", "s", "lec-1");
+      assert.equal(res.ok, true);
+      assert.match(res.lecture.videoUrl, /abc-123\/master\.mpd/, "the stream URL must survive");
+      assert.equal(res.lecture.title, "Legacy record");
+    }
+  );
+});
+
+test("fetchSchedule explains itself when neither route answers", async () => {
+  const { fetchSchedule } = await import("../lib/api-data.mjs");
+  await withFetch(
+    async () => jsonResponseSafe({ success: false }, 404),
+    async () => {
+      const res = await fetchSchedule("b", "s", "lec-1");
+      assert.equal(res.ok, false);
+      assert.match(res.error, /status 404|404/);
+    }
+  );
+});
+
+function jsonResponseSafe(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
