@@ -185,7 +185,7 @@ async function startStream() {
   attachPlayer(plan);
 }
 
-function loadScript(src) {
+function loadOne(src) {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) return resolve();
     const s = document.createElement("script");
@@ -194,6 +194,21 @@ function loadScript(src) {
     s.onerror = () => reject(new Error(`Failed to load ${src}`));
     document.head.appendChild(s);
   });
+}
+
+/** Load the first CDN that answers — a blocked CDN must not stop playback. */
+async function loadScript(sources) {
+  const list = Array.isArray(sources) ? sources : [sources];
+  let lastError = null;
+  for (const src of list) {
+    try {
+      await loadOne(src);
+      return;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("Failed to load the player library");
 }
 
 async function attachPlayer(plan) {
@@ -209,15 +224,44 @@ async function attachPlayer(plan) {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = plan.url;
       } else {
-        await loadScript("https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js");
+        await loadScript([
+          "https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js",
+          "https://unpkg.com/hls.js@1.5.17/dist/hls.min.js",
+          "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js",
+        ]);
         if (!window.Hls || !window.Hls.isSupported()) throw new Error("HLS is not supported here");
         const hls = new window.Hls({ maxBufferLength: 30 });
+        // a fatal network/media error would otherwise kill playback for good:
+        // recover in place, and only fall back to the message after retries
+        let recovered = 0;
+        hls.on(window.Hls.Events.ERROR, (_evt, data) => {
+          if (!data || !data.fatal) return;
+          if (recovered >= 2) {
+            showMessage(
+              "Playback error",
+              "The stream link may have expired. Reload the page to fetch a fresh link.",
+              true,
+              `<button class="btn btn-primary" onclick="location.reload()">Reload</button>
+               <a class="btn btn-ghost" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Source player</a>`
+            );
+            return;
+          }
+          recovered += 1;
+          if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
+            hls.startLoad();
+          } else if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
+            hls.recoverMediaError();
+          }
+        });
         hls.loadSource(plan.url);
         hls.attachMedia(video);
         window.__hls = hls;
       }
     } else if (plan.kind === "dash") {
-      await loadScript("https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js");
+      await loadScript([
+        "https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js",
+        "https://unpkg.com/dashjs@4.7.4/dist/dash.all.min.js",
+      ]);
       if (!window.dashjs) throw new Error("DASH is not supported here");
       const player = window.dashjs.MediaPlayer().create();
       player.initialize(video, plan.url, false);
