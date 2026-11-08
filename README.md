@@ -19,7 +19,7 @@ Home → All batches → Batch (subjects) → Subject (chapters) → Chapter (le
 | Page | What it does |
 | --- | --- |
 | `/` | Landing page in the source's visual language: hero, search, trending batches, catalogue preview, recent batches, community CTA |
-| `/batches` | Full catalogue — 13,000+ batches, paginated, searchable, filter by language, sort by name/date |
+| `/batches` | The complete catalogue — all **14,201** batches, paginated, searchable, filter by language, sort by name/date |
 | `/batch?id=…` | Batch header (cover, price, dates, exam, language) + subject list, announcements tab, about tab |
 | `/subject?batch=…&subject=…` | Chapter list with lecture / notes / DPP counters |
 | `/chapter?batch=…&subject=…&chapter=…` | Tabs for **Lectures**, **Notes (PDF)**, **DPPs**, **DPP Solutions** |
@@ -42,6 +42,15 @@ browser ──► /api/batches | /api/batch | /api/contents | /api/lecture | /ap
                       and normalises it with the identical mapping code
 ```
 
+* **Batch discovery** does not use the upstream `searchBatch` endpoint. That endpoint cannot see
+  parts of the catalogue (searching "Capcut" returned nothing while the batch's own detail page
+  rendered fine), which is exactly why [vidcloud.eu.org](https://vidcloud.eu.org/#batches) does
+  not search an API either: its client downloads one complete list and filters it locally. We
+  ship the same list — `data/batches.json.gz`, 14,201 batches, refreshed from
+  `https://rarestudy.github.io/rarestudy/batches.json` by `scripts/fetch-catalogue.mjs` — and
+  search it in-process, so every batch that exists can be found. Batch *details* still come from
+  the live API; if that call rate-limits, the page says so with a retry instead of showing an
+  empty subject list.
 * **PDFs and thumbnails** are relayed through `/api/media` (PW hosts send no CORS headers),
   with HTTP `Range` forwarding so large notes stream progressively.
 * **Lecture streams** are resolved by `/api/stream`. PW publishes signed CloudFront
@@ -52,6 +61,10 @@ browser ──► /api/batches | /api/batch | /api/contents | /api/lecture | /ap
 * Renditions differ per video, so `/api/stream` asks the signing relay for `720`, `480`, `360`
   and then `240` and takes the first one that exists. A lecture published only at 480p used to
   be reported as "no video"; it now plays.
+* Some lectures are not on a PW CDN at all — the Skills batches publish recordings on YouTube.
+  Those resolve to an embed plan (`kind: "youtube"`, `engine: "embed"`) and play in an `<iframe>`,
+  with the quality/speed/resume controls hidden because they do not apply. A URL on a host we
+  cannot relay is reported as `external` with a direct link, never as "no video".
 * When a lecture genuinely has no published video, `/api/stream` answers `200` with
   `playable:false` and a specific reason — document-only entry, upcoming live class, or a
   recording the source has not finished processing — and the player shows that reason plus a
@@ -77,8 +90,10 @@ public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
   viewer.html login.html dashboard.html library.html 404.html
   assets/            theme.css · pages.css · app.js · data.js · client-api.js · page modules
+data/batches.json.gz complete batch catalogue (13,631 upstream → 14,201 with the full list)
 scripts/dev.mjs      local dev server (same (req,res) contract as Vercel)
 scripts/fixture-upstream.mjs   offline fixture upstream for tests only
+scripts/fetch-catalogue.mjs    refresh data/batches.json.gz from the source list
 tests/               jsdom end-to-end tests for every page + API
 legacy/              the Flask document-scanner project that previously lived in this repo
 ```
@@ -87,7 +102,8 @@ legacy/              the Flask document-scanner project that previously lived in
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 25 end-to-end page/API tests (jsdom)
+npm test             # 33 end-to-end page/API tests (jsdom)
+npm run build        # validates the tree + the batch catalogue
 ```
 
 No build step, no dependencies at runtime — the front end is plain ES modules and the API
@@ -132,7 +148,7 @@ sentence the player shows. The chapter page links this sweep next to the lecture
 **https://eduvibe-pw-sepia.vercel.app**
 
 Every page and API route below is running against the live PW catalogue — no fixtures, no
-placeholders. Verified end to end from the deployment itself: catalogue (13,631 batches),
+placeholders. Verified end to end from the deployment itself: catalogue (14,201 batches),
 batch detail with 12 subjects, chapter lists, lecture lists, class-note PDFs, DPPs, the PDF
 relay, and a signed HLS manifest plus its AES key and encrypted segments.
 
@@ -145,7 +161,8 @@ The repository is Vercel-ready:
   tree and runs `scripts/check-modules.mjs` (catches imports a page module forgot to add)
 * functions: `api/*.mjs`, Node runtime, 60 s max duration
 * `cleanUrls` enabled so `/batches.html` is served as `/batches`
-* `.vercelignore` drops `legacy/` and `tests/` but **keeps `scripts/`** (the build needs it)
+* `.vercelignore` drops `legacy/`, `tests/` and the uncompressed catalogue, but **keeps
+  `scripts/` and `data/batches.json.gz`** (the build and `/api/batches` need them)
 
 ```bash
 npm i -g vercel
@@ -158,9 +175,11 @@ vercel --prod
 npm test        # node --test tests/*.test.mjs
 ```
 
-25 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
+33 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
 each page module is executed in jsdom and asserted. Coverage includes page rendering, the
-API contracts, stream planning (rendition fallback and signer failover included), the `GetPdf` note resolution
+API contracts, catalogue completeness (the last page is reachable and a batch the upstream search
+cannot see is findable), stream planning (rendition fallback, signer failover and YouTube embeds
+included), the `GetPdf` note resolution
 path, the `/api/sign` relay (token auth, playlist rewriting, key-path recovery), the no-video
 explanations and the lecture stream bootstrap.
 
