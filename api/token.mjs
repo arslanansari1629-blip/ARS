@@ -1,5 +1,12 @@
 import { cors, json, query } from "../lib/http.mjs";
-import { resolveToken, pwHeaders, tokenState, TOKEN_SOURCES, FALLBACK_TOKEN } from "../lib/pw-auth.mjs";
+import {
+  resolveToken,
+  pwHeaders,
+  tokenState,
+  TOKEN_SOURCES,
+  FALLBACK_TOKEN,
+} from "../lib/pw-auth.mjs";
+import { UPSTREAMS } from "../lib/pw-proxy.mjs";
 
 /**
  * GET /api/token         → token state + which hosts accept it
@@ -77,6 +84,44 @@ async function probe(probe) {
   }
 }
 
+/**
+ * Ask the API whether the current token actually gets stream URLs.
+ *
+ * Every failure message about lectures depends on this distinction: signing
+ * works fine with a guest token, but the schedule record only includes
+ * `videoDetails.videoUrl` for a token that holds the batch. Without this split,
+ * "the API refuses the token" and "this token sees no videos" look identical.
+ */
+async function probeEntitlement(token) {
+  const BATCH = "698ad3519549b300a5e1cc6a";
+  const SUBJECT = "6a6b44faf834f38ed6f9120d";
+  const url = `${UPSTREAMS[0]}/v2/batches/${BATCH}/subject/${SUBJECT}/contents?page=1&contentType=videos`;
+  try {
+    const res = await fetch(url, {
+      headers: pwHeaders(token),
+      signal: AbortSignal.timeout(12000),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return { checked: true, status: res.status, lectures: 0, withVideoUrl: 0, error: `upstream ${res.status}` };
+    }
+    const body = await res.json();
+    const items = Array.isArray(body.data) ? body.data : [];
+    const withUrl = items.filter((i) => (i.videoDetails && i.videoDetails.videoUrl) || i.url);
+    const first = items[0] || {};
+    return {
+      checked: true,
+      status: res.status,
+      lectures: items.length,
+      withVideoUrl: withUrl.length,
+      sampleTitle: (first.videoDetails && first.videoDetails.name) || first.topic || "",
+      sampleVideoUrl: (first.videoDetails && first.videoDetails.videoUrl) || first.url || "",
+    };
+  } catch (err) {
+    return { checked: true, error: err?.message || "probe failed", lectures: 0, withVideoUrl: 0 };
+  }
+}
+
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
@@ -93,6 +138,13 @@ export default async function handler(req, res) {
     .filter((p) => p.host !== "pw-api")
     .some((p) => p.ok && (p.looksLikeKey || p.bytes === 16));
 
+  // Signing and entitlement are two different questions, and conflating them is
+  // what made "no video" so hard to read. A guest token can sign any folder it
+  // is told about — it just never gets told which folder, because the schedule
+  // record only carries a `videoUrl` for tokens that hold the batch. So ask the
+  // catalogue directly: do the lectures in a live batch carry a stream URL?
+  const sample = await probeEntitlement(token);
+
   return json(
     res,
     200,
@@ -108,11 +160,18 @@ export default async function handler(req, res) {
         pinnedByEnv: source.startsWith("env:"),
       },
       probes,
+      entitlement: sample,
       // The headline answer: can this deployment fetch a signed lecture file?
       lectureSigning: signingWorks ? "working" : "unavailable",
-      explain: signingWorks
-        ? "The signer relays accept the token, so lecture playlists, AES keys and segments can be proxied."
-        : "No signer accepted the token. Set PW_TOKEN to a valid PW bearer to restore lecture signing.",
+      // …and can it find out *which* file a lecture is?
+      lecturePlayback:
+        sample.withVideoUrl > 0 ? "working" : signingWorks ? "metadata-only" : "unavailable",
+      explain:
+        sample.withVideoUrl > 0
+          ? "The token sees lecture stream URLs, so lectures resolve and play."
+          : signingWorks
+            ? `The token can sign files, but the API returns no stream URL for these lectures (${sample.sampleTitle || "sample"}), so every lecture resolves as 'not published'. Set PW_TOKEN to a bearer that holds the batch to play them.`
+            : "No signer accepted the token. Set PW_TOKEN to a valid PW bearer to restore lecture signing.",
       checkedAt: new Date().toISOString(),
     },
     0
