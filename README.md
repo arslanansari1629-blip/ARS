@@ -59,6 +59,8 @@ browser ──► /api/batches | /api/batch | /api/contents | /api/lecture | /ap
   * HLS — what every lecture we have checked actually uses — is relayed by `/api/sign`, which
     asks the signing relay for a fresh signed playlist, rewrites the `EXT-X-KEY` and segment
     URIs through itself, and streams the 16-byte AES key and the media segments byte for byte.
+    Its `key=master.m3u8` entry point composes a real master playlist from the renditions that
+    exist, so the player gets levels to switch between instead of one fixed quality.
   * DASH (`master.mpd`) is relayed by `/api/hls`, which rewrites the manifest's `BaseURL`.
     CloudFront will not serve an unsigned `.mpd` (403), and the public signer stores HLS
     renditions only, so a DASH-only lecture cannot be relayed: `/api/sign` answers that
