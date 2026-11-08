@@ -142,6 +142,12 @@ if (!batchId || !subjectSlug || !lectureId) {
 async function boot() {
   showLoading("Preparing your lecture…", "Fetching stream details from Physics Wallah.");
 
+  // Start resolving the stream *before* the metadata call, and await it after.
+  // The schedule endpoint can take several seconds on a cold function; making
+  // the player wait for a title it does not need was most of the time to the
+  // first frame.
+  const stream = startStream();
+
   let detail = null;
   try {
     detail = await loadLecture(batchId, subjectSlug, lectureId);
@@ -176,7 +182,8 @@ async function boot() {
     docCount.textContent = "0";
   }
 
-  await startStream();
+  // The player may already be running; this only waits for it to finish.
+  await stream;
 }
 
 function renderDocs(docs) {
