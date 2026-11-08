@@ -1,6 +1,6 @@
-# EduVibe PW — Physics Wallah batches, notes, DPPs & lectures
+# ArsVibe PW — Physics Wallah batches, notes, DPPs & lectures
 
-A complete, deployed clone of **[pw.eduvibe.cc.cd](https://pw.eduvibe.cc.cd/)** — the EduVibe
+A complete, deployed clone of **[pw.eduvibe.cc.cd](https://pw.eduvibe.cc.cd/)** — the ArsVibe
 "Physics Wallah" learning portal.
 
 Every batch name, subject, chapter list, lecture, class-note PDF, DPP and announcement shown by
@@ -239,7 +239,7 @@ sentence the player shows. The chapter page links this sweep next to the lecture
 
 ## Live deployment
 
-**https://eduvibe-pw-sepia.vercel.app**
+**https://arsvibe-pw-sepia.vercel.app**
 
 Every page and API route below is running against the live PW catalogue — no fixtures, no
 placeholders. Verified end to end from the deployment itself: catalogue (14,201 batches),
@@ -281,5 +281,5 @@ explanations and the lecture stream bootstrap.
 
 * Progress (resume position, recent batches, saved PDFs) is stored in your browser only.
 * Login is local — "Bypass Login" and the Google sheet generate a device-local profile.
-* All lecture content, notes and artwork belong to Physics Wallah / EduVibe; this project is a
+* All lecture content, notes and artwork belong to Physics Wallah / ArsVibe; this project is a
   UI layer that reads their public API.

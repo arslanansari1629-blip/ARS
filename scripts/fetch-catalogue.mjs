@@ -40,7 +40,7 @@ async function download() {
   for (const url of SOURCES) {
     try {
       const res = await fetch(url, {
-        headers: { Accept: "application/json", "User-Agent": "eduvibe-pw-catalogue" },
+        headers: { Accept: "application/json", "User-Agent": "arsvibe-pw-catalogue" },
         signal: AbortSignal.timeout(30000),
       });
       if (!res.ok) {

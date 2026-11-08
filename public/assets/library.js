@@ -1,6 +1,21 @@
 /* Shared local library helpers — recent batches, watch history, downloads */
 
-const KEY = "eduvibe.library";
+/**
+ * The saved-lecture library, migrated from the previous brand name so nobody
+ * loses their bookmarks to a rename.
+ */
+const KEY = (() => {
+  const current = "arsvibe.library";
+  try {
+    if (localStorage.getItem(current) === null) {
+      const legacy = localStorage.getItem("eduvibe.library");
+      if (legacy !== null) localStorage.setItem(current, legacy);
+    }
+  } catch {
+    /* storage unavailable */
+  }
+  return current;
+})();
 
 function read() {
   try {

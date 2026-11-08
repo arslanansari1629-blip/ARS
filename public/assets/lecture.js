@@ -46,6 +46,10 @@ const pipBtn = document.getElementById("pipBtn");
 const fullscreenBtn = document.getElementById("fullscreenBtn");
 const skipBackBtn = document.getElementById("skipBackBtn");
 const skipFwdBtn = document.getElementById("skipFwdBtn");
+const muteBtn = document.getElementById("muteBtn");
+const volumeSlider = document.getElementById("volume");
+const playedBar = document.getElementById("playedBar");
+const bufferedBar = document.getElementById("bufferedBar");
 
 const positionKey = `pos:${lectureId}`;
 /** Where this lecture sits in its chapter, so "next" means the next class. */
@@ -58,7 +62,7 @@ let attempt = 0;
 
 if (titleParam) {
   titleEl.textContent = titleParam;
-  document.title = `${titleParam} — EduVibe PW`;
+  document.title = `${titleParam} — ArsVibe PW`;
 }
 crumbs.innerHTML = `<a href="/">Home</a> <span>/</span>
   <a href="/batch.html?id=${encodeURIComponent(batchId)}">Batch</a> <span>/</span>
@@ -132,7 +136,7 @@ async function boot() {
   if (detail && detail.lecture) {
     const l = detail.lecture;
     titleEl.textContent = l.title || titleParam || "Lecture";
-    document.title = `${l.title} — EduVibe PW`;
+    document.title = `${l.title} — ArsVibe PW`;
     metaEl.textContent = [l.date ? fmtDate(l.date) : "", l.duration, l.topicInfo]
       .filter(Boolean)
       .join(" · ");
@@ -711,7 +715,45 @@ function restorePosition() {
   if (saved > 12) {
     video.currentTime = saved;
     toast(`Resumed at ${formatTime(saved)}`);
+    showResumeChip(saved);
   }
+}
+
+/**
+ * "Continue where you left off", as a visible chip rather than a two-second toast.
+ *
+ * Resuming silently is easy to miss on a two-hour lecture — you look up, the
+ * clock says 1:12:04 and you cannot tell whether it is right. The chip states the
+ * time and gives one tap to go back to the beginning.
+ */
+function showResumeChip(saved) {
+  if (!Number.isFinite(saved) || saved <= 12) return;
+  const chip = document.getElementById("streamHealth");
+  if (!chip) return;
+  chip.textContent = `From ${formatTime(saved)} · restart`;
+  chip.style.display = "";
+  chip.style.cursor = "pointer";
+  chip.title = "Start this lecture from the beginning";
+  chip.addEventListener(
+    "click",
+    () => {
+      video.currentTime = 0;
+      localStorage.removeItem(positionKey);
+      chip.style.display = "none";
+      video.play().catch(() => {});
+    },
+    { once: true }
+  );
+  // Let it fade once the lecture is properly under way.
+  video.addEventListener(
+    "playing",
+    () => {
+      setTimeout(() => {
+        if (chip.textContent.includes("restart")) chip.style.display = "none";
+      }, 6000);
+    },
+    { once: true }
+  );
 }
 
 function formatTime(s) {
@@ -739,7 +781,11 @@ let stallTimer = null;
 function health(text) {
   const chip = document.getElementById("streamHealth");
   if (!chip) return;
+  // The resume chip owns this element until it is dismissed; a buffering blip
+  // must not overwrite it a second after the lecture starts.
+  if (chip.textContent.includes("restart") && chip.style.display !== "none" && text) return;
   if (!text) {
+    if (chip.textContent.includes("restart")) return;
     chip.style.display = "none";
     return;
   }
@@ -785,10 +831,38 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") savePositionNow();
 });
 
+/**
+ * The progress rail: what has been watched, and how far the player has buffered.
+ *
+ * `buffered` can hold several disjoint ranges; the one containing the playhead is
+ * the one that matters, so render that rather than the last range (which is how
+ * the bar used to jump backwards after a seek).
+ */
+function paintProgress() {
+  const duration = Number(video.duration);
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  if (playedBar) playedBar.style.width = `${(video.currentTime / duration) * 100}%`;
+
+  if (bufferedBar && video.buffered && video.buffered.length) {
+    let end = 0;
+    for (let i = 0; i < video.buffered.length; i += 1) {
+      if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) >= video.currentTime) {
+        end = video.buffered.end(i);
+        break;
+      }
+      end = Math.max(end, video.buffered.end(i));
+    }
+    bufferedBar.style.width = `${Math.min(100, (end / duration) * 100)}%`;
+  }
+}
+
 video.addEventListener("timeupdate", () => {
   if (video.currentTime > 5) localStorage.setItem(positionKey, String(Math.floor(video.currentTime)));
   positionLabel.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+  paintProgress();
 });
+video.addEventListener("progress", paintProgress);
+video.addEventListener("seeked", paintProgress);
 
 document.getElementById("restartBtn").addEventListener("click", () => {
   video.currentTime = 0;
@@ -807,6 +881,45 @@ function seekBy(delta) {
 }
 
 skipBackBtn?.addEventListener("click", () => seekBy(-10));
+
+/* ------------------------------- volume ---------------------------------- */
+
+/**
+ * Volume and mute, persisted like speed and quality.
+ *
+ * A lecture is watched across several sittings, often on headphones; having to
+ * re-set the volume every page load was its own small annoyance.
+ */
+function paintVolume() {
+  if (!muteBtn) return;
+  const silent = video.muted || video.volume === 0;
+  const wave = document.getElementById("volWave");
+  const cross = document.getElementById("volMute");
+  if (wave) wave.style.display = silent ? "none" : "";
+  if (cross) cross.style.display = silent ? "" : "none";
+  muteBtn.title = silent ? "Unmute (m)" : "Mute (m)";
+  if (volumeSlider && document.activeElement !== volumeSlider) {
+    volumeSlider.value = String(silent ? 0 : video.volume);
+  }
+}
+
+muteBtn?.addEventListener("click", () => {
+  video.muted = !video.muted;
+  if (!video.muted && video.volume === 0) video.volume = 0.6;
+  paintVolume();
+  setPref("muted", video.muted);
+});
+
+volumeSlider?.addEventListener("input", () => {
+  const value = Number(volumeSlider.value);
+  video.volume = value;
+  // Dragging the slider to a level is an explicit "make sound" instruction.
+  video.muted = value === 0;
+  paintVolume();
+  setPref("volume", value);
+});
+
+video.addEventListener("volumechange", paintVolume);
 skipFwdBtn?.addEventListener("click", () => seekBy(10));
 prevBtn?.addEventListener("click", () => goToLecture(-1));
 nextBtn?.addEventListener("click", () => goToLecture(1));
@@ -888,6 +1001,16 @@ document.getElementById("speed").addEventListener("click", (e) => {
     .forEach((b) => b.classList.toggle("active", b === btn));
   setPref("speed", Number(btn.dataset.speed));
 });
+
+/* Restore the saved volume/mute. Guarded: a corrupt pref must not mute a lecture
+   silently, so anything outside 0..1 falls back to full volume. */
+(() => {
+  const prefs = getPrefs();
+  const savedVolume = Number(prefs.volume);
+  video.volume = Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1 ? savedVolume : 1;
+  video.muted = prefs.muted === true;
+  paintVolume();
+})();
 
 video.playbackRate = Number(getPrefs().speed || 1);
 document.querySelectorAll("#speed button").forEach((b) => {

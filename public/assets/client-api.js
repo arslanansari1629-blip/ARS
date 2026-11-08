@@ -95,7 +95,7 @@ export function normalizeCatalog(json, page = 1) {
     totalPages: (json && json.totalPages) || 1,
     total: (json && json.total) || ((json && json.batches) || []).length,
     batches: ((json && json.batches) || []).map(batch).filter(Boolean),
-    source: "pw-eduvibe (browser relay)",
+    source: "pw-arsvibe (browser relay)",
   };
 }
 

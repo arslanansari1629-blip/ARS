@@ -466,3 +466,24 @@ test("the /api/pw route is only a mount — bare /api/pw reaches the dispatcher"
   assert.equal(docs.statusCode, 200);
   assert.ok(Array.isArray(docs.json().endpoints), "the route swallowed the discovery payload");
 });
+
+test("token expiry comes from the token's own exp claim, not an assumed 10 minutes", async () => {
+  const { tokenExpiry } = await import("../lib/pw-auth.mjs");
+
+  const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const withExp = (minutes) =>
+    `${b64u({ alg: "HS256" })}.${b64u({ exp: Math.floor(Date.now() / 1000) + minutes * 60 })}.sig`;
+
+  const longLived = tokenExpiry(withExp(45));
+  assert.ok(
+    Math.abs(longLived - (Date.now() + 45 * 60 * 1000)) < 5000,
+    "a 45-minute token must be trusted for 45 minutes, not discarded after 10"
+  );
+
+  // An already-expired token must not be treated as usable.
+  assert.ok(tokenExpiry(withExp(-5)) < Date.now(), "an expired token must look expired");
+
+  // Anything unparseable falls back to the assumption rather than throwing.
+  assert.equal(tokenExpiry("not-a-jwt"), 0);
+  assert.equal(tokenExpiry(""), 0);
+});

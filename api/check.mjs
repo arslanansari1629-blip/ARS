@@ -376,7 +376,10 @@ export default async function handler(req, res) {
       return json(res, 400, { success: false, error: "chapter needs batch + subject" });
     }
     const asked = Number.parseInt(limit, 10);
-    const capped = Number.isFinite(asked) && asked > 0 ? Math.min(asked, 12) : SWEEP_LIMIT;
+    // A chapter can hold 26 lectures and verification is the whole point of this
+    // route, so the ceiling is what the function's wall clock allows rather than
+    // an arbitrary 12. Anything still over the cap is reported in `note`.
+    const capped = Number.isFinite(asked) && asked > 0 ? Math.min(asked, 24) : SWEEP_LIMIT;
     return json(res, 200, await sweepChapter({ batch, subject, chapter, base, limit: capped }));
   }
 

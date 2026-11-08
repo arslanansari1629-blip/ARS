@@ -57,7 +57,7 @@ async function load() {
         crumbs.innerHTML = `<a href="/">Home</a> <span>/</span> <a href="/batches.html">Batches</a> <span>/</span>
           <a href="/batch.html?id=${encodeURIComponent(batchId)}" class="truncate">${esc(b.batch.name)}</a> <span>/</span>
           <span>${esc(subjectNameParam || "Subject")}</span>`;
-        document.title = `${subjectNameParam || b.batch.name} — EduVibe PW`;
+        document.title = `${subjectNameParam || b.batch.name} — ArsVibe PW`;
       }
     } catch {
       /* breadcrumb is cosmetic */

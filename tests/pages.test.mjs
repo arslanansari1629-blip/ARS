@@ -349,7 +349,7 @@ test("pdf viewer builds a same-origin media relay URL", async () => {
 test("login page supports bypass login and stores a session", async () => {
   const { doc, window, dom } = await render("/login.html", { waitForSelector: "#bypassBtn" });
   doc.getElementById("bypassBtn").click();
-  const raw = window.localStorage.getItem("eduvibe.session");
+  const raw = window.localStorage.getItem("arsvibe.session");
   assert.ok(raw, "session should be stored");
   const session = JSON.parse(raw);
   assert.ok(session.name && session.email);
@@ -437,4 +437,18 @@ test("hls relay rewrites playlists through the gateway", async () => {
   assert.ok(res.status >= 400, "unreachable host should surface a JSON error");
   const body = await res.json();
   assert.equal(body.success, false);
+});
+
+test("the site is branded ArsVibe and still points at the real upstream host", async () => {
+  const home = await (await nativeFetch(`${BASE}/`)).text();
+
+  assert.match(home, /ArsVibe/, "the brand is missing from the home page");
+  assert.equal(
+    /EduVibe/.test(home.replace(/pw\.eduvibe\.cc\.cd/g, "")),
+    false,
+    "the old brand still appears outside the upstream URL"
+  );
+
+  // The upstream data host is not ours to rename: changing it breaks every fetch.
+  assert.match(home, /pw\.eduvibe\.cc\.cd/, "the upstream source link disappeared");
 });

@@ -1,22 +1,41 @@
 /* =========================================================================
-   EduVibe PW — shared client runtime
+   ArsVibe PW — shared client runtime
    - session ("Bypass Login" / Google-style sign in, stored locally)
    - API helpers with proxy fallback
    - toasts, avatar, nav toggle
    ========================================================================= */
 
 export const SITE = {
-  name: "EduVibe",
+  name: "ArsVibe",
   tag: "PW",
-  title: "Physics Wallah — EduVibe",
+  title: "Physics Wallah — ArsVibe",
   source: "https://pw.eduvibe.cc.cd/",
   // A second, independent player to fall back to when our relay cannot resolve
   // a lecture. It reads the same batch ids from the same PW catalogue.
   fallbackPlayer: "https://vidcloud.eu.org/",
-  telegram: "https://t.me/EduVibe_Main",
+  telegram: "https://t.me/ArsVibe_Main",
 };
 
-const SESSION_KEY = "eduvibe.session";
+/**
+ * localStorage keys, with a one-time migration from the previous brand.
+ *
+ * Renaming the site must not wipe anyone's saved session, preferences or
+ * lecture library: the old key is read once, copied to the new name, and the
+ * value is left in place so a rollback still finds it.
+ */
+function migrateKey(newKey, oldKey) {
+  try {
+    if (localStorage.getItem(newKey) === null) {
+      const legacy = localStorage.getItem(oldKey);
+      if (legacy !== null) localStorage.setItem(newKey, legacy);
+    }
+  } catch {
+    /* private mode / storage disabled — nothing to migrate */
+  }
+  return newKey;
+}
+
+const SESSION_KEY = migrateKey("arsvibe.session", "eduvibe.session");
 const RELAY = (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`;
 
 /* --------------------------------- session -------------------------------- */
@@ -46,7 +65,7 @@ export function signInBypass() {
   }`;
   setSession({
     name,
-    email: "student@eduvibe.local",
+    email: "student@arsvibe.local",
     provider: "instant",
     joinedAt: Date.now(),
   });
@@ -56,7 +75,7 @@ export function signInBypass() {
 export function signInWithEmail(name, email) {
   setSession({
     name: name || (email || "").split("@")[0] || "Student",
-    email: email || "student@eduvibe.local",
+    email: email || "student@arsvibe.local",
     provider: "google",
     joinedAt: Date.now(),
   });
@@ -79,7 +98,7 @@ export function initials(name) {
 
 /* ------------------------------- local prefs ------------------------------ */
 
-const PREFS_KEY = "eduvibe.prefs";
+const PREFS_KEY = migrateKey("arsvibe.prefs", "eduvibe.prefs");
 export function getPrefs() {
   try {
     return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") || {};

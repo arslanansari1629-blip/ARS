@@ -847,3 +847,68 @@
     text-align: center;
   }
 }
+
+/* --------------------------- player additions ---------------------------- */
+
+/* A thin progress rail above the control bar: buffered-ahead is the pale band,
+   watched is the accent. It is decorative — the <video controls> timeline stays
+   the accessible, keyboard-driven control. */
+.player-progress {
+  position: relative;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.player-progress-played,
+.player-progress-buffered {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  transition: width 0.2s linear;
+}
+
+.player-progress-buffered {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.player-progress-played {
+  background: var(--gradient);
+}
+
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 72px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  outline: none;
+  cursor: pointer;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  /* The volume slider is the first thing to go: phones have hardware volume. */
+  .volume-slider {
+    display: none;
+  }
+}

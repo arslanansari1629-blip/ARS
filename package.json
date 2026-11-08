@@ -1,9 +1,9 @@
 {
-  "name": "eduvibe-pw-clone",
+  "name": "arsvibe-pw-clone",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "EduVibe PW — Physics Wallah batches, notes, DPPs and lecture player (live data proxied from the EduVibe PW source)",
+  "description": "ArsVibe PW — Physics Wallah batches, notes, DPPs and lecture player (live data proxied from the ArsVibe PW source)",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",

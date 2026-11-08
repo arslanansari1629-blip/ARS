@@ -42,7 +42,7 @@ function initials(name) {
 }
 
 function renderDetail() {
-  document.title = `${batch.name} — EduVibe PW`;
+  document.title = `${batch.name} — ArsVibe PW`;
   crumbName.textContent = batch.name;
   if (batch.image) detailBg.style.backgroundImage = `url("${batch.image}")`;
 

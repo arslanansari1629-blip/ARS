@@ -138,7 +138,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`EduVibe PW running → http://${HOST}:${PORT}`);
+  console.log(`ArsVibe PW running → http://${HOST}:${PORT}`);
 });
 
 process.on("SIGTERM", () => server.close(() => process.exit(0)));

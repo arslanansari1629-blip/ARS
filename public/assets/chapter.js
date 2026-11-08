@@ -21,7 +21,7 @@ const cache = new Map();
 
 if (chapterName) {
   chapterNameEl.textContent = chapterName;
-  document.title = `${chapterName} — EduVibe PW`;
+  document.title = `${chapterName} — ArsVibe PW`;
 }
 
 if (!batchId || !subjectSlug || !chapterId) {
