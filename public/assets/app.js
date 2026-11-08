@@ -10,6 +10,9 @@ export const SITE = {
   tag: "PW",
   title: "Physics Wallah — EduVibe",
   source: "https://pw.eduvibe.cc.cd/",
+  // A second, independent player to fall back to when our relay cannot resolve
+  // a lecture. It reads the same batch ids from the same PW catalogue.
+  fallbackPlayer: "https://vidcloud.eu.org/",
   telegram: "https://t.me/EduVibe_Main",
 };
 

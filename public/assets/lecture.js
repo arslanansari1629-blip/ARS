@@ -3,6 +3,7 @@
 import {
   api,
   mountChrome,
+  SITE,
   esc,
   qs,
   toast,
@@ -39,6 +40,9 @@ const sourceLink = document.getElementById("sourceLink");
 
 const positionKey = `pos:${lectureId}`;
 
+/** Automatic retries left for a transient stream failure (rate limiting). */
+let retriesLeft = 2;
+
 if (titleParam) {
   titleEl.textContent = titleParam;
   document.title = `${titleParam} — EduVibe PW`;
@@ -69,6 +73,13 @@ function showLoading(title, text) {
   overlayText.textContent = text;
   spinner.style.display = "block";
   overlayActions.innerHTML = "";
+}
+
+/** Deep link to the server-side playback self-test for this lecture. */
+function checkUrl() {
+  return `/api/check?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
+    subjectSlug
+  )}&id=${encodeURIComponent(lectureId)}`;
 }
 
 /* ------------------------------- loaders -------------------------------- */
@@ -157,7 +168,7 @@ async function startStream() {
           "No video published",
           "This class has no released video yet — open the source player to check again later.",
           false,
-          `<a class="btn btn-primary" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Open source player</a>`
+          `<a class="btn btn-primary" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
         );
       }
       plan = await api(`/api/stream?url=${encodeURIComponent(rawUrl)}`);
@@ -167,16 +178,23 @@ async function startStream() {
       "Stream unavailable",
       err.message || "The stream service did not respond.",
       true,
-      `<a class="btn btn-primary" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Watch on source</a>`
+      `<a class="btn btn-primary" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Watch on source</a>`
     );
+  }
+
+  // Upstream signing is intermittently rate-limited. A transient failure is
+  // worth retrying on its own before showing the user anything.
+  if (plan && !plan.playable && plan.retryAfter && retriesLeft > 0) {
+    retriesLeft -= 1;
+    showLoading("Reconnecting…", "The stream service is catching up. Trying again.");
+    await new Promise((r) => setTimeout(r, plan.retryAfter * 1000));
+    return startStream();
   }
 
   if (!plan || !plan.playable || !plan.url) {
     const reason =
       (plan && plan.reason) || "PW has not published a playable stream for this lecture yet.";
-    const check = `/api/check?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
-      subjectSlug
-    )}&id=${encodeURIComponent(lectureId)}`;
+    const check = checkUrl();
     const notesHint =
       plan && plan.lecture && plan.lecture.hasNotes
         ? " The class notes and DPPs for this lecture are available in the list below."
@@ -196,24 +214,50 @@ async function startStream() {
   attachPlayer(plan);
 }
 
-function loadOne(src) {
+/**
+ * Load one script, but never wait forever.
+ *
+ * A CDN that is blocked by a firewall does not always fire `onerror` — the
+ * request simply hangs, and the player would sit on "Starting playback…"
+ * indefinitely. Time out and let the next CDN (or the native fallback) try.
+ */
+function loadOne(src, timeoutMs = 8000) {
   return new Promise((resolve, reject) => {
     if (document.querySelector(`script[src="${src}"]`)) return resolve();
     const s = document.createElement("script");
+    let settled = false;
+    const finish = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(arg);
+    };
+    const timer = setTimeout(() => {
+      s.remove();
+      finish(reject, new Error(`Timed out loading ${src}`));
+    }, timeoutMs);
     s.src = src;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error(`Failed to load ${src}`));
+    s.onload = () => finish(resolve);
+    s.onerror = () => finish(reject, new Error(`Failed to load ${src}`));
     document.head.appendChild(s);
   });
 }
 
-/** Load the first CDN that answers — a blocked CDN must not stop playback. */
-async function loadScript(sources) {
+/**
+ * Load the first CDN that answers — a blocked CDN must not stop playback.
+ *
+ * There is an overall budget as well as a per-source one: sitting on a spinner
+ * for 3 × 8 s while three CDNs hang is indistinguishable from a broken site.
+ */
+async function loadScript(sources, budgetMs = 9000) {
   const list = Array.isArray(sources) ? sources : [sources];
+  const deadline = Date.now() + budgetMs;
   let lastError = null;
   for (const src of list) {
+    const remaining = deadline - Date.now();
+    if (remaining < 500) break;
     try {
-      await loadOne(src);
+      await loadOne(src, Math.min(6000, remaining));
       return;
     } catch (err) {
       lastError = err;
@@ -222,43 +266,122 @@ async function loadScript(sources) {
   throw lastError || new Error("Failed to load the player library");
 }
 
+/* ------------------------------- playback -------------------------------- */
+
+// Guarded: a stale cached copy of this module must never break the player just
+// because the markup predates the quality picker.
+const qualitySelect = document.getElementById("quality");
+
+/** Everything needed to retry a stream without re-resolving the lecture. */
+let currentPlan = null;
+let hls = null;
+let dash = null;
+
+/** Recoverable hls.js failures are almost always a stale or throttled segment. */
+const MAX_RECOVERIES = 4;
+
+function resetQuality() {
+  if (!qualitySelect) return;
+  qualitySelect.innerHTML = `<option value="-1">Auto</option>`;
+  qualitySelect.style.display = "none";
+}
+
+function showQuality(levels) {
+  if (!qualitySelect) return;
+  if (!levels.length) return resetQuality();
+  qualitySelect.innerHTML = `<option value="-1">Auto</option>${levels
+    .map((l) => `<option value="${l.height}">${l.height}p</option>`)
+    .join("")}`;
+  qualitySelect.style.display = "";
+}
+
 async function attachPlayer(plan) {
+  currentPlan = plan;
   showLoading("Stream ready", "Starting playback…");
 
+  // Layout metrics arrive one event after the player starts; hide the overlay
+  // on the first frame the browser can actually paint.
   const markReady = () => {
     overlay.style.display = "none";
     restorePosition();
   };
+  video.addEventListener("loadedmetadata", markReady);
+  video.addEventListener("playing", markReady);
+  setTimeout(markReady, 9000);
+
+  // Native error handler: retry the same plan before asking for a new one.
+  video.addEventListener(
+    "error",
+    () => {
+      showMessage(
+        "Playback error",
+        "This stream could not be opened. Retry to fetch a fresh link, or run the playback check to see which step failed.",
+        true,
+        `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
+         <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>
+         <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Source player</a>`
+      );
+      document.getElementById("retryStreamBtn")?.addEventListener("click", () => startStream());
+    },
+    { once: false }
+  );
 
   try {
+    destroyPlayers();
+
     if (plan.kind === "hls" || plan.engine === "hls") {
-      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      if (video.canPlayType("application/vnd.apple.mpegurl") && !window.Hls) {
+        // Safari / iOS plays HLS natively.
         video.src = plan.url;
+        showQuality([]);
       } else {
-        await loadScript([
-          "https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js",
-          "https://unpkg.com/hls.js@1.5.17/dist/hls.min.js",
-          "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js",
-        ]);
-        if (!window.Hls || !window.Hls.isSupported()) throw new Error("HLS is not supported here");
-        const hls = new window.Hls({ maxBufferLength: 30 });
-        // a fatal network/media error would otherwise kill playback for good:
-        // recover in place, and only fall back to the message after retries
+        // A blocked CDN must not kill the lecture: if hls.js cannot load, hand
+        // the manifest to the browser and let it try natively.
+        try {
+          await loadScript([
+            "https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js",
+            "https://unpkg.com/hls.js@1.5.17/dist/hls.min.js",
+            "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js",
+          ]);
+        } catch (err) {
+          video.src = plan.url;
+          showQuality([]);
+          video.play().catch(() => {});
+          return;
+        }
+        if (!window.Hls || !window.Hls.isSupported()) {
+          // Same idea: Firefox without MSE-HLS still deserves a native attempt.
+          video.src = plan.url;
+          showQuality([]);
+          video.play().catch(() => {});
+          return;
+        }
+
+        hls = new window.Hls({
+          maxBufferLength: 30,
+          // A lecture is a 2-hour VOD: start low and switch up instead of
+          // stalling for ten seconds on the first segment.
+          startLevel: -1,
+          manifestLoadingTimeOut: 20000,
+          manifestLoadingMaxRetry: 4,
+          levelLoadingTimeOut: 20000,
+          levelLoadingMaxRetry: 4,
+          fragLoadingTimeOut: 30000,
+          fragLoadingMaxRetry: 6,
+        });
+
         let recovered = 0;
         hls.on(window.Hls.Events.ERROR, (_evt, data) => {
           if (!data || !data.fatal) return;
-          if (recovered >= 2) {
+          if (recovered >= MAX_RECOVERIES) {
             showMessage(
-              "Playback error",
-              "The stream link may have expired. Reload the page to fetch a fresh link.",
+              "Playback stopped",
+              "The stream kept dropping. Retry to reconnect — your position is saved.",
               true,
               `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
-               <button class="btn btn-ghost" id="reloadBtn">Reload</button>`
+               <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>`
             );
-            const r = document.getElementById("retryStreamBtn");
-            if (r) r.addEventListener("click", () => startStream());
-            const l = document.getElementById("reloadBtn");
-            if (l) l.addEventListener("click", () => location.reload());
+            document.getElementById("retryStreamBtn")?.addEventListener("click", () => startStream());
             return;
           }
           recovered += 1;
@@ -266,8 +389,21 @@ async function attachPlayer(plan) {
             hls.startLoad();
           } else if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
             hls.recoverMediaError();
+          } else if (window.Hls.ErrorTypes.KEY_SYSTEM_ERROR) {
+            // A fresh token usually fixes key/segment 401s.
+            hls.startLoad();
           }
         });
+
+        hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+          showQuality((hls.levels || []).map((l) => ({ height: l.height || 0 })));
+        });
+        hls.on(window.Hls.Events.LEVEL_SWITCHED, (_e, data) => {
+          if (!hls || !qualitySelect || qualitySelect.value !== "-1") return;
+          const level = hls.levels && hls.levels[data.level];
+          if (level) qualitySelect.dataset.playing = String(level.height || "");
+        });
+
         hls.loadSource(plan.url);
         hls.attachMedia(video);
         window.__hls = hls;
@@ -278,42 +414,75 @@ async function attachPlayer(plan) {
         "https://unpkg.com/dashjs@4.7.4/dist/dash.all.min.js",
       ]);
       if (!window.dashjs) throw new Error("DASH is not supported here");
-      const player = window.dashjs.MediaPlayer().create();
-      player.initialize(video, plan.url, false);
-      window.__dash = player;
+      dash = window.dashjs.MediaPlayer().create();
+      dash.initialize(video, plan.url, false);
+      window.__dash = dash;
+      showQuality([]);
     } else {
       video.src = plan.url;
+      showQuality([]);
     }
 
-    video.addEventListener("loadeddata", markReady, { once: true });
-    video.addEventListener(
-      "error",
-      () => {
-        // A reload re-downloads the whole page to get a fresh signed link; asking
-        // for a new plan is enough and keeps the user's place in the lecture.
-        showMessage(
-          "Playback error",
-          "This stream could not be opened. Retry to fetch a fresh link, or run the playback check to see which step failed.",
-          true,
-          `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
-           <a class="btn btn-ghost" href="/api/check?batch=${encodeURIComponent(
-             batchId
-           )}&subject=${encodeURIComponent(subjectSlug)}&id=${encodeURIComponent(lectureId)}" target="_blank" rel="noopener">Playback check</a>
-           <a class="btn btn-ghost" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Source player</a>`
-        );
-        const retryBtn = document.getElementById("retryStreamBtn");
-        if (retryBtn) retryBtn.addEventListener("click", () => startStream());
-      },
-      { once: true }
-    );
-
-    setTimeout(markReady, 9000);
-    video.play().catch(() => {});
+    // Autoplay may be blocked; a muted retry is better than a black frame.
+    video.play().catch(() => {
+      video.muted = true;
+      video.play().catch(() => {});
+    });
   } catch (err) {
-    showMessage("Playback not supported", err.message, true, `
-      <a class="btn btn-primary" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Open source player</a>`);
+    showMessage(
+      "Playback not supported",
+      err.message || "This browser could not start the player.",
+      true,
+      `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
+       <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
+    );
+    document.getElementById("retryStreamBtn")?.addEventListener("click", () => startStream());
   }
 }
+
+function destroyPlayers() {
+  if (hls) {
+    try {
+      hls.destroy();
+    } catch {}
+    hls = null;
+    window.__hls = null;
+  }
+  if (dash) {
+    try {
+      dash.reset();
+    } catch {}
+    dash = null;
+    window.__dash = null;
+  }
+  resetQuality();
+}
+
+qualitySelect?.addEventListener("change", () => {
+  const height = Number(qualitySelect.value);
+  if (hls && Array.isArray(hls.levels)) {
+    // levels are ordered lowest → highest; pick the closest match
+    if (height === -1) {
+      hls.currentLevel = -1;
+      return;
+    }
+    let best = -1;
+    let delta = Infinity;
+    hls.levels.forEach((l, i) => {
+      const d = Math.abs((l.height || 0) - height);
+      if (d < delta) {
+        delta = d;
+        best = i;
+      }
+    });
+    hls.currentLevel = best;
+  } else if (dash && dash.getBitrateInfoListFor) {
+    const list = dash.getBitrateInfoListFor("video") || [];
+    const target = height === -1 ? -1 : list.findIndex((b) => Math.abs((b.height || 0) - height) < 1);
+    dash.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: height === -1 } } } });
+    if (target >= 0) dash.setQualityFor("video", target, true);
+  }
+});
 
 /* ------------------------------ position/speed --------------------------- */
 
@@ -331,6 +500,25 @@ function formatTime(s) {
   const sec = Math.floor(s % 60);
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
+
+/**
+ * Surface stream trouble while it happens. A lecture that silently stalls looks
+ * like a broken site; a "reconnecting" chip plus a saved position does not.
+ */
+let stalls = 0;
+video.addEventListener("waiting", () => {
+  stalls += 1;
+  if (stalls < 3) return;
+  const chip = document.getElementById("streamHealth");
+  if (chip) {
+    chip.textContent = "Reconnecting…";
+    chip.style.display = "";
+  }
+});
+video.addEventListener("playing", () => {
+  const chip = document.getElementById("streamHealth");
+  if (chip) chip.style.display = "none";
+});
 
 video.addEventListener("timeupdate", () => {
   if (video.currentTime > 5) localStorage.setItem(positionKey, String(Math.floor(video.currentTime)));
@@ -357,8 +545,6 @@ document.querySelectorAll("#speed button").forEach((b) => {
   b.classList.toggle("active", Number(b.dataset.speed) === video.playbackRate);
 });
 
-document.addEventListener("click", (e) => {
-  if (e.target.id === "retryBtn") location.reload();
-});
-
-sourceLink.href = `https://pw.eduvibe.cc.cd/`;
+// "Source player" opens the mirror with the batch pre-selected when supported.
+sourceLink.href = SITE.fallbackPlayer;
+sourceLink.textContent = "Open in vidcloud";

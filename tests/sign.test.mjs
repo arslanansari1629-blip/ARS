@@ -227,3 +227,81 @@ test("/api/sign recovers the real AES key path from a relay-rewritten key URI", 
   assert.match(res.body, /key=720%2Fenc\.key/, "AES key must stay 720/enc.key");
   assert.ok(!res.body.includes("get-hls-key"), "relay endpoint must not leak into the key path");
 });
+
+test("/api/sign streams a media segment through as opaque bytes", async () => {
+  const { default: handler } = await import("../api/sign.mjs");
+  const res = fakeRes();
+
+  // 0x47 is the MPEG-TS sync byte — a segment must never be decoded as text.
+  const segment = Buffer.from([0x47, 0x40, 0x11, 0x10, 0x00, 0x42, 0xf0, 0x25, 0x00, 0xff]);
+
+  await withFetch(
+    async (url) => {
+      if (String(url).includes("generate_token")) {
+        return new Response("guest-token-value-123456", { status: 200 });
+      }
+      if (String(url).includes("get-hls-key")) {
+        return new Response(segment, {
+          status: 200,
+          headers: { "content-type": "application/octet-stream" },
+        });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () =>
+      handler(
+        {
+          method: "GET",
+          url: `/api/sign?videoKey=${FOLDER}&key=720%2F000.ts`,
+          headers: { host: "example.test", "x-forwarded-proto": "https" },
+        },
+        res
+      )
+  );
+
+  assert.equal(res.statusCode, 200);
+  const out = Buffer.concat(res.chunks);
+  assert.equal(out[0], 0x47, "the MPEG-TS sync byte must survive the relay");
+  assert.equal(out.length, segment.length, "segment bytes must not be altered");
+  assert.match(res.headers["cache-control"], /max-age=3600/);
+});
+
+test("/api/sign fetches a fresh token when a segment fails with 401", async () => {
+  const { default: handler } = await import("../api/sign.mjs");
+  const res = fakeRes();
+  const tokens = [];
+  let calls = 0;
+
+  await withFetch(
+    async (url, opts = {}) => {
+      if (String(url).includes("generate_token")) {
+        return new Response(`guest-token-value-${Math.random().toString(16).slice(2, 8)}`, {
+          status: 200,
+        });
+      }
+      if (String(url).includes("get-hls-key")) {
+        calls += 1;
+        tokens.push((opts.headers || {}).token);
+        // first attempt: expired token — the relay must retry with a new one
+        if (calls === 1) return new Response("expired", { status: 401 });
+        return new Response(Buffer.from([0x47, 0x40, 0x11]), {
+          status: 200,
+          headers: { "content-type": "video/mp2t" },
+        });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () =>
+      handler(
+        {
+          method: "GET",
+          url: `/api/sign?videoKey=${FOLDER}&key=enc.key`,
+          headers: { host: "example.test", "x-forwarded-proto": "https" },
+        },
+        res
+      )
+  );
+
+  assert.equal(res.statusCode, 200, "an expired token must not fail the segment");
+  assert.ok(calls >= 2, "the relay should retry after a 401");
+});

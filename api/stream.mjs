@@ -106,16 +106,22 @@ export default async function handler(req, res) {
 
     const plan = await resolveStream({ rawUrl, folder: folderHint || parseFolder(rawUrl) });
 
+    // The schedule succeeded but no rendition answered: upstream signing is
+    // usually rate-limited for a few seconds, not permanently broken, so say
+    // so and tell the player it may retry instead of dead-ending the lecture.
+    if (!plan.playable && !plan.retryAfter) plan.retryAfter = 6;
+
     return json(
       res,
       200,
       {
         success: true,
         ...plan,
+        // Playback plans carry a live signed path, so they must never be cached.
         resolvedFrom: rawUrl,
         ...(detail ? { lecture: detail } : {}),
       },
-      60
+      0
     );
   } catch (err) {
     return json(res, 200, {

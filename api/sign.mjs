@@ -3,6 +3,7 @@ import { guestToken } from "../lib/api-data.mjs";
 
 /**
  * GET /api/sign?host=<signer>&videoKey=<folder>&key=720/main.m3u8
+ * GET /api/sign?videoKey=<folder>&key=720/000.ts      (segment / AES key)
  *
  * Relays the upstream PW "get-hls-key" signing service. It returns a freshly
  * signed CloudFront playlist / segment / AES key for a video folder, which lets
@@ -11,18 +12,30 @@ import { guestToken } from "../lib/api-data.mjs";
  * The signer relays are PW partner APIs: they require an anonymous guest token
  * (Authorization: Bearer … plus a `token` header). Without it they answer 401,
  * which is why every signer below is tried with the same credential set.
+ *
+ * What makes playback reliable here:
+ *   • a *fresh* guest token per attempt — a cached token can expire mid-lecture
+ *     and would otherwise fail every segment for the rest of the session;
+ *   • several signer hosts per key, because a single relay is regularly down;
+ *   • retries for key/segment fetches, which are the two requests a player makes
+ *     hundreds of times and cannot recover from on its own;
+ *   • binary responses streamed through untouched (a `.ts` is not text, and
+ *     deciding that from `content-type` is how playlists get corrupted).
  */
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 const FALLBACK_SIGNERS = [
-  "https://api.studyspark.study/api/penpencil/v1/videos/get-hls-key",
   "https://vidcloud.eu.org/api/v1/videos/get-hls-key",
+  "https://api.studyspark.study/api/penpencil/v1/videos/get-hls-key",
   "https://www.learnxpw.site/api/v1/videos/get-hls-key",
 ];
 
 /** Quality order used when the caller does not name a rendition. */
 const QUALITIES = ["720", "480", "360", "240"];
+
+/** Requests the player repeats constantly — worth retrying before giving up. */
+const RETRYABLE = /(enc\.key|\/\d+\.(ts|m4s)|init\.mp4|\.mp4$)/i;
 
 function signerHeaders(token) {
   return {
@@ -44,6 +57,27 @@ async function fetchSigned(signer, videoKey, key, token) {
   });
 }
 
+/** Send upstream bytes straight through — never buffer a video segment. */
+async function pipe(res, upstream, cache) {
+  res.statusCode = 200;
+  res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/octet-stream");
+  res.setHeader("Cache-Control", cache);
+  const length = upstream.headers.get("content-length");
+  if (length) res.setHeader("Content-Length", length);
+
+  if (!upstream.body) {
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    return res.end(buffer);
+  }
+  const reader = upstream.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    res.write(Buffer.from(value));
+  }
+  res.end();
+}
+
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
@@ -59,55 +93,64 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ success: false, error: "videoKey is required" }));
   }
 
-  const signers = hostParam ? [hostParam, ...FALLBACK_SIGNERS.filter((s) => s !== hostParam)] : FALLBACK_SIGNERS;
-  const token = await guestToken();
+  const signers = hostParam
+    ? [hostParam, ...FALLBACK_SIGNERS.filter((s) => s !== hostParam)]
+    : FALLBACK_SIGNERS;
 
   // Resolve the rendition master playlist when the caller does not pin one.
   const keys = key ? [key] : QUALITIES.map((q) => `${q}/main.m3u8`);
 
-  for (const candidate of keys) {
-    for (const signer of signers) {
-      let upstream;
-      try {
-        upstream = await fetchSigned(signer, videoKey, candidate, token);
-      } catch {
-        continue;
-      }
-      if (!upstream.ok) continue;
+  // A segment/key request is binary: keep the first signer that answers and
+  // never try to parse it as a playlist.
+  const binary = !/\.(m3u8|mpd)$/i.test(key);
+  const rounds = binary && RETRYABLE.test(key) ? 2 : 1;
+  let lastReason = "no signer answered";
+  let tried = 0;
 
-      const contentType = (upstream.headers.get("content-type") || "").toLowerCase();
-      const looksLikePlaylist = /\.(m3u8|mpd)$/i.test(candidate);
-      const declaredText = /json|html|text\/|xml|mpegurl|dash/i.test(contentType);
+  for (let round = 0; round < rounds; round++) {
+    // Ask for a token per round: a stale cache is the most common cause of a
+    // lecture that stops playing halfway through.
+    const token = await guestToken(round > 0);
 
-      // A playlist can arrive with almost any content-type, so read it as text
-      // whenever either the requested path or the response type says so.
-      if (looksLikePlaylist || declaredText) {
-        const text = await upstream.text();
-        if (text.includes("#EXTM3U") || text.includes("<MPD")) {
-          res.statusCode = 200;
-          res.setHeader(
-            "Content-Type",
-            text.includes("#EXTM3U") ? "application/vnd.apple.mpegurl" : "application/dash+xml"
-          );
-          res.setHeader("Cache-Control", "no-store");
-          return res.end(rewritePlaylist(text, req, videoKey, candidate));
+    for (const candidate of keys) {
+      for (const signer of signers) {
+        tried += 1;
+        let upstream;
+        try {
+          upstream = await fetchSigned(signer, videoKey, candidate, token);
+        } catch (err) {
+          lastReason = err?.name === "TimeoutError" ? "signer timed out" : "signer unreachable";
+          continue;
         }
-        // JSON / HTML / error body — try the remaining signers.
-        continue;
-      }
+        if (!upstream.ok) {
+          lastReason = `signer answered ${upstream.status}`;
+          continue;
+        }
 
-      // Binary payload (AES key or a media segment) — pass it through untouched.
-      res.statusCode = 200;
-      res.setHeader("Content-Type", contentType || "application/octet-stream");
-      res.setHeader("Cache-Control", "public, max-age=300");
-      if (!upstream.body) return res.end();
-      const reader = upstream.body.getReader();
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(Buffer.from(value));
+        const contentType = (upstream.headers.get("content-type") || "").toLowerCase();
+        const looksLikePlaylist = /\.(m3u8|mpd)$/i.test(candidate);
+        const declaredText = /json|html|text\/|xml|mpegurl|dash/i.test(contentType);
+
+        // A playlist can arrive with almost any content-type, so read it as text
+        // whenever either the requested path or the response type says so.
+        if (looksLikePlaylist || declaredText) {
+          const text = await upstream.text();
+          if (text.includes("#EXTM3U") || text.includes("<MPD")) {
+            res.statusCode = 200;
+            res.setHeader(
+              "Content-Type",
+              text.includes("#EXTM3U") ? "application/vnd.apple.mpegurl" : "application/dash+xml"
+            );
+            res.setHeader("Cache-Control", "no-store");
+            return res.end(rewritePlaylist(text, req, videoKey, candidate));
+          }
+          lastReason = "signer returned a non-playlist body";
+          continue;
+        }
+
+        // Binary payload: AES key, encryption init segment or a media segment.
+        return pipe(res, upstream, binary ? "public, max-age=3600" : "public, max-age=300");
       }
-      return res.end();
     }
   }
 
@@ -118,6 +161,8 @@ export default async function handler(req, res) {
       success: false,
       error:
         "No signing service accepted this lecture right now. PW only publishes some lectures; try another lecture or use the source player.",
+      reason: lastReason,
+      tried,
     })
   );
 }

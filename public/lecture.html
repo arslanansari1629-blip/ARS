@@ -61,6 +61,11 @@
               <button data-speed="1.5">1.5×</button>
               <button data-speed="2">2×</button>
             </div>
+            <select class="quality-select" id="quality" title="Video quality" aria-label="Video quality"
+              style="background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:999px;font-size:.72rem;font-weight:700;padding:.3rem .5rem">
+              <option value="-1">Auto</option>
+            </select>
+            <span class="badge-soon" id="streamHealth" style="display:none">Reconnecting…</span>
             <span class="tiny dim" id="positionLabel" style="margin-left:auto"></span>
             <a class="btn btn-ghost btn-sm" id="sourceLink" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Source player</a>
           </div>

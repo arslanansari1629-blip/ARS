@@ -255,7 +255,48 @@ test("lecture page bootstraps a stream plan instead of erroring", async () => {
     /Starting playback|Stream ready|Stream not published|Playback not supported|No video published/,
     `overlay never received a plan: ${panel}`
   );
+
+  // The player must actually be wired to the plan: either the native source or
+  // an injected hls/dash instance, never an empty <video> behind a hidden
+  // overlay (that is what "the video never plays" looked like to users).
+  //
+  // jsdom cannot load the hls.js CDN, so the module must fall back to a native
+  // source on its own — that fallback is the behaviour under test, and it is
+  // what keeps a lecture playable when a CDN is blocked in the browser too.
+  const video = doc.getElementById("video");
+  const mediaDeadline = Date.now() + 20000;
+  while (Date.now() < mediaDeadline) {
+    const src = video.getAttribute("src") || "";
+    const attached = Boolean(doc.defaultView.__hls || doc.defaultView.__dash);
+    if (attached || src.includes("/api/sign") || src.includes("/api/stream")) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const finalSrc = video.getAttribute("src") || "";
+  assert.ok(
+    doc.defaultView.__hls ||
+      doc.defaultView.__dash ||
+      finalSrc.includes("/api/sign") ||
+      finalSrc.includes("/api/stream"),
+    `no media was attached to the player (src=${finalSrc || "empty"})`
+  );
   dom.window.close();
+});
+
+test("the lecture player ships quality control and recovery", async () => {
+  const res = await nativeFetch(
+    `${BASE}/assets/lecture.js`
+  );
+  const source = await res.text();
+
+  // Regression guards for the playback path.
+  assert.match(source, /#EXTM3U|Hls\.Events\.MANIFEST_PARSED/, "hls.js setup is missing");
+  assert.match(source, /recoverMediaError|startLoad\(\)/, "no hls.js error recovery");
+  assert.match(source, /data-speed/, "speed control binding is missing");
+  assert.match(source, /id="quality"|getElementById\("quality"\)/, "quality picker is missing");
+  assert.ok(
+    !/location\.reload\(\)/.test(source),
+    "playback failures must re-resolve the stream, not reload the page"
+  );
 });
 
 test("pdf viewer builds a same-origin media relay URL", async () => {
