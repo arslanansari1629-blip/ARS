@@ -135,12 +135,27 @@ function rewritePlaylist(text, req, videoKey, requestedKey) {
   const relay = (childKey) =>
     `${base}/api/sign?videoKey=${encodeURIComponent(videoKey)}&key=${encodeURIComponent(childKey)}`;
 
-  /** Reduce a playlist reference to the `[<rendition>/]<file>` form the signer wants. */
+  /**
+   * Reduce a playlist reference to the `[<rendition>/]<file>` form the signer
+   * wants.
+   *
+   * Some relays already rewrite the AES key URI into their own endpoint
+   * (`…/get-hls-key?videoKey=…&key=720/enc.key`). For those the real key path
+   * lives in the `key` query parameter — taking the URL's last two path
+   * segments would yield a useless `videos/get-hls-key`.
+   */
   const toKey = (ref) => {
-    const clean = String(ref).split("?")[0];
+    const raw = String(ref);
+    const qIndex = raw.indexOf("?");
+    if (qIndex !== -1) {
+      const params = new URLSearchParams(raw.slice(qIndex + 1));
+      const inner = params.get("key");
+      if (inner) return inner;
+    }
+    const clean = qIndex === -1 ? raw : raw.slice(0, qIndex);
     const rel = clean.replace(/^https?:\/\/[^/]+\//, "");
     const parts = rel.split("/").filter(Boolean);
-    if (!parts.length) return ref;
+    if (!parts.length) return raw;
     if (parts.length === 1) return rendition ? `${rendition}/${parts[0]}` : parts[0];
     return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
   };

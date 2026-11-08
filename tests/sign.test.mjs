@@ -183,3 +183,47 @@ test("/api/sign requires a videoKey", async () => {
   assert.equal(res.statusCode, 400);
   assert.equal(JSON.parse(res.body).success, false);
 });
+
+test("/api/sign recovers the real AES key path from a relay-rewritten key URI", async () => {
+  const { default: handler } = await import("../api/sign.mjs");
+  const res = fakeRes();
+
+  // A signing relay may already rewrite URI="..." to its own endpoint; the real
+  // key path then lives in the `key` query parameter, not in the URL path.
+  const playlist = [
+    "#EXTM3U",
+    '#EXT-X-KEY:METHOD=AES-128,URI="/api/v1/videos/get-hls-key?videoKey=x&key=720/enc.key",IV=0x0000',
+    "#EXTINF:10.0,",
+    "720/000.ts",
+    "#EXT-X-ENDLIST",
+    "",
+  ].join("\n");
+
+  await withFetch(
+    async (url) => {
+      if (String(url).includes("generate_token")) {
+        return new Response("guest-token-value-123456", { status: 200 });
+      }
+      if (String(url).includes("get-hls-key")) {
+        return new Response(playlist, {
+          status: 200,
+          headers: { "content-type": "application/vnd.apple.mpegurl" },
+        });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () =>
+      handler(
+        {
+          method: "GET",
+          url: `/api/sign?videoKey=${FOLDER}&key=720/main.m3u8`,
+          headers: { host: "example.test", "x-forwarded-proto": "https" },
+        },
+        res
+      )
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /key=720%2Fenc\.key/, "AES key must stay 720/enc.key");
+  assert.ok(!res.body.includes("get-hls-key"), "relay endpoint must not leak into the key path");
+});
