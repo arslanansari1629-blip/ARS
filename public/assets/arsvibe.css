@@ -4337,14 +4337,45 @@ body.side-rail {
   --side-w: var(--side-rail-w);
 }
 
+/* 68px cannot hold a mark and a button side by side (30 + 6.4 + 26 overflows
+   the 57px content box and .side clips), so the head stacks on the rail. */
 body.side-rail .side-head {
+  flex-direction: column;
   justify-content: center;
-  padding: 0 0.35rem;
+  gap: 0.15rem;
+  padding: 0.3rem 0.25rem;
 }
 
-body.side-rail .side-brand-text,
-body.side-rail .side-collapse {
+body.side-rail .side-brand {
+  padding: 0;
+  border-bottom: 0;
+}
+
+body.side-rail .brand-mark {
+  width: 26px;
+  height: 26px;
+  font-size: 0.6rem;
+}
+
+body.side-rail .side-brand-text {
   display: none;
+}
+
+/* The head keeps its toggle on the rail, reduced to a glyph: at 68px it is the
+   only control left, and a pseudo-element can't be clicked. */
+body.side-rail .side-collapse {
+  display: grid;
+  width: 22px;
+  height: 18px;
+  min-width: 22px;
+  border-color: var(--rule);
+  background: var(--card-2);
+  transform: rotate(180deg);
+}
+
+body.side-rail .side-collapse svg {
+  width: 11px;
+  height: 11px;
 }
 
 body.side-rail .side-brand {
@@ -4386,16 +4417,14 @@ body.side-rail .side-link.active {
   box-shadow: inset 0 -2px 0 var(--blue), var(--lift-1);
 }
 
-/* A rail still has to get you out of the rail. */
-body.side-rail .side-head::after {
-  content: "»";
-  color: var(--ink-4);
-  font-family: var(--mono);
-  font-size: 0.8rem;
-}
-
+/* A rail still has to get you out of the rail: the head reads as one control. */
 body.side-rail .side-head {
   cursor: pointer;
+}
+
+body.side-rail .side-head:hover .side-collapse {
+  border-color: var(--rule-2);
+  color: var(--blue-ink);
 }
 
 /* Label on hover, so the rail is not a guessing game. */
@@ -4428,12 +4457,19 @@ body.side-rail .side-link {
   }
 
   body.side-rail .side-brand-text,
-  body.side-rail .side-collapse,
   body.side-rail .side-title::after,
   body.side-rail .side-foot,
   body.side-rail .side-link span,
   body.side-rail .side-link kbd {
     display: revert;
+  }
+
+  body.side-rail .side-collapse {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    transform: none;
   }
 
   body.side-rail .side-link {
@@ -4447,9 +4483,6 @@ body.side-rail .side-link {
     padding: 0.3rem 0.35rem 0.3rem 0.3rem;
   }
 
-  body.side-rail .side-head::after {
-    content: none;
-  }
 }
 
 /* ==========================================================================

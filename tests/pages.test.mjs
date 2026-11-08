@@ -206,11 +206,29 @@ test("the rail folds away and comes back, and the choice is sticky", async () =>
   const prefs = JSON.parse(doc.defaultView.localStorage.getItem("arsvibe.prefs") || "{}");
   assert.equal(prefs.sideRail, true, "the rail is not remembered");
 
-  toggle.click();
+  // On the rail the head is the only thing left, so the head must reopen it.
+  // The control survives the rail as a real button (a pseudo-element would not
+  // be clickable, and this is exactly the bug that made the rail one-way).
+  const collapseBtn = doc.querySelector("#side [data-side-collapse]");
+  assert.ok(collapseBtn, "the collapse control vanished on the rail");
+  const head = doc.querySelector("#side .side-head");
+  assert.equal(head.getAttribute("aria-expanded"), "false", "the rail head does not announce its state");
+
+  head.click();
   assert.equal(
     doc.body.classList.contains("side-rail"),
     false,
-    "the rail cannot be opened again from inside itself"
+    "clicking the rail head does not reopen the sidebar"
+  );
+  assert.equal(head.getAttribute("aria-label"), "Collapse sidebar", "the head label did not follow the state");
+
+  // Keyboard users get the same door.
+  toggle.click();
+  head.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  assert.equal(
+    doc.body.classList.contains("side-rail"),
+    false,
+    "the rail head ignores Enter"
   );
 
   dom.window.close();

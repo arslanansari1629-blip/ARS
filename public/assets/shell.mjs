@@ -222,9 +222,45 @@ function mount() {
   // navigation. Read before paint-ish (the module runs at the end of the body).
   if (getPrefs().sideRail) document.body.classList.add("side-rail");
 
-  aside.querySelector("[data-side-collapse]")?.addEventListener("click", () => {
-    const rail = document.body.classList.toggle("side-rail");
+  // The rail is a one-way door unless the head reopens it: at 68px the head is
+  // the only thing left on screen, so that is where the way back has to live.
+  const head = aside.querySelector(".side-head");
+  const setRail = (rail) => {
+    document.body.classList.toggle("side-rail", rail);
     setPref("sideRail", rail);
+    if (!head) return;
+    // aria-expanded describes the nav panel, which is open when not railed.
+    head.setAttribute("aria-expanded", String(!rail));
+    head.setAttribute("aria-label", rail ? "Expand sidebar" : "Collapse sidebar");
+    if (rail) {
+      head.setAttribute("role", "button");
+      head.tabIndex = 0;
+    } else {
+      head.removeAttribute("role");
+      head.removeAttribute("tabindex");
+    }
+  };
+  setRail(document.body.classList.contains("side-rail"));
+
+  aside.querySelector("[data-side-collapse]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setRail(!document.body.classList.contains("side-rail"));
+  });
+
+  head?.addEventListener("click", (e) => {
+    if (!document.body.classList.contains("side-rail")) return;
+    if (e.target.closest("button")) return;
+    // Collapsed, the brand is a 68px glyph in a row that means "expand me",
+    // not "go home", so swallow the navigation and open the panel.
+    e.preventDefault();
+    setRail(false);
+  });
+
+  head?.addEventListener("keydown", (e) => {
+    if (!document.body.classList.contains("side-rail")) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    setRail(false);
   });
 
   // Remember which groups the reader folded shut.
