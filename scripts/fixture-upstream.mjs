@@ -25,8 +25,16 @@ const routes = [
   { match: /SubjectInfo/, file: "chapters.json" },
   {
     match: /TopicInfo/,
-    file: (url) => (/ContentType=notes/i.test(url) ? "notes.json" : "videos.json"),
+    // 6a6b461cce4ac4e9ab51ee98 → "unkeyed" notes: attachments arrive with an
+    // empty `key` and are only resolvable through GetPdf (regression case).
+    file: (url) => {
+      if (!/ContentType=notes/i.test(url)) return "videos.json";
+      return /TopicId=6a6b461cce4ac4e9ab51ee98/.test(url)
+        ? "notes-unkeyed.json"
+        : "notes.json";
+    },
   },
+  { match: /GetPdf/, file: "getpdf.json" },
   { match: /\/Schedule\?/, file: "schedule.json" },
   { match: /Type=announcement/, file: "announcements.json" },
   { match: /Type=details/, file: "batch.json" },

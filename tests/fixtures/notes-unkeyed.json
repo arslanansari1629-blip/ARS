@@ -1,0 +1,38 @@
+{
+  "data": [
+    {
+      "_id": "69ff18a7ef0d5bb3113d55b1",
+      "isFree": false,
+      "status": "COMPLETED",
+      "date": "2026-05-11T00:00:00.000Z",
+      "startTime": "2026-05-11T12:45:00.000Z",
+      "isDPPNotes": false,
+      "homeworkIds": [
+        {
+          "_id": "6a01ef0fb9a30be431546b84",
+          "actions": ["Open", "Download", "Print"],
+          "topic": "Units and Measurement 13 : Class Notes || Physics By Rajwant Sir",
+          "note": "Class Notes",
+          "attachmentIds": [
+            {
+              "_id": "6a01ef0c6c4a24dd586b1d8c",
+              "baseUrl": "https://static.pw.live/",
+              "createdAt": "2026-05-11T15:00:28.106Z",
+              "key": "",
+              "name": "Units and Measurement 13 Class Notes.pdf"
+            }
+          ],
+          "batchSubjectId": "69b5698ee506a608ee297ed1",
+          "slug": "units-and-measurement-13---class-notes-||-physics-by-rajwant-sir-862921",
+          "status": "Active"
+        }
+      ],
+      "dRoomId": "698b0d805d9c19a534801c30",
+      "isBatchDoubtEnabled": true,
+      "isSimulatedLecture": false,
+      "action": null,
+      "planId": null,
+      "visibleToLowerPlans": null
+    }
+  ]
+}
