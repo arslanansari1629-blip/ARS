@@ -14,33 +14,18 @@
  *
  * The implementation lives in `lib/pw-proxy.mjs` so the route stays a mount.
  */
-import { cors, json } from "../lib/http.mjs";
-import proxy, { UPSTREAMS } from "../lib/pw-proxy.mjs";
+import proxy from "../lib/pw-proxy.mjs";
 
-const EXAMPLES = [
-  "/api/pw/v3/batches/698ad3519549b300a5e1cc6a/details",
-  "/api/pw/v2/batches/<batch>/subject/<subject>/topics?page=1",
-  "/api/pw/v2/batches/<batch>/subject/<subject>/contents?page=1&contentType=videos&tag=<topic>",
-  "/api/pw/v1/videos/get-otp?key=<hex>&isEncoded=true",
-  "/api/pw/v1/videos/get-hls-key?videoKey=<folder>&key=720/main.m3u8",
-];
-
+/**
+ * This file is only a *mount*, and it must stay one.
+ *
+ * It used to keep its own copy of the usage text for a bare `/api/pw`, which
+ * answered before the dispatcher ever ran — so the discovery page implemented in
+ * `lib/pw-proxy.mjs` was unreachable in production while its unit test passed
+ * against the library directly. Two places describing the same API surface is
+ * exactly how they drift. All behaviour, including what a bare `/api/pw` says,
+ * lives in the dispatcher.
+ */
 export default async function handler(req, res) {
-  const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
-  const hasPath = Boolean(url.searchParams.get("path"));
-
-  // Bare /api/pw is a usage page, not a 404: this route is meant to be
-  // discovered from a browser.
-  if (!hasPath) {
-    cors(res);
-    if (req.method === "OPTIONS") return res.end();
-    return json(res, 400, {
-      success: false,
-      error: "Append a PW API path: /api/pw/v3/batches/<id>/details",
-      examples: EXAMPLES,
-      upstreams: UPSTREAMS,
-    });
-  }
-
   return proxy(req, res);
 }

@@ -454,3 +454,15 @@ test("bare /api/pw documents the reachable surface, a bad path stays an error", 
   assert.equal(bad.statusCode, 400);
   assert.match(bad.json().error, /not a PW API path/i);
 });
+
+test("the /api/pw route is only a mount — bare /api/pw reaches the dispatcher", async () => {
+  // The route used to answer a bare /api/pw itself, before the dispatcher ran, so
+  // the discovery page was unreachable in production even though the dispatcher's
+  // test passed. Pin the mount: whatever the dispatcher says, the route says.
+  const { default: route } = await import("../api/pw.mjs");
+
+  const docs = mockRes();
+  await route(req("/api/pw"), docs);
+  assert.equal(docs.statusCode, 200);
+  assert.ok(Array.isArray(docs.json().endpoints), "the route swallowed the discovery payload");
+});
