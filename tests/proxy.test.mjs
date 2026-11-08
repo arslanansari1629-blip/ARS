@@ -340,3 +340,30 @@ test("/api/pw passes the bearer as a query param to the signing endpoints", asyn
   );
   assert.doesNotMatch(second[0], /authorization=/, "data routes keep the token in the header");
 });
+
+test("pwFetch (the in-process path) walks hosts through a 404 too", async () => {
+  // The site's own reads use pwFetch, not the HTTP route. It kept a copy of the
+  // old "404 is final" rule, so GetPdf answered "PDF is not available" for a PDF
+  // the mirror served — while the same call through /api/pw worked. Both paths
+  // must fail over identically.
+  const { pwFetch } = await import("../lib/pw-proxy.mjs");
+  const { result, calls } = await withFetch(
+    async (url) => {
+      if (url.includes("vidcloud.eu.org/api")) {
+        return jsonResponse({ success: true, data: { key: "a/b.pdf" } });
+      }
+      return jsonResponse({ success: false, message: "Not Found" }, 404);
+    },
+    () =>
+      pwFetch("/GetPdf?BatchId=b&SubjectId=s&PdfId=p&AttachmentId=a")
+  );
+
+  assert.equal(result.status, 200);
+  assert.equal((await result.json()).data.key, "a/b.pdf");
+  const dataCalls = calls.filter((c) => c.url.includes("GetPdf"));
+  assert.ok(
+    dataCalls.length >= 2,
+    `should have walked past the first host, saw ${dataCalls.map((c) => c.url.split("/")[2]).join(",")}`
+  );
+  assert.ok(dataCalls.some((c) => !c.url.includes("api.penpencil.co")), "reached a mirror");
+});
