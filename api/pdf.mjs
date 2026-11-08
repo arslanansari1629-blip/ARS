@@ -14,6 +14,7 @@ export default async function handler(req, res) {
 
   try {
     let target = url || "";
+    let why = "";
 
     if (!target) {
       if (!batch || !subject || !pdf || !attachment) {
@@ -21,10 +22,15 @@ export default async function handler(req, res) {
       }
       const resolved = await resolvePdfUrl(batch, subject, pdf, attachment);
       target = resolved.url;
+      why = resolved.error;
     }
 
     if (!target) {
-      return json(res, 404, { success: false, error: "PDF is not available for this item" });
+      return json(res, 404, {
+        success: false,
+        error: "PDF is not available for this item",
+        detail: why || "no url returned",
+      });
     }
 
     const proxied = `/api/media?url=${encodeURIComponent(target)}`;
