@@ -2577,11 +2577,6 @@ textarea.input:focus {
   opacity: 1;
 }
 
-/* The inline speed row belongs to the popover in this design. */
-.player-bar .speed {
-  display: none;
-}
-
 /* A reconnecting chip in the tray. */
 .player-chip {
   display: inline-flex;
@@ -5142,4 +5137,155 @@ body.side-rail .side-brand:hover .brand-img {
   display: block;
   border-radius: var(--r-sm);
   box-shadow: 0 4px 14px -6px rgba(18, 63, 150, 0.6);
+}
+
+/* ==========================================================================
+   32 — Player pass 4: the speed stepper and the Now-playing card
+   ========================================================================== */
+
+/* Speed, as one control with a readout: −, the current rate, +. It is a single
+   chip in the tray, so it survives a 320px phone where six buttons did not. */
+.player-bar .speed-step {
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 26px;
+  overflow: hidden;
+  border: 1px solid var(--case-line);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.speed-step-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--case-ink-2);
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
+.speed-step-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.speed-step-rate {
+  min-width: 34px;
+  padding: 0 0.2rem;
+  border: 0;
+  border-inline: 1px solid var(--case-line);
+  background: transparent;
+  color: var(--case-ink);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  transition: background 0.12s var(--ease);
+}
+
+.speed-step-rate:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Off-standard rates are worth noticing: the pill lights up. */
+.speed-step-rate.off-standard {
+  color: #9dc0ff;
+}
+
+.speed-step-btn:focus-visible,
+.speed-step-rate:focus-visible {
+  outline: 2px solid #dfe9f7;
+  outline-offset: -2px;
+}
+
+@media (max-width: 720px) {
+  .player-bar .speed-step {
+    height: 24px;
+  }
+
+  .speed-step-btn {
+    width: 18px;
+  }
+
+  .speed-step-rate {
+    min-width: 30px;
+    font-size: 0.62rem;
+  }
+}
+
+/* ------------------------------- now playing ------------------------------ */
+
+.now-card .now-title {
+  margin-top: 0.45rem;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.now-rail {
+  position: relative;
+  height: 3px;
+  margin-top: 0.55rem;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--paper-2);
+}
+
+.now-rail i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--blue);
+  transition: width 0.2s linear;
+}
+
+.now-times {
+  margin-top: 0.3rem;
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.now-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+}
+
+.now-actions .btn {
+  height: 28px;
+  padding-inline: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+}
+
+/* The state pill is the card's verb: it changes colour with playback. */
+.now-state-playing {
+  border-color: rgba(15, 122, 88, 0.35);
+  background: rgba(15, 122, 88, 0.08);
+  color: var(--ok);
+}
+
+.now-state-buffering {
+  border-color: rgba(169, 112, 12, 0.35);
+  background: rgba(169, 112, 12, 0.08);
+  color: var(--amber);
+}
+
+.now-state-paused,
+.now-state-finished {
+  color: var(--ink-4);
 }

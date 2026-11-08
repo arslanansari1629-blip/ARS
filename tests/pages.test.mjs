@@ -522,6 +522,46 @@ test("lecture page bootstraps a stream plan instead of erroring", async () => {
   dom.window.close();
 });
 
+test("the player ships a speed stepper and a now-playing transport", async () => {
+  const { doc, dom } = await render(
+    "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b",
+    { waitForSelector: "#docs .attach-row" }
+  );
+
+  // Speed: one control with a readout, not six dead buttons in a phone tray.
+  assert.ok(doc.getElementById("speedStep"), "the speed stepper is missing");
+  assert.ok(doc.getElementById("speedDown"), "no slower control");
+  assert.ok(doc.getElementById("speedUp"), "no faster control");
+  assert.equal(doc.querySelectorAll(".player-bar .speed").length, 0, "the six-button row came back");
+
+  // Stepping changes the rate and the readout, and clamps at the ends.
+  const up = doc.getElementById("speedUp");
+  const down = doc.getElementById("speedDown");
+  const read = () => doc.getElementById("speedRateText").textContent;
+  assert.equal(read(), "1×");
+  up.click();
+  assert.equal(read(), "1.25×", "the + control did not step the rate");
+  down.click();
+  down.click();
+  assert.equal(read(), "0.75×", "the − control did not step the rate");
+  down.click();
+  assert.equal(read(), "0.75×", "the rate ran below the lowest speed");
+  doc.getElementById("speedRate").click();
+  assert.equal(read(), "1×", "tapping the rate did not reset it");
+
+  // Now playing: the right column's own transport.
+  const card = doc.getElementById("nowCard");
+  assert.ok(card, "the now-playing card is missing");
+  for (const id of ["nowState", "nowTitle", "nowProgress", "nowPosition", "nowDuration", "nowPlay", "nowBack", "nowFwd"]) {
+    assert.ok(doc.getElementById(id), `now-playing card has no ${id}`);
+  }
+  // It must not be a decorated dead panel: its buttons are wired to the player.
+  assert.match(doc.getElementById("nowBack").getAttribute("title") || "", /10/);
+  assert.match(doc.getElementById("nowFwd").getAttribute("title") || "", /10/);
+
+  dom.window.close();
+});
+
 test("the lecture page no longer offers a source-player link or a health panel", async () => {
   const { doc, dom } = await render(
     "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b",

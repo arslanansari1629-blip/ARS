@@ -64,7 +64,19 @@ const skipFwdBtn = $("skipFwdBtn");
 const restartBtn = $("restartBtn");
 const muteBtn = $("muteBtn");
 const volumeSlider = $("volume");
-const speedBox = $("speed");
+const speedStep = $("speedStep");
+const speedDown = $("speedDown");
+const speedUp = $("speedUp");
+const speedRate = $("speedRate");
+const speedRateText = $("speedRateText");
+const nowState = $("nowState");
+const nowTitle = $("nowTitle");
+const nowProgress = $("nowProgress");
+const nowPosition = $("nowPosition");
+const nowDuration = $("nowDuration");
+const nowPlay = $("nowPlay");
+const nowBack = $("nowBack");
+const nowFwd = $("nowFwd");
 const qualitySelect = $("quality");
 const loopBtn = $("loopBtn");
 const statsBtn = $("statsBtn");
@@ -467,6 +479,9 @@ function renderState(s) {
     }
   }
 
+  // the right column's transport
+  paintNow(s);
+
   // stats
   paintStats(s);
 }
@@ -648,6 +663,53 @@ if (scrubber) {
   });
 }
 
+/**
+ * Now playing: the right column's own transport.
+ *
+ * It reads the same player state the tray does, so the two cannot disagree,
+ * and it exists because on a wide screen the notes column is where the eye
+ * lands first — it should say what is on and offer play before it offers PDFs.
+ */
+function paintNow(s = {}) {
+  const cur = Number.isFinite(s.currentTime) ? s.currentTime : video.currentTime || 0;
+  const dur = Number.isFinite(s.duration) && s.duration > 0 ? s.duration : video.duration || 0;
+
+  if (nowTitle && nowTitle.dataset.static !== "1") {
+    nowTitle.textContent = (titleEl.textContent || "Lecture").trim();
+  }
+  if (nowProgress) {
+    nowProgress.style.width = dur > 0 ? `${Math.min(100, (cur / dur) * 100)}%` : "0%";
+  }
+  if (nowPosition) nowPosition.textContent = fmtTime(cur);
+  if (nowDuration) nowDuration.textContent = fmtTime(dur);
+
+  if (nowPlay) {
+    const playing = !video.paused && !video.ended;
+    nowPlay.textContent = playing ? "Pause" : "Play";
+    nowPlay.disabled = !pro;
+  }
+
+  if (nowState) {
+    const state = video.ended
+      ? "finished"
+      : s.buffering
+        ? "buffering"
+        : video.paused
+          ? "paused"
+          : "playing";
+    nowState.textContent = state;
+    nowState.className = `pill now-state now-state-${state}`;
+  }
+}
+
+nowPlay?.addEventListener("click", () => {
+  if (!pro) return;
+  hideOverlay();
+  pro.toggle();
+});
+nowBack?.addEventListener("click", () => seekBy(-10));
+nowFwd?.addEventListener("click", () => seekBy(10));
+
 /* ------------------------------ transport UI ------------------------------ */
 
 /**
@@ -781,15 +843,44 @@ positionLabel?.addEventListener("click", () => {
 muteBtn?.addEventListener("click", () => pro?.toggleMute());
 volumeSlider?.addEventListener("input", () => pro?.setVolume(volumeSlider.value));
 
-speedBox?.addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-speed]");
-  if (!btn) return;
-  pro?.setRate(btn.dataset.speed);
-  markSpeed(Number(btn.dataset.speed));
+/**
+ * Speed: one control, three affordances.
+ *
+ * − and + step the rate through the same list the popover offers, the middle
+ * reads the current rate and resets it to 1× when tapped, and `c` still cycles
+ * for keyboard users. Stepping is clamped, not wrapped: holding "faster" at 2×
+ * should sit still rather than snap back to 0.75×.
+ */
+function stepSpeed(delta) {
+  const current = Number(video.playbackRate) || 1;
+  const i = SPEEDS.indexOf(current);
+  const from = i >= 0 ? i : 1;
+  const next = SPEEDS[Math.min(SPEEDS.length - 1, Math.max(0, from + delta))];
+  if (next == null) return;
+  pro?.setRate(next);
+  markSpeed(next);
+  markSpeedStep(next);
+  flash(`${next}×`);
+}
+
+function markSpeedStep(rate) {
+  if (!speedRateText) return;
+  speedRateText.textContent = `${Number(rate)}×`;
+  speedRate?.classList.toggle("off-standard", Number(rate) !== 1);
+}
+
+speedDown?.addEventListener("click", () => stepSpeed(-1));
+speedUp?.addEventListener("click", () => stepSpeed(1));
+speedRate?.addEventListener("click", () => {
+  pro?.setRate(1);
+  markSpeed(1);
+  markSpeedStep(1);
+  flash("1×");
 });
 
 function markSpeed(rate) {
-  for (const group of [speedBox, menuSpeed]) {
+  markSpeedStep(rate);
+  for (const group of [menuSpeed]) {
     group?.querySelectorAll("button[data-speed]").forEach((b) => {
       b.classList.toggle("active", Number(b.dataset.speed) === Number(rate));
     });
@@ -1105,7 +1196,13 @@ markSpeed(video.playbackRate);
 if (getPrefs().muted === true) video.muted = true;
 paintVolume({ muted: video.muted });
 video.addEventListener("volumechange", () => paintVolume());
-video.addEventListener("timeupdate", () => paintTime(pro?._state || {}));
+video.addEventListener("timeupdate", () => {
+  paintTime(pro?._state || {});
+  paintNow(pro?._state || {});
+});
+for (const evt of ["play", "pause", "ended", "waiting", "playing", "canplay"]) {
+  video.addEventListener(evt, () => paintNow(pro?._state || {}));
+}
 video.addEventListener("progress", paintProgress);
 video.addEventListener("seeked", paintProgress);
 video.addEventListener("loadedmetadata", paintProgress);

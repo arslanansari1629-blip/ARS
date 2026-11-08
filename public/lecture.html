@@ -138,13 +138,20 @@
 
             <div class="bar-spacer"></div>
 
-            <div class="speed" id="speed">
-              <button data-speed="0.75">0.75×</button>
-              <button data-speed="1" class="active">1×</button>
-              <button data-speed="1.25">1.25×</button>
-              <button data-speed="1.5">1.5×</button>
-              <button data-speed="1.75">1.75×</button>
-              <button data-speed="2">2×</button>
+            <!-- Six speed buttons in a phone-width tray were a row of dead
+                 targets: the tray is 320px and they needed more. One stepper
+                 shows the current rate and steps it, and the full list stays
+                 in the settings popover. -->
+            <div class="speed-step" id="speedStep" role="group" aria-label="Playback speed">
+              <button class="speed-step-btn" id="speedDown" type="button" title="Slower (c)" aria-label="Slower">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12h14"/></svg>
+              </button>
+              <button class="speed-step-rate" id="speedRate" type="button" title="Reset to 1× (c cycles)" aria-label="Playback speed, tap for 1×">
+                <span id="speedRateText">1×</span>
+              </button>
+              <button class="speed-step-btn" id="speedUp" type="button" title="Faster (c)" aria-label="Faster">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
             </div>
 
             <button class="icon-btn icon-gear" id="settingsBtn" title="Playback settings" aria-label="Playback settings" aria-expanded="false">
@@ -229,6 +236,26 @@
       </div>
 
       <aside class="stack lecture-side">
+        <!-- Now playing: what is on screen, how far in, and the transport, so
+             the right column is useful before the notes are. -->
+        <div class="card pad-md now-card" id="nowCard">
+          <div class="row between">
+            <h3>Now playing</h3>
+            <span class="pill" id="nowState">ready</span>
+          </div>
+          <p class="now-title" id="nowTitle">Loading lecture…</p>
+          <div class="now-rail"><i id="nowProgress"></i></div>
+          <div class="row between now-times">
+            <span id="nowPosition">0:00</span>
+            <span id="nowDuration">0:00</span>
+          </div>
+          <div class="now-actions">
+            <button class="btn btn-ghost btn-sm" id="nowBack" type="button" title="Back 10 seconds">−10s</button>
+            <button class="btn btn-primary btn-sm" id="nowPlay" type="button">Play</button>
+            <button class="btn btn-ghost btn-sm" id="nowFwd" type="button" title="Forward 10 seconds">+10s</button>
+          </div>
+        </div>
+
         <div class="card pad-md attach-card">
           <div class="row between attach-head">
             <h3>Class notes &amp; DPPs</h3>
