@@ -298,8 +298,18 @@ test("/api/token reports the token, its source and the signer probes", async () 
   // Never echo the credential itself.
   assert.ok(!body.token.value.includes("probe-token-abcdefghijkl"));
   assert.match(body.token.value, /^probe-…/);
+  // The state block must not be a hole in that redaction — it used to carry the
+  // whole bearer.
+  assert.ok(
+    !JSON.stringify(body.token.state).includes("probe-token-abcdefghijkl"),
+    "token.state must not echo the credential"
+  );
+  assert.match(body.token.state.prefix, /^probe-…/);
   assert.ok(body.probes.length >= 3);
   assert.ok(body.probes.every((p) => typeof p.ms === "number"));
+  // Signing and entitlement are reported separately, with a verdict.
+  assert.equal(typeof body.entitlement.lectures, "number");
+  assert.ok(["working", "metadata-only", "unavailable"].includes(body.lecturePlayback));
 });
 
 test("/api/pw passes the bearer as a query param to the signing endpoints", async () => {

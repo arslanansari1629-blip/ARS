@@ -6,7 +6,7 @@ import {
   TOKEN_SOURCES,
   FALLBACK_TOKEN,
 } from "../lib/pw-auth.mjs";
-import { UPSTREAMS } from "../lib/pw-proxy.mjs";
+import { pwFetch } from "../lib/pw-proxy.mjs";
 
 /**
  * GET /api/token         → token state + which hosts accept it
@@ -40,6 +40,19 @@ const PROBES = [
     binary: true,
   },
 ];
+
+/**
+ * `tokenState()` carries the live token; this route is reachable from a browser,
+ * so only its shape leaves the server. (The state block used to ship the full
+ * bearer, which defeated the redaction one line above it.)
+ */
+function redactState(state) {
+  return {
+    source: state.source,
+    expiresIn: state.expiresIn,
+    prefix: redact(state.token),
+  };
+}
 
 function redact(token) {
   if (!token) return "";
@@ -95,15 +108,20 @@ async function probe(probe) {
 async function probeEntitlement(token) {
   const BATCH = "698ad3519549b300a5e1cc6a";
   const SUBJECT = "6a6b44faf834f38ed6f9120d";
-  const url = `${UPSTREAMS[0]}/v2/batches/${BATCH}/subject/${SUBJECT}/contents?page=1&contentType=videos`;
+  const path = `/v2/batches/${BATCH}/subject/${SUBJECT}/contents?page=1&contentType=videos`;
   try {
-    const res = await fetch(url, {
-      headers: pwHeaders(token),
-      signal: AbortSignal.timeout(12000),
-      cache: "no-store",
-    });
+    // Through the dispatcher, not one host: the first allowlisted host answers
+    // 401 for this listing while a mirror serves it, and probing only the first
+    // would report "no videos" about a healthy catalogue.
+    const res = await pwFetch(path, { headers: pwHeaders(token), timeout: 12000 });
     if (!res.ok) {
-      return { checked: true, status: res.status, lectures: 0, withVideoUrl: 0, error: `upstream ${res.status}` };
+      return {
+        checked: true,
+        status: res.status,
+        lectures: 0,
+        withVideoUrl: 0,
+        error: `upstream ${res.status}`,
+      };
     }
     const body = await res.json();
     const items = Array.isArray(body.data) ? body.data : [];
@@ -114,7 +132,8 @@ async function probeEntitlement(token) {
       status: res.status,
       lectures: items.length,
       withVideoUrl: withUrl.length,
-      sampleTitle: (first.videoDetails && first.videoDetails.name) || first.topic || "",
+      sampleTitle:
+        (first.videoDetails && first.videoDetails.name) || first.topic || "no lecture visible",
       sampleVideoUrl: (first.videoDetails && first.videoDetails.videoUrl) || first.url || "",
     };
   } catch (err) {
@@ -154,7 +173,7 @@ export default async function handler(req, res) {
         value: redact(token),
         source,
         cached,
-        state: tokenState(),
+        state: redactState(tokenState()),
         isBuiltInFallback: token === FALLBACK_TOKEN,
         sources: TOKEN_SOURCES,
         pinnedByEnv: source.startsWith("env:"),
