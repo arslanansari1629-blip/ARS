@@ -276,6 +276,8 @@ const qualitySelect = document.getElementById("quality");
 let currentPlan = null;
 let hls = null;
 let dash = null;
+/** True when the <video> element owns the source (no hls.js / dash.js). */
+let nativeSource = false;
 
 /** Recoverable hls.js failures are almost always a stale or throttled segment. */
 const MAX_RECOVERIES = 4;
@@ -309,10 +311,14 @@ async function attachPlayer(plan) {
   video.addEventListener("playing", markReady);
   setTimeout(markReady, 9000);
 
-  // Native error handler: retry the same plan before asking for a new one.
+  // Native error handler: only meaningful when the <video> element owns the
+  // source. When hls.js/dash.js is attached they report through their own error
+  // events, and a spurious <video> error there must not replace the player with
+  // a dead overlay.
   video.addEventListener(
     "error",
     () => {
+      if (!nativeSource) return;
       showMessage(
         "Playback error",
         "This stream could not be opened. Retry to fetch a fresh link, or run the playback check to see which step failed.",
@@ -332,6 +338,7 @@ async function attachPlayer(plan) {
     if (plan.kind === "hls" || plan.engine === "hls") {
       if (video.canPlayType("application/vnd.apple.mpegurl") && !window.Hls) {
         // Safari / iOS plays HLS natively.
+        nativeSource = true;
         video.src = plan.url;
         showQuality([]);
       } else {
@@ -344,6 +351,7 @@ async function attachPlayer(plan) {
             "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js",
           ]);
         } catch (err) {
+          nativeSource = true;
           video.src = plan.url;
           showQuality([]);
           video.play().catch(() => {});
@@ -351,6 +359,7 @@ async function attachPlayer(plan) {
         }
         if (!window.Hls || !window.Hls.isSupported()) {
           // Same idea: Firefox without MSE-HLS still deserves a native attempt.
+          nativeSource = true;
           video.src = plan.url;
           showQuality([]);
           video.play().catch(() => {});
@@ -419,6 +428,7 @@ async function attachPlayer(plan) {
       window.__dash = dash;
       showQuality([]);
     } else {
+      nativeSource = true;
       video.src = plan.url;
       showQuality([]);
     }
@@ -441,6 +451,7 @@ async function attachPlayer(plan) {
 }
 
 function destroyPlayers() {
+  nativeSource = false;
   if (hls) {
     try {
       hls.destroy();
@@ -516,6 +527,8 @@ video.addEventListener("waiting", () => {
   }
 });
 video.addEventListener("playing", () => {
+  // A playing video is healthy again: clear the chip and the stall counter.
+  stalls = 0;
   const chip = document.getElementById("streamHealth");
   if (chip) chip.style.display = "none";
 });
