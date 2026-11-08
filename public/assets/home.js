@@ -112,12 +112,12 @@ async function runSearch(term) {
     return;
   }
   resultsBox.classList.remove("hide");
-  resultsBox.innerHTML = `<div style="padding:.8rem 1rem" class="tiny dim">Searching “${esc(term)}”…</div>`;
+  resultsBox.innerHTML = `<div class="pad-row" class="tiny dim">Searching “${esc(term)}”…</div>`;
   try {
     const out = await searchBatches(term);
     const list = (out.batches || []).slice(0, 6);
     if (!list.length) {
-      resultsBox.innerHTML = `<div style="padding:.9rem 1rem" class="tiny dim">No batches matched “${esc(term)}”.</div>`;
+      resultsBox.innerHTML = `<div class="pad-row" class="tiny dim">No batches matched “${esc(term)}”.</div>`;
       return;
     }
     resultsBox.innerHTML =
@@ -131,9 +131,9 @@ async function runSearch(term) {
         </a>`
         )
         .join("") +
-      `<a href="/batches.html?q=${encodeURIComponent(term)}" class="tiny" style="color:var(--brand-2)">See all results →</a>`;
+      `<a href="/batches.html?q=${encodeURIComponent(term)}" class="tiny link">See all results →</a>`;
   } catch (err) {
-    resultsBox.innerHTML = `<div style="padding:.9rem 1rem" class="tiny dim">Search failed: ${esc(err.message)}</div>`;
+    resultsBox.innerHTML = `<div class="pad-row" class="tiny dim">Search failed: ${esc(err.message)}</div>`;
   }
 }
 

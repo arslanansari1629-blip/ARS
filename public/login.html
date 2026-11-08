@@ -4,16 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Sign in — Physics Wallah | ArsVibe</title>
+<link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="icon" href="/assets/pw-mark.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="/assets/theme.css" />
-<link rel="stylesheet" href="/assets/pages.css" />
-<link rel="stylesheet" href="/assets/ui.css" />
-<link rel="stylesheet" href="/assets/shell.css" />
-<link rel="stylesheet" href="/assets/material.css" />
 </head>
-<body data-page="login">
-<div class="aurora" aria-hidden="true"></div>
-<div class="grid-veil" aria-hidden="true"></div>
+<body data-page="login" class="bare">
 
 <header class="nav" id="nav">
   <div class="shell nav-inner">
@@ -30,12 +24,12 @@
     <div class="logo">AV</div>
     <div>
       <h1>Welcome to ArsVibe</h1>
-      <p class="muted tiny" style="margin-top:.35rem">
+      <p class="muted tiny mt-1">
         Sign in to access all batches, DPPs &amp; lectures for FREE
       </p>
     </div>
 
-    <div class="pill pill-accent" style="justify-self:center;margin-inline:auto">
+    <div class="pill pill-accent self-center">
       <span class="tiny">Join 1,647+ students already learning</span>
     </div>
 
@@ -75,8 +69,8 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
   </div>
-  <div style="display:grid;place-items:center;padding:1.5rem;overflow:auto">
-    <form class="glass" id="googleForm" style="width:min(380px,100%);padding:1.4rem;display:grid;gap:.8rem">
+  <div class="modal-body">
+    <form class="glass modal-form" id="googleForm">
       <h3>Enter your details</h3>
       <div class="field">
         <label for="gName">Full name</label>

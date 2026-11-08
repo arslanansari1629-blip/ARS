@@ -4,16 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Dashboard — ArsVibe PW</title>
+<link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="icon" href="/assets/pw-mark.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="/assets/theme.css" />
-<link rel="stylesheet" href="/assets/pages.css" />
-<link rel="stylesheet" href="/assets/ui.css" />
-<link rel="stylesheet" href="/assets/shell.css" />
-<link rel="stylesheet" href="/assets/material.css" />
 </head>
 <body data-page="dashboard">
-<div class="aurora" aria-hidden="true"></div>
-<div class="grid-veil" aria-hidden="true"></div>
 
 <header class="nav" id="nav">
   <div class="shell nav-inner">
@@ -34,7 +28,7 @@
   </div>
 </header>
 
-<main class="section" style="padding-top:1.5rem">
+<main class="section">
   <div class="shell">
     <div class="page-head">
       <div>
@@ -48,25 +42,25 @@
       </div>
     </div>
 
-    <div class="stat-grid" style="margin-bottom:1.4rem">
+    <div class="stat-grid mb-5">
       <div class="stat"><strong id="statBatches">0</strong><span>Batches opened</span></div>
       <div class="stat"><strong id="statLectures">0</strong><span>Lectures started</span></div>
       <div class="stat"><strong id="statDocs">0</strong><span>PDFs opened</span></div>
       <div class="stat"><strong id="statSource">Live</strong><span>Data source</span></div>
     </div>
 
-    <div class="grid" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:1.2rem;align-items:start">
-      <section class="card" style="padding:1.1rem">
-        <div class="row between" style="margin-bottom:.7rem">
-          <h3 style="font-size:.98rem">Recently opened batches</h3>
-          <a class="tiny" style="color:var(--brand-2)" href="/library.html">Library →</a>
+    <div class="grid dash-grid">
+      <section class="card pad-md">
+        <div class="row between mb-3">
+          <h3>Recently opened batches</h3>
+          <a class="tiny link" href="/library.html">Library →</a>
         </div>
         <div class="list" id="recentList"></div>
       </section>
 
-      <section class="card" style="padding:1.1rem">
-        <div class="row between" style="margin-bottom:.7rem">
-          <h3 style="font-size:.98rem">Continue watching</h3>
+      <section class="card pad-md">
+        <div class="row between mb-3">
+          <h3>Continue watching</h3>
         </div>
         <div class="list" id="historyList"></div>
       </section>

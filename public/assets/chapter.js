@@ -102,13 +102,13 @@ function docRow(doc) {
 function docItemRow(item) {
   const docs = item.docs || [];
   return `
-    <div class="card fade-up" style="padding:.75rem">
-      <div class="row between" style="margin-bottom:.5rem">
-        <strong style="font-size:.88rem">${esc(item.title)}</strong>
+    <div class="card fade-up pad-sm">
+      <div class="row between mb-2">
+        <strong class="strong-sm">${esc(item.title)}</strong>
         ${item.date ? `<span class="tiny dim">${esc(fmtDate(item.date))}</span>` : ""}
       </div>
-      <div class="list" style="gap:.45rem">
-        ${docs.map(docRow).join("") || `<div class="tiny dim" style="padding:.3rem">No file attached.</div>`}
+      <div class="list tight">
+        ${docs.map(docRow).join("") || `<div class="tiny dim pad-xs">No file attached.</div>`}
       </div>
     </div>`;
 }
@@ -120,7 +120,7 @@ async function load(nextType) {
   if (cache.has(type)) return render(cache.get(type));
 
   body.innerHTML = `<div class="list">${Array.from({ length: 5 })
-    .map(() => `<div class="skeleton" style="height:60px;border-radius:14px"></div>`)
+    .map(() => `<div class="skeleton sk-row"></div>`)
     .join("")}</div>`;
 
   try {
@@ -156,7 +156,7 @@ function render(items) {
   } else {
     const total = items.reduce((n, i) => n + (i.docs ? i.docs.length : 0), 0);
     chapterMeta.textContent = `${total} PDF${total === 1 ? "" : "s"} available`;
-    body.innerHTML = `<div class="list" style="gap:.7rem">${items.map(docItemRow).join("")}</div>`;
+    body.innerHTML = `<div class="list">${items.map(docItemRow).join("")}</div>`;
   }
 }
 

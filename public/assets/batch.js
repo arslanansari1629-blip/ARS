@@ -48,12 +48,12 @@ function renderDetail() {
 
   const cover = batch.image
     ? `<img src="${esc(batch.image)}" alt="" onerror="this.remove()" />`
-    : `<div style="display:grid;place-items:center;height:100%;font-size:2.4rem;font-weight:900;color:rgba(255,255,255,.25)">${esc(initials(batch.name))}</div>`;
+    : `<div class="cover-initials">${esc(initials(batch.name))}</div>`;
 
   detailGrid.innerHTML = `
     <div class="detail-cover">${cover}</div>
     <div class="detail-head">
-      <div class="row" style="gap:.4rem">
+      <div class="row gap-1">
         ${batch.exam && batch.exam.length ? `<span class="pill pill-brand">${esc(batch.exam.join(" · "))}</span>` : ""}
         ${batch.className ? `<span class="pill">Class ${esc(batch.className)}</span>` : ""}
         ${batch.language ? `<span class="pill">${esc(batch.language)}</span>` : ""}
@@ -67,7 +67,7 @@ function renderDetail() {
         ${batch.price ? `<span class="pill pill-brand">${esc(money(batch.price))}</span>` : ""}
         <span class="pill">${batch.subjects.length} subjects</span>
       </div>
-      <div class="row" style="margin-top:.5rem">
+      <div class="row mt-2">
         ${batch.subjects.length ? `<button class="btn btn-primary" id="startBtn">Start learning</button>` : ""}
         <a class="btn btn-ghost" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Open on source site</a>
       </div>
@@ -104,13 +104,13 @@ function renderSubjects() {
 
 function renderAbout() {
   const parts = [];
-  if (batch.shortDescription) parts.push(`<div class="detail-about" style="max-height:none">${esc(batch.shortDescription)}</div>`);
-  if (batch.description) parts.push(`<div class="detail-about" style="max-height:none;margin-top:.8rem">${esc(batch.description)}</div>`);
+  if (batch.shortDescription) parts.push(`<div class="detail-about">${esc(batch.shortDescription)}</div>`);
+  if (batch.description) parts.push(`<div class="detail-about mt-3">${esc(batch.description)}</div>`);
   if (batch.banners && batch.banners.length) {
     parts.push(
-      `<div class="grid grid-cards" style="margin-top:1rem">${batch.banners
+      `<div class="grid grid-cards mt-4">${batch.banners
         .slice(0, 6)
-        .map((b) => `<img src="${esc(b)}" alt="" style="border-radius:14px;border:1px solid var(--line)" loading="lazy" />`)
+        .map((b) => `<img class="banner-plate" src="${esc(b)}" alt="" loading="lazy" />`)
         .join("")}</div>`
     );
   }
@@ -119,7 +119,7 @@ function renderAbout() {
 
 async function renderAnnouncements() {
   tabBody.innerHTML = `<div class="list">${Array.from({ length: 4 })
-    .map(() => `<div class="skeleton" style="height:74px;border-radius:14px"></div>`)
+    .map(() => `<div class="skeleton sk-row"></div>`)
     .join("")}</div>`;
   try {
     const out = await loadAnnouncements(batchId);
@@ -131,16 +131,16 @@ async function renderAnnouncements() {
     tabBody.innerHTML = `<div class="list">${items
       .map(
         (a) => `
-        <article class="card" style="padding:.9rem 1rem">
-          <div class="row between" style="align-items:flex-start">
+        <article class="card pad-row">
+          <div class="row between start">
             <div>
-              <div class="row" style="gap:.4rem">
+              <div class="row gap-1">
                 <span class="pill pill-brand">${esc(a.useCase || a.type || "Update")}</span>
                 <span class="tiny dim">${esc(fmtRelative(a.createdAt))}</span>
               </div>
-              <h3 style="font-size:.95rem;margin-top:.45rem">${esc(a.heading)}</h3>
-              <p class="tiny muted" style="margin-top:.25rem">${esc(a.message)}</p>
-              <p class="tiny dim" style="margin-top:.4rem">by ${esc(a.author)}</p>
+              <h3 class="mt-2">${esc(a.heading)}</h3>
+              <p class="tiny muted" class="mt-1">${esc(a.message)}</p>
+              <p class="tiny dim" class="mt-1">by ${esc(a.author)}</p>
             </div>
             ${a.attachment ? `<a class="btn btn-ghost btn-sm" href="${esc(a.attachment.url)}" target="_blank" rel="noopener">Attachment</a>` : ""}
           </div>

@@ -102,6 +102,7 @@ function buildSidebar() {
         <span>Join the study circle</span>
       </a>
       <span class="side-note">14,201 batches · updated live</span>
+      <span class="side-micro">DWG AV-01 · rev 2026</span>
     </div>`;
 
   return aside;

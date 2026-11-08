@@ -4,16 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Lecture — ArsVibe PW</title>
+<link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="icon" href="/assets/pw-mark.svg" type="image/svg+xml" />
-<link rel="stylesheet" href="/assets/theme.css" />
-<link rel="stylesheet" href="/assets/pages.css" />
-<link rel="stylesheet" href="/assets/ui.css" />
-<link rel="stylesheet" href="/assets/shell.css" />
-<link rel="stylesheet" href="/assets/material.css" />
 </head>
 <body data-page="lecture" class="page-lecture">
-<div class="aurora" aria-hidden="true"></div>
-<div class="grid-veil" aria-hidden="true"></div>
 
 <header class="nav" id="nav">
   <div class="shell nav-inner">
@@ -34,13 +28,13 @@
   </div>
 </header>
 
-<main class="section" style="padding-top:1.3rem">
+<main class="section">
   <div class="shell">
     <div class="crumbs" id="crumbs"><a href="/">Home</a> <span>/</span></div>
 
     <div class="lecture-head">
       <div>
-        <h1 id="lectureTitle" style="font-size:clamp(1.15rem,2.6vw,1.65rem)">Loading lecture…</h1>
+        <h1 id="lectureTitle" class="lecture-title">Loading lecture…</h1>
         <p class="muted tiny" id="lectureMeta" data-loading>Lecture details are loading from the chapter list.</p>
       </div>
       <div class="lecture-head-actions" id="queueNav"></div>
@@ -90,7 +84,7 @@
               <div class="row center" id="overlayActions"></div>
             </div>
 
-            <div class="gesture-flash" id="gestureFlash" aria-hidden="true"></div>
+            <div class="gesture-flash" id="gestureFlash" data-dir="" aria-hidden="true"></div>
           </div>
 
           <!-- scrubber: buffered band, watched fill, keyboard/touch seek -->
@@ -127,6 +121,7 @@
               </button>
               <input class="volume-slider" id="volume" type="range" min="0" max="1" step="0.05" value="1"
                 title="Volume" aria-label="Volume" />
+              <span class="volume-readout" id="volumeReadout" aria-live="off">100</span>
             </div>
 
             <div class="bar-spacer"></div>
@@ -201,6 +196,7 @@
             <div><span>Bitrate</span><strong id="statBitrate">—</strong></div>
             <div><span>Stalls</span><strong id="statStalls">0</strong></div>
             <div><span>Retries</span><strong id="statRetries">0</strong></div>
+            <div><span>Latency</span><strong id="statLatency">—</strong></div>
           </div>
         </div>
 
@@ -214,36 +210,36 @@
         </div>
 
         <div class="card lecture-about" id="aboutCard">
-          <h3 style="font-size:.95rem">About this lecture</h3>
-          <p class="tiny muted" id="aboutText" style="margin-top:.4rem" data-loading>
+          <h3>About this lecture</h3>
+          <p class="tiny muted mt-1" id="aboutText" data-loading>
             Lecture description is loading.
           </p>
         </div>
       </div>
 
       <aside class="stack">
-        <div class="card" style="padding:1rem">
+        <div class="card pad-md">
           <div class="row between">
-            <h3 style="font-size:.95rem">Class notes &amp; DPPs</h3>
+            <h3>Class notes &amp; DPPs</h3>
             <span class="pill" id="docCount">—</span>
           </div>
-          <div class="list" id="docs" style="margin-top:.7rem;gap:.5rem"></div>
+          <div class="list mt-3" id="docs"></div>
         </div>
 
-        <div class="card" style="padding:1rem">
+        <div class="card pad-md">
           <div class="row between">
-            <h3 style="font-size:.95rem">Playback health</h3>
+            <h3>Playback health</h3>
             <span class="pill pill-accent" id="healthBadge">checking</span>
           </div>
-          <p class="tiny muted" style="margin-top:.5rem" id="healthText">
+          <p class="tiny muted mt-2" id="healthText">
             Running the stream self-test for this lecture.
           </p>
-          <a class="btn btn-ghost btn-sm" id="checkLink" style="margin-top:.7rem" target="_blank" rel="noopener">Full report</a>
+          <a class="btn btn-ghost btn-sm mt-3" id="checkLink" target="_blank" rel="noopener">Full report</a>
         </div>
 
-        <div class="card" style="padding:1rem">
-          <h3 style="font-size:.95rem">FAQ</h3>
-          <p class="tiny muted" style="margin-top:.4rem">
+        <div class="card pad-md">
+          <h3>FAQ</h3>
+          <p class="tiny muted mt-1">
             Streams are relayed through this site so they play without cross-origin errors.
             If a lecture shows “not published yet”, PW has not released the video for this class —
             use the source player link above.

@@ -33,7 +33,7 @@ function row(c, index) {
       <span class="index">${String(index + 1).padStart(2, "0")}</span>
       <span class="grow">
         <span class="title">${esc(c.name)}</span>
-        <span class="counts" style="margin-top:.25rem;display:flex">
+        <span class="counts">
           ${c.videos ? `<span class="count-chip v">${c.videos} lectures</span>` : ""}
           ${c.notes ? `<span class="count-chip n">${c.notes} notes</span>` : ""}
           ${c.exercises ? `<span class="count-chip">${c.exercises} DPP</span>` : ""}
@@ -46,7 +46,7 @@ function row(c, index) {
 
 async function load() {
   list.innerHTML = `<div class="list">${Array.from({ length: 6 })
-    .map(() => `<div class="skeleton" style="height:66px;border-radius:14px"></div>`)
+    .map(() => `<div class="skeleton sk-row"></div>`)
     .join("")}</div>`;
 
   try {

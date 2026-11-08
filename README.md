@@ -112,7 +112,7 @@ lib/                 shared upstream client + normalisers (server side)
 public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
   viewer.html login.html dashboard.html library.html 404.html
-  assets/            theme.css · pages.css · app.js · data.js · client-api.js · page modules
+  assets/            arsvibe.css (the whole design system) · app.js · data.js · page modules
 data/batches.json.gz complete batch catalogue (13,631 upstream → 14,201 with the full list)
 scripts/dev.mjs      local dev server (same (req,res) contract as Vercel)
 scripts/fixture-upstream.mjs   offline fixture upstream for tests only
@@ -125,7 +125,7 @@ legacy/              the Flask document-scanner project that previously lived in
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 33 end-to-end page/API tests (jsdom)
+npm test             # end-to-end page/API/player tests (jsdom)
 npm run build        # validates the tree + the batch catalogue
 ```
 

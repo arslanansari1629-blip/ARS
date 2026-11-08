@@ -85,7 +85,8 @@ async function main() {
   }
 
   const assets = await readdir(path.join(PUBLIC, "assets"));
-  if (!assets.includes("theme.css")) problems.push("missing assets/theme.css");
+  // One stylesheet carries the design; the earlier layers are gone.
+  if (!assets.includes("arsvibe.css")) problems.push("missing assets/arsvibe.css");
 
   // The player libraries ship with the site so playback never depends on a
   // third-party CDN being reachable from the user's network.

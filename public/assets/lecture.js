@@ -37,6 +37,7 @@ const stoppedPane = $("playerStopped");
 const stoppedTitle = $("stoppedTitle");
 const bigPlayBtn = $("bigPlayBtn");
 const gestureFlash = $("gestureFlash");
+const scrubberTrack = document.querySelector("#scrubber .scrubber-track");
 
 const overlay = $("overlay");
 const overlayTitle = $("overlayTitle");
@@ -480,6 +481,8 @@ function paintVolume(s) {
   if (volumeSlider && document.activeElement !== volumeSlider) {
     volumeSlider.value = String(muted ? 0 : video.volume);
   }
+  const readout = $("volumeReadout");
+  if (readout) readout.textContent = muted ? "0" : String(Math.round(video.volume * 100));
 }
 
 function paintQuality(levels, current) {
@@ -577,9 +580,15 @@ function hideChip() {
 
 /* -------------------------------- scrubbing ------------------------------- */
 
+/** The rail, not the padded scrubber box: a click at the very edge must mean
+ *  0 s or the end, not 2% off. */
+function ratioFromPointer(clientX) {
+  const rect = (scrubberTrack || scrubber).getBoundingClientRect();
+  return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+}
+
 function seekFromPointer(clientX) {
-  const rect = scrubber.getBoundingClientRect();
-  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  const ratio = ratioFromPointer(clientX);
   const dur = Number(video.duration);
   if (!Number.isFinite(dur) || dur <= 0) return;
   video.currentTime = ratio * dur;
@@ -599,11 +608,11 @@ if (scrubber) {
   });
   scrubber.addEventListener("pointermove", (e) => {
     if (!scrubbing) {
-      // hover preview
-      const rect = scrubber.getBoundingClientRect();
-      const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      // Hover preview, measured off the same rail the seek uses so the number
+      // under the cursor is the number a click would land on.
       const dur = Number(video.duration) || 0;
       if (scrubberTip && dur > 0) {
+        const ratio = ratioFromPointer(e.clientX);
         scrubberTip.textContent = fmtTime(ratio * dur);
         scrubberTip.style.left = `${ratio * 100}%`;
         scrubberTip.classList.add("on");
@@ -633,12 +642,13 @@ function seekBy(delta) {
   const player = pro;
   if (!player) return;
   player.seekBy(delta);
-  flash(`${delta > 0 ? "+" : "−"}${Math.abs(delta)}s`);
+  flash(`${delta > 0 ? "+" : "−"}${Math.abs(delta)}s`, delta > 0 ? "fwd" : "back");
 }
 
-function flash(text) {
+function flash(text, dir = "") {
   if (!gestureFlash) return;
   gestureFlash.textContent = text;
+  gestureFlash.dataset.dir = dir;
   gestureFlash.classList.remove("on");
   void gestureFlash.offsetWidth;
   gestureFlash.classList.add("on");

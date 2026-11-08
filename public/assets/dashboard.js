@@ -38,7 +38,7 @@ if (session) {
         <a class="history-row" href="/batch.html?id=${encodeURIComponent(b.id)}">
           ${b.image ? `<img src="${esc(b.image)}" alt="" loading="lazy" onerror="this.remove()" />` : `<img alt="" />`}
           <span class="grow">
-            <span class="tiny" style="font-weight:700;display:block">${esc(b.name)}</span>
+            <span class="tiny strong-block">${esc(b.name)}</span>
             <span class="tiny dim">${esc(fmtRelative(new Date(b.at).toISOString()))}</span>
           </span>
           <svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
@@ -57,7 +57,7 @@ if (session) {
           )}&id=${encodeURIComponent(l.id)}&title=${encodeURIComponent(l.title || "Lecture")}">
           ${l.thumbnail ? `<img src="${esc(l.thumbnail)}" alt="" loading="lazy" onerror="this.remove()" />` : `<img alt="" />`}
           <span class="grow">
-            <span class="tiny" style="font-weight:700;display:block" >${esc(l.title || "Lecture")}</span>
+            <span class="tiny strong-block">${esc(l.title || "Lecture")}</span>
             <span class="tiny dim">${esc(l.chapter || "")}</span>
           </span>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--brand-2)" stroke-width="2"><path d="M8 5v14l11-7z"/></svg>
