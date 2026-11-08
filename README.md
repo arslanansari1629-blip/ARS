@@ -84,7 +84,12 @@ api/                 Vercel serverless functions (Node runtime, ESM)
   sign.mjs           signed-playlist relay
   pdf.mjs            PDF resolution + redirect
   media.mjs          asset (PDF/image) relay
+  pw/[...path].mjs   authenticated pass-through to the whole PW API surface
+  token.mjs          token + auth self-test ("why is this lecture 401?")
 lib/                 shared upstream client + normalisers (server side)
+  pw-auth.mjs        guest-token resolution + the one PW header set
+  pw-proxy.mjs       the /api/pw implementation (allowlist, failover, binary passthrough)
+  catalog.mjs        the shipped batch catalogue (search + paging)
   playback.mjs       one explanation for "why has this lecture no video", shared by both routes
 public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
@@ -122,6 +127,43 @@ PW_UPSTREAM_BASE=http://127.0.0.1:4010 npm run dev
 In production no such override is set: `PW_UPSTREAM_BASE` is unset, so requests go to the real
 PW API. If a deployment's region is blocked upstream, the API answers `{ needsProxy: true }` and
 the browser transparently falls back to the public CORS relay — the UI keeps showing live data.
+
+## The API proxy (`/api/pw`)
+
+The lecture API answers **401 to an unauthenticated call**, so the credential cannot live in the
+browser. `/api/pw` attaches it server-side and forwards any PW API path:
+
+```bash
+/api/pw/v3/batches/<id>/details
+/api/pw/v2/batches/<id>/subject/<sid>/topics?page=1
+/api/pw/v2/batches/<id>/subject/<sid>/contents?page=1&contentType=videos&tag=<topic>
+/api/pw/v1/videos/get-otp?key=<hex>&isEncoded=true
+/api/pw/v1/videos/get-hls-key?videoKey=<folder>&key=720/main.m3u8   # binary, streamed as-is
+/api/pw/v3/test-service/tests/new-dpp-list?page=1&batchId=&batchSubjectId=
+```
+
+* **Credentials**: the guest token is resolved by `lib/pw-auth.mjs` (cached 10 min, refreshed on a
+  401, optionally pinned with the `PW_TOKEN` env var) and sent as `authorization: Bearer…` plus
+  `token`, `client-id`, `client-type`, `client-version`, `randomid`. The token never reaches a client.
+* **Host failover**: `api.penpencil.co` → `api.penpencil.xyz` → `vidcloud.eu.org/api` →
+  `api.studyspark.study` → `learnxpw.site`. A blocked or 5xx host is skipped; `X-PW-Tried` reports
+  which hosts were walked.
+* **Binary paths** (`get-hls-key`, `get-otp`, `*.ts`, `enc.key`) are streamed byte-for-byte — never
+  parsed as text, which is how segments get corrupted.
+* **Not an open proxy**: the host is allowlisted and the path must start with a real PW API segment,
+  so it cannot be used to reach arbitrary addresses (traversal and foreign hosts return `400`).
+* `SWITCHES`: `?upstream=<allowlisted host>`, `?fresh=1` (new token), `?bin=1` (force binary).
+
+### Is the credential actually working?
+
+```bash
+GET /api/token            # token source, redacted value, and live probes
+GET /api/token?fresh=1    # re-mint first
+```
+
+It spends the token against the API *and* both signer relays, and answers
+`lectureSigning: "working" | "unavailable"` — so a "lectures don't play" report has an answer
+instead of a guess.
 
 ## Is a lecture actually playable?
 

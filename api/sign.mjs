@@ -1,5 +1,6 @@
 import { cors } from "../lib/http.mjs";
-import { guestToken } from "../lib/api-data.mjs";
+import { signerHeaders } from "../lib/api-data.mjs";
+import { resolveToken } from "../lib/pw-auth.mjs";
 
 /**
  * GET /api/sign?host=<signer>&videoKey=<folder>&key=720/main.m3u8
@@ -36,17 +37,6 @@ const QUALITIES = ["720", "480", "360", "240"];
 
 /** Requests the player repeats constantly — worth retrying before giving up. */
 const RETRYABLE = /(enc\.key|\/\d+\.(ts|m4s)|init\.mp4|\.mp4$)/i;
-
-function signerHeaders(token) {
-  return {
-    Authorization: `Bearer ${token}`,
-    token,
-    "client-type": "WEB",
-    "client-version": "1.0.0",
-    Accept: "*/*",
-    "User-Agent": UA,
-  };
-}
 
 async function fetchSigned(signer, videoKey, key, token) {
   const target = `${signer}?videoKey=${encodeURIComponent(videoKey)}&key=${encodeURIComponent(key)}`;
@@ -103,6 +93,10 @@ export default async function handler(req, res) {
   // A segment/key request is binary: keep the first signer that answers and
   // never try to parse it as a playlist.
   const binary = !/\.(m3u8|mpd)$/i.test(key);
+  // The signer relay only stores HLS paths. A `.mpd` request is a legitimate
+  // thing for a client to ask for, so answer with the reason instead of letting
+  // it look like the lecture is broken.
+  const wantsDash = /\.mpd$/i.test(key) || /dash/i.test(key);
   const rounds = binary && RETRYABLE.test(key) ? 2 : 1;
   let lastReason = "no signer answered";
   let tried = 0;
@@ -110,7 +104,9 @@ export default async function handler(req, res) {
   for (let round = 0; round < rounds; round++) {
     // Ask for a token per round: a stale cache is the most common cause of a
     // lecture that stops playing halfway through.
-    const token = await guestToken(round > 0);
+    const auth = await resolveToken(round > 0);
+    const token = auth.token;
+    res.setHeader("X-PW-Auth", auth.source);
 
     for (const candidate of keys) {
       for (const signer of signers) {
@@ -159,10 +155,12 @@ export default async function handler(req, res) {
   res.end(
     JSON.stringify({
       success: false,
-      error:
-        "No signing service accepted this lecture right now. PW only publishes some lectures; try another lecture or use the source player.",
+      error: wantsDash
+        ? "This signer only stores HLS renditions, so a DASH (.mpd) path cannot be signed here. Request 720/main.m3u8 instead — lecture playback uses HLS."
+        : "No signing service accepted this lecture right now. PW only publishes some lectures; try another lecture or use the source player.",
       reason: lastReason,
       tried,
+      hlsHint: wantsDash ? "/api/sign?videoKey=<folder>&key=720/main.m3u8" : undefined,
     })
   );
 }

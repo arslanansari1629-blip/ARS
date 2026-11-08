@@ -38,6 +38,9 @@ const REQUIRED_API = [
   "sign.mjs",
   "pdf.mjs",
   "media.mjs",
+  "pw.mjs",
+  "token.mjs",
+  "pw/[...path].mjs",
 ];
 
 async function exists(p) {
@@ -115,7 +118,7 @@ async function main() {
     builtAt: new Date().toISOString(),
     pages: pages.sort(),
     functions: REQUIRED_API,
-    source: "https://www.learnxpw.site/api",
+    source: "/api/pw (authenticated pass-through to the PW API)",
   };
   await writeFile(path.join(PUBLIC, "build.json"), JSON.stringify(stamp, null, 2));
 

@@ -36,8 +36,8 @@ const TYPES = {
 
 const modules = new Map();
 
-async function loadHandler(name) {
-  const file = path.join(API, `${name}.mjs`);
+async function loadHandler(name, explicitFile = "") {
+  const file = explicitFile || path.join(API, `${name}.mjs`);
   if (modules.has(file)) return modules.get(file).default;
   const mod = await import(`${pathToFileURL(file).href}?t=${Date.now()}`);
   modules.set(file, mod);
@@ -61,16 +61,46 @@ const server = http.createServer(async (req, res) => {
   // --- API routes -------------------------------------------------------
   if (pathname.startsWith("/api/")) {
     const name = pathname.slice(5).replace(/\/+$/, "");
-    const file = path.join(API, `${name}.mjs`);
+
+    // Exact route first, then a Vercel-style catch-all (`api/x/[...path].mjs`)
+    // so same shaped routes behave identically here and in production.
+    let file = path.join(API, `${name}.mjs`);
+    let wildcard = null;
     try {
       await stat(file);
     } catch {
-      res.statusCode = 404;
-      res.setHeader("Content-Type", "application/json");
-      return res.end(JSON.stringify({ success: false, error: `Unknown API route: ${name}` }));
+      const segments = name.split("/");
+      let found = null;
+      for (let cut = segments.length; cut >= 1 && !found; cut--) {
+        const dir = segments.slice(0, cut).join("/");
+        const rest = segments.slice(cut).join("/");
+        const candidate = path.join(API, dir, "[...path].mjs");
+        try {
+          await stat(candidate);
+          found = { candidate, rest, dir };
+        } catch {
+          /* keep shrinking */
+        }
+      }
+      if (!found) {
+        res.statusCode = 404;
+        res.setHeader("Content-Type", "application/json");
+        return res.end(JSON.stringify({ success: false, error: `Unknown API route: ${name}` }));
+      }
+      file = found.candidate;
+      wildcard = { dir: found.dir, rest: found.rest };
+    }
+
+    if (wildcard) {
+      // Mirror Vercel: the handler reads `req.query.path` from the wildcard.
+      const url2 = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      if (!url2.searchParams.get("path")) {
+        url2.searchParams.set("path", wildcard.rest);
+        req.url = `${url2.pathname}?${url2.searchParams.toString()}`;
+      }
     }
     try {
-      const handler = await loadHandler(name);
+      const handler = await loadHandler(name, file);
       return await handler(req, res);
     } catch (err) {
       console.error(`[api:${name}]`, err);
