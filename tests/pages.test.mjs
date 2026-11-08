@@ -69,7 +69,10 @@ const nativeFetch = globalThis.fetch;
  * Load a page, install jsdom globals, execute its module script and wait for
  * `ready` (a selector) or a fixed settle time.
  */
-async function render(pathname, { waitForSelector, settle = 900, fetchWrap = null } = {}) {
+async function render(
+  pathname,
+  { waitForSelector, settle = 900, fetchWrap = null, extraModules = [] } = {}
+) {
   const res = await nativeFetch(`${BASE}${pathname}`);
   const html = await res.text();
   const dom = new JSDOM(html, {
@@ -108,6 +111,13 @@ async function render(pathname, { waitForSelector, settle = 900, fetchWrap = nul
     }
   }
 
+  // Progressive-enhancement modules (the shell) are separate scripts; a test
+  // that asserts on what they build has to run them too.
+  for (const mod of extraModules) {
+    version += 1;
+    await import(`${mod}?v=${version}`);
+  }
+
   if (waitForSelector) {
     const deadline = Date.now() + 12000;
     while (Date.now() < deadline) {
@@ -131,6 +141,45 @@ test("home page renders live catalogue cards and hero copy", async () => {
   // The complete catalogue (14 201 batches) is the whole point of shipping the
   // list locally — the source site's own search only sees 13 631.
   assert.match(doc.getElementById("statSubjects").textContent, /14,201/);
+  dom.window.close();
+});
+
+test("the sidebar is a complete panel: three bands, foldable groups, a rail", async () => {
+  const { doc, dom } = await render("/", {
+    waitForSelector: "#side",
+    extraModules: ["/assets/shell.mjs"],
+  });
+  const side = doc.getElementById("side");
+
+  // Three bands, in order: head, nav, foot. The nav is the only one that may
+  // scroll, so the brand and the account row never leave the screen.
+  assert.ok(side.querySelector(".side-head"), "sidebar has no head band");
+  assert.ok(side.querySelector(".side-nav"), "sidebar has no nav band");
+  assert.ok(side.querySelector(".side-foot"), "sidebar has no foot band");
+  assert.ok(
+    side.querySelectorAll(".side-title").length >= 4,
+    "sidebar lost its navigation groups"
+  );
+
+  // Groups are disclosures, so a long list stays short.
+  const groups = side.querySelectorAll("details.side-group");
+  assert.ok(groups.length >= 3, `expected foldable groups, got ${groups.length}`);
+  for (const group of groups) {
+    assert.ok(group.querySelector("summary.side-title"), "a group has no heading control");
+    assert.ok(group.querySelector(".side-items"), "a group has no item container");
+  }
+
+  // Every link can label itself on the collapsed rail.
+  for (const link of side.querySelectorAll(".side-link")) {
+    assert.ok(link.dataset.label, `a side link has no rail label: ${link.textContent.trim()}`);
+  }
+
+  // And there is a way back out of the rail.
+  assert.ok(side.querySelector("[data-side-collapse]"), "sidebar cannot be collapsed");
+
+  // No loose text crammed into the footer: it is a session row or a CTA.
+  assert.ok(!side.querySelector(".side-note"), "the old footer note is back");
+
   dom.window.close();
 });
 
@@ -199,11 +248,17 @@ test("chapter page shows lectures then notes/DPP PDFs", async () => {
 test("lecture page loads metadata and attached notes + DPP", async () => {
   const url =
     "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b&title=Units%20and%20Dimension%2010";
-  const { doc, dom } = await render(url, { waitForSelector: "#docs .doc-row" });
-  const docs = doc.querySelectorAll("#docs .doc-row");
+  const { doc, dom } = await render(url, { waitForSelector: "#docs .attach-row" });
+  const docs = doc.querySelectorAll("#docs .attach-row");
   assert.ok(docs.length >= 2, `expected class notes + DPP, got ${docs.length}`);
   assert.match(doc.body.textContent, /Class Notes/);
   assert.match(doc.body.textContent, /DPP 07/);
+  // Every attachment is its own fixed grid: a long name must not widen the
+  // player column, so each row carries a name track and an action group.
+  for (const row of docs) {
+    assert.ok(row.querySelector(".attach-name"), "attachment row has no name track");
+    assert.ok(row.querySelector(".attach-actions"), "attachment row has no action group");
+  }
   assert.match(doc.getElementById("lectureMeta").textContent, /01:50:38/);
   dom.window.close();
 });
@@ -212,7 +267,7 @@ test("lecture page bootstraps a stream plan instead of erroring", async () => {
   const url =
     "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b&title=Units%20and%20Dimension%2010";
   const { doc, dom } = await render(url, {
-    waitForSelector: "#docs .doc-row",
+    waitForSelector: "#docs .attach-row",
     // Offline there is no reachable signing relay, so /api/stream answers with
     // `playable: false`. Stub that single route with a real plan shape so the
     // page exercises its successful bootstrap path.

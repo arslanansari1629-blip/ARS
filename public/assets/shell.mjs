@@ -9,20 +9,22 @@
    fails to load, each page falls back to the nav it shipped with.
    ========================================================================= */
 
-import { getSession, recentBatches, esc } from "./app.js";
+import { getSession, recentBatches, getPrefs, setPref, esc } from "./app.js";
 
 const page = (document.body && document.body.dataset.page) || "home";
 
 const NAV = [
   {
+    key: "browse",
     title: "Browse",
     items: [
       { id: "home", href: "/", label: "Home", icon: "home" },
       { id: "batches", href: "/batches.html", label: "All batches", icon: "grid" },
-      { id: "search", href: "#search", label: "Search", icon: "search" },
+      { id: "search", href: "#search", label: "Search", icon: "search", kbd: "⌘K" },
     ],
   },
   {
+    key: "study",
     title: "Study",
     items: [
       { id: "library", href: "/library.html", label: "My Library", icon: "bookmark" },
@@ -30,11 +32,22 @@ const NAV = [
     ],
   },
   {
-    title: "Quick filters",
+    key: "languages",
+    title: "Language",
     items: [
-      { id: "hinglish", href: "/batches.html?lang=Hinglish", label: "Hinglish batches", icon: "globe" },
-      { id: "english", href: "/batches.html?lang=English", label: "English batches", icon: "globe" },
-      { id: "recent", href: "/batches.html?sort=newest", label: "Newest first", icon: "clock" },
+      { id: "hinglish", href: "/batches.html?lang=Hinglish", label: "Hinglish", icon: "globe" },
+      { id: "bilingual", href: "/batches.html?lang=Bilingual", label: "Bilingual", icon: "globe" },
+      { id: "gujrati", href: "/batches.html?lang=Gujrati", label: "Gujarati", icon: "globe" },
+      { id: "kannada", href: "/batches.html?lang=Kannada", label: "Kannada", icon: "globe" },
+      { id: "telugu", href: "/batches.html?lang=Telugu", label: "Telugu", icon: "globe" },
+    ],
+  },
+  {
+    key: "sort",
+    title: "Sort",
+    items: [
+      { id: "newest", href: "/batches.html?sort=newest", label: "Newest first", icon: "clock" },
+      { id: "az", href: "/batches.html?sort=name", label: "Name (A–Z)", icon: "list" },
     ],
   },
 ];
@@ -48,6 +61,10 @@ const ICONS = {
   spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
   globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 2.4 14.4 0 17M12 3.5c-2.4 2.6-2.4 14.4 0 17"/>',
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  list: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  collapse: '<path d="M9 6l-6 6 6 6"/><path d="M21 6v12"/>',
+  pin: '<path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z"/><path d="M12 13v7"/>',
+  help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.6v.4"/><path d="M12 17h.01"/>',
 };
 
 const icon = (name) =>
@@ -65,20 +82,25 @@ function buildSidebar() {
       .map((item) => {
         const active = item.id === page ? " active" : "";
         if (item.id === "search") {
-          return `<button class="side-link${active}" type="button" data-open-search>
-            ${icon(item.icon)}<span>${item.label}</span><kbd>⌘K</kbd>
+          return `<button class="side-link${active}" type="button" data-open-search data-label="${item.label}">
+            ${icon(item.icon)}<span>${item.label}</span><kbd>${item.kbd}</kbd>
           </button>`;
         }
-        return `<a class="side-link${active}" href="${item.href}">${icon(item.icon)}<span>${item.label}</span></a>`;
+        return `<a class="side-link${active}" href="${item.href}" data-label="${item.label}">${icon(item.icon)}<span>${item.label}</span>${
+          item.kbd ? `<kbd>${item.kbd}</kbd>` : ""
+        }</a>`;
       })
       .join("");
-    return `<div class="side-group"><span class="side-title">${group.title}</span>${items}</div>`;
+    return `<details class="side-group" data-group="${group.key}" open>
+        <summary class="side-title" aria-label="${group.title}">${group.title}<span class="chev-mark" aria-hidden="true"></span></summary>
+        <div class="side-items">${items}</div>
+      </details>`;
   }).join("");
 
   const recent = recentBatches().slice(0, 4);
   const recentBlock = recent.length
     ? `<div class="side-group side-recent">
-        <span class="side-title">Jump back in</span>
+        <span class="side-title recent-title">Jump back in</span>
         ${recent
           .map(
             (b) => `<a class="side-mini" href="/batch.html?id=${encodeURIComponent(b.id)}" title="${esc(b.name)}">
@@ -90,18 +112,37 @@ function buildSidebar() {
       </div>`
     : "";
 
+  const session = getSession();
+
   aside.innerHTML = `
-    <a class="side-brand" href="/">
-      <span class="brand-mark">AV</span>
-      <span class="side-brand-text">ArsVibe<small>Physics Wallah</small></span>
-    </a>
-    <nav class="side-nav">${groups}${recentBlock}</nav>
+    <div class="side-head">
+      <a class="side-brand" href="/">
+        <span class="brand-mark">AV</span>
+        <span class="side-brand-text">ArsVibe<small>Physics Wallah</small></span>
+      </a>
+      <button class="side-collapse" type="button" data-side-collapse title="Collapse navigation" aria-label="Collapse navigation">
+        ${icon("collapse")}
+      </button>
+    </div>
+
+    <nav class="side-nav" aria-label="Site">${groups}${recentBlock}</nav>
+
     <div class="side-foot">
+      ${
+        session
+          ? `<a class="side-who" href="/dashboard.html" title="${esc(session.name)}">
+               <span class="avatar">${esc(String(session.name || "A").trim().charAt(0).toUpperCase())}</span>
+               <span class="side-who-text"><strong>${esc(session.name)}</strong><span>Open dashboard</span></span>
+             </a>`
+          : `<a class="side-cta" href="/login.html">
+               ${icon("help")}
+               <span>Sign in to save progress</span>
+             </a>`
+      }
       <a class="side-cta" href="${esc("https://t.me/ArsVibe_Main")}" target="_blank" rel="noopener">
         ${icon("spark")}
         <span>Join the study circle</span>
       </a>
-      <span class="side-note">14,201 batches · updated live</span>
       <span class="side-micro">DWG AV-01 · rev 2026</span>
     </div>`;
 
@@ -176,6 +217,32 @@ function mount() {
   const aside = buildSidebar();
   document.body.insertBefore(aside, document.body.firstChild);
   document.body.classList.add("has-shell");
+
+  // Collapsed rail: a preference, not a per-page state, so it survives
+  // navigation. Read before paint-ish (the module runs at the end of the body).
+  if (getPrefs().sideRail) document.body.classList.add("side-rail");
+
+  aside.querySelector("[data-side-collapse]")?.addEventListener("click", () => {
+    const rail = document.body.classList.toggle("side-rail");
+    setPref("sideRail", rail);
+  });
+
+  // Remember which groups the reader folded shut.
+  const folded = getPrefs().sideFolded || [];
+  if (Array.isArray(folded) && folded.length) {
+    for (const key of folded) {
+      const group = aside.querySelector(`details[data-group="${key}"]`);
+      if (group) group.open = false;
+    }
+  }
+  aside.querySelectorAll("details.side-group").forEach((group) => {
+    group.addEventListener("toggle", () => {
+      const closed = [...aside.querySelectorAll("details.side-group")]
+        .filter((g) => !g.open)
+        .map((g) => g.dataset.group);
+      setPref("sideFolded", closed);
+    });
+  });
 
   buildTopbar();
 

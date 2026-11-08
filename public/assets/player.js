@@ -295,6 +295,15 @@ export class ProPlayer {
       levelLoadingTimeOut: 20000,
       lowLatencyMode: false,
       enableWorker: true,
+      // Start no higher than the first second of the lecture: fetching a few
+      // fragments at 240p fills the buffer in a fraction of the time a 720p
+      // start does, and ABR steps up within ~10 s. This is what makes the
+      // first frame feel instant on a slow line.
+      startPosition: -1,
+      // Never pick a rendition the player surface cannot show: on a laptop a
+      // 240p stream looks the same as 480p but buffers twice as fast.
+      capLevelToPlayerSize: true,
+      capLevelOnFPSDrop: true,
     });
     this.hls = hls;
     this.native = false;

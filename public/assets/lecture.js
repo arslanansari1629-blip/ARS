@@ -182,7 +182,7 @@ async function boot() {
     loadQueue((l.tags && l.tags[0]) || "");
   } else {
     metaEl.textContent = "Lecture details are loading from the chapter list.";
-    docsEl.innerHTML = `<div class="tiny dim">No attachments could be loaded for this lecture.</div>`;
+    docsEl.innerHTML = `<div class="attach-empty">No attachments could be loaded for this lecture.</div>`;
     docCount.textContent = "0";
   }
 
@@ -190,25 +190,45 @@ async function boot() {
   await stream;
 }
 
+/**
+ * Attachments: one fixed grid per file (badge / name / actions), so a long
+ * name truncates inside its track instead of widening the player column.
+ * The kind is inferred from the file, because "PDF" on a video is a lie.
+ */
+function docIcon(name) {
+  const ext = String((name || "").split(".").pop() || "").toLowerCase();
+  return { png: "IMG", jpg: "IMG", jpeg: "IMG", zip: "ZIP", mp4: "VID" }[ext] || "PDF";
+}
+
 function renderDocs(docs) {
   if (!docs.length) {
-    docsEl.innerHTML = `<div class="tiny dim">No notes or DPPs attached to this lecture.</div>`;
+    docsEl.innerHTML = `<div class="attach-empty">No notes or DPPs attached to this lecture.</div>`;
     docCount.textContent = "0";
     return;
   }
   docCount.textContent = `${docs.length} file${docs.length === 1 ? "" : "s"}`;
   docsEl.innerHTML = docs
-    .map(
-      (d) => `
-      <div class="doc-row">
-        <span class="pdf">PDF</span>
-        <span class="grow">
-          <span class="name">${esc(d.name)}</span>
-          <span class="meta">${esc(d.note || d.topic || "Document")}</span>
+    .map((d) => {
+      const kind = docIcon(d.name);
+      const viewer = `/viewer.html?url=${encodeURIComponent(d.url)}&name=${encodeURIComponent(d.name)}`;
+      const meta = d.note || d.topic || "Document";
+      return `
+      <div class="attach-row">
+        <span class="pdf${kind === "VID" ? " video" : ""}">${kind}</span>
+        <span class="attach-text">
+          <span class="attach-name" title="${esc(d.name)}">${esc(d.name)}</span>
+          <span class="attach-meta" title="${esc(meta)}">${esc(meta)}</span>
         </span>
-        <a class="btn btn-ghost btn-sm" href="/viewer.html?url=${encodeURIComponent(d.url)}&name=${encodeURIComponent(d.name)}" target="_blank" rel="noopener">Open</a>
-      </div>`
-    )
+        <span class="attach-actions">
+          <a class="btn btn-ghost" href="${viewer}" target="_blank" rel="noopener" title="Open in the reader" aria-label="Open ${esc(d.name)}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg>
+          </a>
+          <a class="btn btn-ghost" href="/api/media?url=${encodeURIComponent(d.url)}" download title="Download" aria-label="Download ${esc(d.name)}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v11"/><path d="M7.5 11 12 15.5 16.5 11"/><path d="M4.5 19h15"/></svg>
+          </a>
+        </span>
+      </div>`;
+    })
     .join("");
 }
 
@@ -849,6 +869,47 @@ async function toggleFullscreen() {
   }
 }
 fullscreenBtn?.addEventListener("click", toggleFullscreen);
+
+/**
+ * Fullscreen: get out of the way.
+ *
+ * A lecture is watched, not stared at. When the player is fullscreen and the
+ * pointer has been still for 2.6 s, the transport fades out; any movement,
+ * tap, key or pause brings it back. Nothing is removed from the DOM, so
+ * keyboard users keep every control, and the state is driven by one class.
+ */
+let idleTimer = null;
+
+function wakeControls() {
+  if (!root) return;
+  root.classList.remove("controls-idle");
+  root.classList.add("controls-awake");
+  clearTimeout(idleTimer);
+  if (!document.fullscreenElement) return;
+  idleTimer = setTimeout(() => {
+    // Never hide the bar while paused, buffering, or mid-settings: the user
+    // is looking at it for a reason.
+    const busy =
+      video.paused ||
+      !video.readyState ||
+      (playerMenu && !playerMenu.hidden) ||
+      document.activeElement?.closest?.(".player-bar, .player-menu");
+    if (busy) return;
+    root.classList.add("controls-idle");
+  }, 2600);
+}
+
+for (const evt of ["pointermove", "pointerdown", "focusin", "keydown"]) {
+  root?.addEventListener(evt, wakeControls, { passive: true });
+}
+document.addEventListener("fullscreenchange", () => {
+  wakeControls();
+  if (!document.fullscreenElement) {
+    clearTimeout(idleTimer);
+    root?.classList.remove("controls-idle");
+  }
+});
+video?.addEventListener("pause", wakeControls);
 
 /* ------------------------------- keyboard -------------------------------- */
 
