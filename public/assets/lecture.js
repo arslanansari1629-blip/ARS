@@ -77,6 +77,27 @@ function showLoading(title, text) {
   overlayActions.innerHTML = "";
 }
 
+/** Can this browser decode an HLS manifest without hls.js? (Safari/iOS can.) */
+function canPlayHlsNatively() {
+  return Boolean(video.canPlayType && video.canPlayType("application/vnd.apple.mpegurl"));
+}
+
+/**
+ * hls.js could not be loaded *and* the browser has no native HLS.
+ *
+ * This is a client-side limitation, not a broken lecture, and saying so matters:
+ * the server-side check will happily report the same lecture as playing.
+ */
+function hlsUnsupported(plan) {
+  showMessage(
+    "This browser cannot play this video",
+    "The video is fine — this browser has no HLS support and the player script could not be loaded (an extension or a network filter may be blocking it). Try Safari, or open the video directly.",
+    true,
+    `<a class="btn btn-primary" href="${plan && plan.url ? plan.url : checkUrl()}" target="_blank" rel="noopener">Open the video file</a>
+     <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>`
+  );
+}
+
 /** Deep link to the server-side playback self-test for this lecture. */
 function checkUrl() {
   return `/api/check?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
@@ -379,6 +400,10 @@ async function attachPlayer(plan) {
     "error",
     () => {
       if (!nativeSource) return;
+      // A browser without an HLS decoder fails every manifest it is handed, so
+      // "this stream could not be opened" would blame the lecture for a missing
+      // capability — while /api/check reports the same lecture as playing.
+      if (!canPlayHlsNatively()) return hlsUnsupported(currentPlan);
       showMessage(
         "Playback error",
         "This stream could not be opened. Retry to fetch a fresh link, or run the playback check to see which step failed.",
