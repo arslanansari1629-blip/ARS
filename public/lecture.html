@@ -39,7 +39,7 @@
     <div class="lecture-head">
       <div>
         <h1 id="lectureTitle" style="font-size:clamp(1.15rem,2.6vw,1.65rem)">Loading lecture…</h1>
-        <p class="muted tiny" id="lectureMeta"></p>
+        <p class="muted tiny" id="lectureMeta" data-loading>Lecture details are loading from the chapter list.</p>
       </div>
       <div class="lecture-head-actions" id="queueNav"></div>
     </div>
@@ -73,7 +73,7 @@
             </div>
 
             <!-- stopped state: the bug this ships to fix -->
-            <div class="player-stopped" id="playerStopped" hidden>
+            <div class="player-stopped" id="playerStopped" hidden aria-live="polite">
               <button class="big-play" id="bigPlayBtn" aria-label="Play lecture">
                 <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
               </button>
@@ -163,10 +163,10 @@
 
           <!-- live stream inspector -->
           <div class="player-stats" id="playerStats" hidden>
-            <div><span>Engine</span><strong id="statEngine">—</strong></div>
-            <div><span>Rendition</span><strong id="statQuality">—</strong></div>
-            <div><span>Buffer ahead</span><strong id="statBuffer">—</strong></div>
-            <div><span>Downshift</span><strong id="statBitrate">—</strong></div>
+            <div><span>Engine</span><strong id="statEngine">loading</strong></div>
+            <div><span>Rendition</span><strong id="statQuality">loading</strong></div>
+            <div><span>Buffer ahead</span><strong id="statBuffer">0.0s</strong></div>
+            <div><span>Bitrate</span><strong id="statBitrate">—</strong></div>
             <div><span>Stalls</span><strong id="statStalls">0</strong></div>
             <div><span>Retries</span><strong id="statRetries">0</strong></div>
           </div>
@@ -183,7 +183,9 @@
 
         <div class="card lecture-about" id="aboutCard">
           <h3 style="font-size:.95rem">About this lecture</h3>
-          <p class="tiny muted" id="aboutText" style="margin-top:.4rem">—</p>
+          <p class="tiny muted" id="aboutText" style="margin-top:.4rem" data-loading>
+            Lecture description is loading.
+          </p>
         </div>
       </div>
 
