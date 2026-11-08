@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PDF — EduVibe PW</title>
+<link rel="icon" href="/assets/pw-mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/theme.css" />
+<link rel="stylesheet" href="/assets/pages.css" />
+<style>
+  html, body { height: 100%; }
+  body { display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+</style>
+</head>
+<body data-page="viewer">
+  <div class="pdf-head">
+    <a class="icon-btn" href="javascript:history.length>1?history.back():location.assign('/batches.html')" title="Back">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </a>
+    <div class="grow">
+      <div class="title" id="docTitle">Loading document…</div>
+      <div class="tiny dim" id="docMeta"></div>
+    </div>
+    <a class="btn btn-ghost btn-sm" id="downloadBtn" href="#" download>Download</a>
+    <a class="btn btn-primary btn-sm" id="openBtn" href="#" target="_blank" rel="noopener">Open raw</a>
+  </div>
+  <iframe class="pdf-frame" id="frame" title="Document"></iframe>
+
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const name = params.get("name") || "Document";
+  const raw = params.get("url") || "";
+  const id = params.get("id") || "";
+  const base = params.get("base") || "https://static.pw.live/";
+
+  const src = raw
+    ? `/api/media?url=${encodeURIComponent(raw)}`
+    : `/api/media?id=${encodeURIComponent(id)}&base=${encodeURIComponent(base)}`;
+
+  document.getElementById("docTitle").textContent = name;
+  document.getElementById("docMeta").textContent = "Rendered from the Physics Wallah PDF library";
+  document.title = `${name} — EduVibe PW`;
+
+  const frame = document.getElementById("frame");
+  frame.src = src;
+
+  const download = document.getElementById("downloadBtn");
+  download.href = src;
+  download.download = name.endsWith(".pdf") ? name : `${name}.pdf`;
+
+  document.getElementById("openBtn").href = raw || (base + id);
+</script>
+</body>
+</html>

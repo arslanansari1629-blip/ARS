@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sign in — Physics Wallah | EduVibe</title>
+<link rel="icon" href="/assets/pw-mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/theme.css" />
+<link rel="stylesheet" href="/assets/pages.css" />
+</head>
+<body data-page="login">
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark">PW</span>
+      <span>EduVibe<small>Physics Wallah</small></span>
+    </a>
+    <div class="nav-actions" id="sessionChip"></div>
+  </div>
+</header>
+
+<main class="login-wrap">
+  <div class="glass login-card">
+    <div class="logo">PW</div>
+    <div>
+      <h1>Welcome to PW</h1>
+      <p class="muted tiny" style="margin-top:.35rem">
+        Sign in to access all batches, DPPs &amp; lectures for FREE
+      </p>
+    </div>
+
+    <div class="pill pill-accent" style="justify-self:center;margin-inline:auto">
+      <span class="tiny">Join 1,647+ students already learning</span>
+    </div>
+
+    <button class="btn btn-google" id="googleBtn">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="#4285F4" d="M21.6 12.2c0-.7-.06-1.4-.18-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3z"/>
+        <path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22z"/>
+        <path fill="#FBBC05" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1A10 10 0 0 0 2 12c0 1.6.4 3.2 1.1 4.6L6.4 14z"/>
+        <path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.8-2.8A10 10 0 0 0 3.1 7.4L6.4 10C7.2 7.7 9.4 6 12 6z"/>
+      </svg>
+      Continue with Google
+    </button>
+
+    <div class="divider">or instant access</div>
+
+    <button class="btn btn-primary btn-block" id="bypassBtn">Bypass Login</button>
+
+    <p class="login-note">
+      Bypass Login creates a local student profile on this device only — no password,
+      no email verification, no data leaves your browser.
+    </p>
+
+    <div class="trust">
+      <span>✓ Free forever</span>
+      <span>✓ No ads</span>
+      <span>✓ 13,000+ batches</span>
+    </div>
+
+    <p class="tiny dim">EduVibe • Free &amp; Open Learning for Everyone</p>
+  </div>
+</main>
+
+<div class="pdf-modal hide" id="googleModal">
+  <div class="pdf-head">
+    <div class="grow"><div class="title">Sign In — Google Accounts</div><div class="tiny dim">Local demo sign-in</div></div>
+    <button class="icon-btn" id="closeModal" aria-label="Close">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div style="display:grid;place-items:center;padding:1.5rem;overflow:auto">
+    <form class="glass" id="googleForm" style="width:min(380px,100%);padding:1.4rem;display:grid;gap:.8rem">
+      <h3>Enter your details</h3>
+      <div class="field">
+        <label for="gName">Full name</label>
+        <input class="input" id="gName" placeholder="Arjun Sharma" required />
+      </div>
+      <div class="field">
+        <label for="gEmail">Email</label>
+        <input class="input" id="gEmail" type="email" placeholder="you@gmail.com" required />
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Continue</button>
+      <p class="tiny dim">This profile is stored in your browser only.</p>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { mountChrome, signInBypass, signInWithEmail, getSession } from "/assets/app.js";
+
+  mountChrome("login");
+
+  const params = new URLSearchParams(location.search);
+  const next = params.get("next") || "/dashboard.html";
+
+  if (getSession()) location.replace(next);
+
+  document.getElementById("bypassBtn").addEventListener("click", () => {
+    signInBypass();
+    location.replace(next);
+  });
+
+  const modal = document.getElementById("googleModal");
+  document.getElementById("googleBtn").addEventListener("click", () => {
+    modal.classList.remove("hide");
+    document.getElementById("gName").focus();
+  });
+  document.getElementById("closeModal").addEventListener("click", () => modal.classList.add("hide"));
+  document.getElementById("googleForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    signInWithEmail(
+      document.getElementById("gName").value.trim(),
+      document.getElementById("gEmail").value.trim()
+    );
+    location.replace(next);
+  });
+</script>
+</body>
+</html>

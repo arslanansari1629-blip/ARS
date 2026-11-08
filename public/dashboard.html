@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard — EduVibe PW</title>
+<link rel="icon" href="/assets/pw-mark.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="/assets/theme.css" />
+<link rel="stylesheet" href="/assets/pages.css" />
+</head>
+<body data-page="dashboard">
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark">PW</span>
+      <span>EduVibe<small>Physics Wallah</small></span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <nav class="nav-links" id="navLinks">
+      <a href="/" data-page="home">Home</a>
+      <a href="/batches.html" data-page="batches">Batches</a>
+      <a href="/library.html" data-page="library">My Library</a>
+      <a href="/dashboard.html" data-page="dashboard">Dashboard</a>
+    </nav>
+    <div class="nav-actions" id="sessionChip"></div>
+  </div>
+</header>
+
+<main class="section" style="padding-top:1.5rem">
+  <div class="shell">
+    <div class="row between" style="align-items:flex-end;margin-bottom:1.2rem">
+      <div>
+        <span class="eyebrow">Student dashboard</span>
+        <h1 id="greeting" style="font-size:clamp(1.5rem,3vw,2.1rem)">Welcome back</h1>
+        <p class="muted tiny" id="profileLine"></p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost btn-sm" href="/batches.html">Browse batches</a>
+        <button class="btn btn-ghost btn-sm" id="signOutBtn">Sign out</button>
+      </div>
+    </div>
+
+    <div class="stat-grid" style="margin-bottom:1.4rem">
+      <div class="stat"><strong id="statBatches">0</strong><span>Batches opened</span></div>
+      <div class="stat"><strong id="statLectures">0</strong><span>Lectures started</span></div>
+      <div class="stat"><strong id="statDocs">0</strong><span>PDFs opened</span></div>
+      <div class="stat"><strong id="statSource">Live</strong><span>Data source</span></div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:1.2rem;align-items:start">
+      <section class="card" style="padding:1.1rem">
+        <div class="row between" style="margin-bottom:.7rem">
+          <h3 style="font-size:.98rem">Recently opened batches</h3>
+          <a class="tiny" style="color:var(--brand-2)" href="/library.html">Library →</a>
+        </div>
+        <div class="list" id="recentList"></div>
+      </section>
+
+      <section class="card" style="padding:1.1rem">
+        <div class="row between" style="margin-bottom:.7rem">
+          <h3 style="font-size:.98rem">Continue watching</h3>
+        </div>
+        <div class="list" id="historyList"></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="shell footer-inner">
+    <div><strong>EduVibe PW</strong> · your progress is saved in this browser</div>
+    <div class="row"><a href="/">Home</a><a href="/batches.html">Batches</a></div>
+  </div>
+</footer>
+
+<script type="module" src="/assets/dashboard.js"></script>
+</body>
+</html>
