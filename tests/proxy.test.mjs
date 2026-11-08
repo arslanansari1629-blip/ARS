@@ -146,6 +146,60 @@ test("/api/pw walks the other hosts when one is unreachable", async () => {
   assert.match(result.getHeader("x-pw-tried"), /api\.penpencil\.co:0/);
 });
 
+test("/api/pw keeps walking hosts through a 4xx and signs on the right one", async () => {
+  // Real behaviour: get-hls-key answers 401 on api.penpencil.co and 200 with a
+  // 16-byte AES key on vidcloud.eu.org/api, for the same token. A 401 is "wrong
+  // host", not "give up", or every lecture key would look locked.
+  const { default: handler } = await import("../lib/pw-proxy.mjs");
+  const KEY = Buffer.from("00112233445566778899aabbccddeeff", "hex");
+
+  const { result, calls } = await withFetch(
+    async (url) => {
+      if (url.includes("vidcloud.eu.org")) {
+        return new Response(KEY, { status: 200, headers: { "content-type": "application/octet-stream" } });
+      }
+      return jsonResponse({ success: false, message: "Unauthorised Access" }, 401);
+    },
+    async () => {
+      const res = mockRes();
+      await handler(
+        req("/api/pw/v1/videos/get-hls-key?videoKey=abc&key=enc.key"),
+        res
+      );
+      return res;
+    }
+  );
+
+  assert.equal(result.statusCode, 200, "the host that can sign must be used");
+  assert.deepEqual(Buffer.concat(result.chunks || []), KEY, "exact key bytes");
+  assert.match(
+    result.headers["x-pw-upstream"],
+    /vidcloud\.eu\.org/,
+    "reports the host that answered, not the one it started with"
+  );
+  assert.ok(
+    calls.length >= 2,
+    "should have tried more than one host before succeeding"
+  );
+});
+
+test("/api/pw treats a 404 as definitive instead of fanning out", async () => {
+  // A mirror cannot invent an endpoint. Retrying a 404 on five hosts only makes
+  // genuinely missing paths five times slower.
+  const { default: handler } = await import("../lib/pw-proxy.mjs");
+  const { result, calls } = await withFetch(
+    async () => jsonResponse({ success: false, message: "Not found" }, 404),
+    async () => {
+      const res = mockRes();
+      await handler(req("/api/pw/v1/videos/get-dash-key?key=abc"), res);
+      return res;
+    }
+  );
+
+  assert.equal(result.statusCode, 404);
+  assert.equal(calls.length, 1, "one host is enough to know it is missing");
+});
+
 test("/api/pw streams binary payloads untouched", async () => {
   const { default: handler } = await import("../lib/pw-proxy.mjs");
   const key = Buffer.from("0123456789abcdef");
