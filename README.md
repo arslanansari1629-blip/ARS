@@ -167,19 +167,21 @@ questions:
 | field | meaning |
 | --- | --- |
 | `lectureSigning` | the relays accept the token, so any folder it is told about can be signed |
-| `entitlement` | `{lectures, withVideoUrl, sampleTitle}` from a live batch listing |
+| `entitlement` | `{lectures, withVideoUrl, sampleTitle}` — a live lecture and its schedule record |
 | `lecturePlayback` | `working` · `metadata-only` · `unavailable` |
 
-**Signing and entitlement are not the same thing, and mixing them up is what makes
-"lectures don't play" so hard to read.** A guest token signs happily — it just never learns
-*which* file a lecture is, because the schedule record only carries
-`videoDetails.videoUrl` for a token that holds the batch. With a guest token the API returns
-titles, durations and thumbnails but an empty `videoUrl`, and every lecture resolves as
-"not published". `metadata-only` says exactly that.
+**Signing and entitlement are not the same thing.** The relays will sign any folder they
+are told about; whether a token is *told* which folder a lecture is depends on the schedule
+record, and the two generations of that route do not even agree with each other: the modern
+`/v1/.../schedule-details` returns an empty `videoDetails.videoUrl`, while the legacy
+`/Schedule` — 404 on `api.penpencil.co`, alive on the vidcloud mirror — carries the signed
+`master.mpd`. `fetchSchedule` asks both and keeps whichever has a stream.
 
-To play lectures, pin a bearer that holds the batch as `PW_TOKEN` (Vercel → project →
-Settings → Environment Variables). Nothing else changes: the same proxy, the same
-`/api/sign` chain and the same player are then used.
+With a guest token, some batches still come back with titles, durations and thumbnails but
+no `videoUrl`; `lecturePlayback: "metadata-only"` is that state. To play those, pin a bearer
+that holds the batch as `PW_TOKEN` (Vercel → project → Settings → Environment Variables).
+Nothing else changes: the same proxy, the same `/api/sign` chain and the same player are
+then used.
 
 ### Failover is per endpoint, not per host
 

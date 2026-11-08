@@ -7,6 +7,7 @@ import {
   FALLBACK_TOKEN,
 } from "../lib/pw-auth.mjs";
 import { pwFetch } from "../lib/pw-proxy.mjs";
+import { fetchSchedule } from "../lib/api-data.mjs";
 
 /**
  * GET /api/token         → token state + which hosts accept it
@@ -108,12 +109,10 @@ async function probe(probe) {
 async function probeEntitlement(token) {
   const BATCH = "698ad3519549b300a5e1cc6a";
   const SUBJECT = "6a6b44faf834f38ed6f9120d";
-  const path = `/v2/batches/${BATCH}/subject/${SUBJECT}/contents?page=1&contentType=videos`;
+  const listing = `/v2/batches/${BATCH}/subject/${SUBJECT}/contents?page=1&contentType=videos`;
   try {
-    // Through the dispatcher, not one host: the first allowlisted host answers
-    // 401 for this listing while a mirror serves it, and probing only the first
-    // would report "no videos" about a healthy catalogue.
-    const res = await pwFetch(path, { headers: pwHeaders(token), timeout: 12000 });
+    // Step 1: can we list lectures at all?
+    const res = await pwFetch(listing, { headers: pwHeaders(token), timeout: 12000 });
     if (!res.ok) {
       return {
         checked: true,
@@ -125,16 +124,23 @@ async function probeEntitlement(token) {
     }
     const body = await res.json();
     const items = Array.isArray(body.data) ? body.data : [];
-    const withUrl = items.filter((i) => (i.videoDetails && i.videoDetails.videoUrl) || i.url);
     const first = items[0] || {};
+
+    // Step 2: can we see a *stream*? The listing never carries one — the stream
+    // URL lives on the schedule record — so asking only the listing reported
+    // "metadata-only" for lectures that play perfectly well.
+    const res2 = first._id ? await fetchSchedule(BATCH, SUBJECT, first._id) : null;
+    const videoUrl = (res2 && res2.ok && res2.lecture && res2.lecture.videoUrl) || "";
+    const forTitle = (res2 && res2.ok && res2.lecture && res2.lecture.title) || first.topic || "";
+
     return {
       checked: true,
       status: res.status,
       lectures: items.length,
-      withVideoUrl: withUrl.length,
-      sampleTitle:
-        (first.videoDetails && first.videoDetails.name) || first.topic || "no lecture visible",
-      sampleVideoUrl: (first.videoDetails && first.videoDetails.videoUrl) || first.url || "",
+      withVideoUrl: videoUrl ? 1 : 0,
+      sampleTitle: forTitle || "no lecture visible",
+      sampleVideoUrl: videoUrl,
+      scheduleError: (res2 && res2.ok) || !res2 ? "" : res2.error || "schedule unavailable",
     };
   } catch (err) {
     return { checked: true, error: err?.message || "probe failed", lectures: 0, withVideoUrl: 0 };
