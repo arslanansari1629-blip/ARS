@@ -74,6 +74,15 @@ async function main() {
   const assets = await readdir(path.join(PUBLIC, "assets"));
   if (!assets.includes("theme.css")) problems.push("missing assets/theme.css");
 
+  // page modules must not reference identifiers they never imported
+  const { execFile } = await import("node:child_process");
+  const moduleCheck = await new Promise((resolve) => {
+    execFile(process.execPath, [path.join(ROOT, "scripts", "check-modules.mjs")], (err, stdout, stderr) => {
+      resolve({ ok: !err, output: `${stdout}${stderr}`.trim() });
+    });
+  });
+  if (!moduleCheck.ok) problems.push(moduleCheck.output);
+
   if (problems.length) {
     console.error("Build validation failed:\n - " + problems.join("\n - "));
     process.exit(1);

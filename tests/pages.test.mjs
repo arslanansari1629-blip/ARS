@@ -69,7 +69,7 @@ const nativeFetch = globalThis.fetch;
  * Load a page, install jsdom globals, execute its module script and wait for
  * `ready` (a selector) or a fixed settle time.
  */
-async function render(pathname, { waitForSelector, settle = 900 } = {}) {
+async function render(pathname, { waitForSelector, settle = 900, fetchWrap = null } = {}) {
   const res = await nativeFetch(`${BASE}${pathname}`);
   const html = await res.text();
   const dom = new JSDOM(html, {
@@ -84,8 +84,14 @@ async function render(pathname, { waitForSelector, settle = 900 } = {}) {
   globalThis.location = window.location;
   globalThis.CustomEvent = window.CustomEvent;
   globalThis.HTMLElement = window.HTMLElement;
-  globalThis.fetch = (input, init) =>
-    nativeFetch(typeof input === "string" ? new URL(input, BASE) : input, init);
+  globalThis.fetch = (input, init) => {
+    const target = typeof input === "string" ? new URL(input, BASE) : input;
+    if (fetchWrap) {
+      const handled = fetchWrap(target, init);
+      if (handled) return handled;
+    }
+    return nativeFetch(target, init);
+  };
 
   const scriptEl = window.document.querySelector('script[type="module"][src]');
   version += 1;
@@ -189,6 +195,58 @@ test("lecture page loads metadata and attached notes + DPP", async () => {
   assert.match(doc.body.textContent, /Class Notes/);
   assert.match(doc.body.textContent, /DPP 07/);
   assert.match(doc.getElementById("lectureMeta").textContent, /01:50:38/);
+  dom.window.close();
+});
+
+test("lecture page bootstraps a stream plan instead of erroring", async () => {
+  const url =
+    "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b&title=Units%20and%20Dimension%2010";
+  const { doc, dom } = await render(url, {
+    waitForSelector: "#docs .doc-row",
+    // Offline there is no reachable signing relay, so /api/stream answers with
+    // `playable: false`. Stub that single route with a real plan shape so the
+    // page exercises its successful bootstrap path.
+    fetchWrap: (target) => {
+      if (String(target).includes("/api/stream")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: true,
+              playable: true,
+              kind: "hls",
+              engine: "hls",
+              url: "/api/sign?videoKey=d780e1e3-f446-4218-97f8-5d3f4dd4ca05&key=720/main.m3u8",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        );
+      }
+      return null;
+    },
+  });
+
+  // wait for startStream() to finish bootstrapping (it replaces the overlay text)
+  const overlay = doc.getElementById("overlay");
+  assert.ok(overlay, "player overlay is missing");
+  const deadline = Date.now() + 12000;
+  while (Date.now() < deadline && /Fetching the stream details/.test(overlay.textContent)) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  const panel = overlay.textContent;
+  const body = doc.body.textContent;
+
+  // the old bug surfaced here as "api is not defined"
+  assert.ok(!/is not defined/.test(body), `page threw a ReferenceError: ${body.slice(0, 200)}`);
+  assert.ok(!/Stream unavailable/.test(panel), `stream bootstrap failed: ${panel}`);
+  assert.ok(!/Fetching the stream details/.test(panel), "stream bootstrap never completed");
+
+  // a resolved plan either starts playback or explains why it can't be played
+  assert.match(
+    panel,
+    /Starting playback|Stream ready|Stream not published|Playback not supported|No video published/,
+    `overlay never received a plan: ${panel}`
+  );
   dom.window.close();
 });
 

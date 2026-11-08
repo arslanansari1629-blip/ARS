@@ -1,6 +1,7 @@
 /* Lecture page — resolves the PW stream and plays it through our relay */
 
 import {
+  api,
   mountChrome,
   esc,
   qs,
