@@ -14,6 +14,12 @@ const subjectName = document.getElementById("subjectName");
 const subjectMeta = document.getElementById("subjectMeta");
 const crumbs = document.getElementById("crumbs");
 const batchLink = document.getElementById("batchLink");
+const listTools = document.getElementById("listTools");
+const chapterFilter = document.getElementById("chapterFilter");
+const filterCount = document.getElementById("filterCount");
+
+/** Every chapter as loaded, so filtering is a repaint and never a refetch. */
+let allChapters = [];
 
 if (subjectNameParam) subjectName.textContent = subjectNameParam;
 batchLink.href = `/batch.html?id=${encodeURIComponent(batchId)}`;
@@ -44,6 +50,59 @@ function row(c, index) {
     </a>`;
 }
 
+/**
+ * Paint a chapter list. Filtering redraws from `allChapters`, so typing costs
+ * no requests and the numbering keeps following the filtered set — a reader who
+ * filters for "Rotational" wants "01" to mean the first match, not chapter 14.
+ */
+function renderList(chapters) {
+  if (!chapters.length) {
+    list.innerHTML = emptyState(
+      "No chapter matches that",
+      "Try a shorter word — chapter names are matched anywhere in the title.",
+      `<button class="btn btn-ghost btn-sm" id="clearFilterBtn">Clear filter</button>`
+    );
+    document.getElementById("clearFilterBtn")?.addEventListener("click", () => {
+      chapterFilter.value = "";
+      applyFilter();
+    });
+    if (filterCount) filterCount.textContent = `0 of ${allChapters.length}`;
+    return;
+  }
+  list.innerHTML = `<div class="list">${chapters.map(row).join("")}</div>`;
+  if (filterCount) {
+    filterCount.textContent =
+      chapters.length === allChapters.length
+        ? ""
+        : `${chapters.length} of ${allChapters.length}`;
+  }
+}
+
+function applyFilter() {
+  const q = (chapterFilter?.value || "").trim().toLowerCase();
+  if (!q) return renderList(allChapters);
+  // Numbers match too: "ch 4" and "4" both find "Chapter 04".
+  renderList(
+    allChapters.filter((c) => {
+      const hay = `${c.name || ""} ${c.id || ""}`.toLowerCase();
+      if (hay.includes(q)) return true;
+      // Numeric queries ("4") also match the chapter's own number.
+      const digits = q.replace(/[^0-9]/g, "");
+      return Boolean(digits) && hay.replace(/[^0-9]/g, "").includes(digits);
+    })
+  );
+}
+
+chapterFilter?.addEventListener("input", applyFilter);
+// "/" focuses the filter, the way every other list on the web behaves.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "/" || !chapterFilter || listTools?.hidden) return;
+  const tag = (e.target && e.target.tagName) || "";
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) return;
+  e.preventDefault();
+  chapterFilter.focus();
+});
+
 async function load() {
   list.innerHTML = `<div class="list">${Array.from({ length: 6 })
     .map(() => `<div class="skeleton sk-row"></div>`)
@@ -66,12 +125,14 @@ async function load() {
     const out = await loadChapters(batchId, subjectSlug);
     const chapters = out.chapters || [];
     if (!chapters.length) {
-      list.innerHTML = emptyState("No chapters yet", "This subject has no chapter list on the source site right now.");
+      list.innerHTML = emptyState("No chapters yet", "This subject has no chapter list published yet. Check back after the next upload.");
       subjectMeta.textContent = "";
       return;
     }
     subjectMeta.textContent = `${chapters.length} chapters · click a chapter for lectures, notes and DPPs`;
-    list.innerHTML = `<div class="list">${chapters.map(row).join("")}</div>`;
+    allChapters = chapters;
+    renderList(chapters);
+    if (listTools) listTools.hidden = chapters.length < 6;
   } catch (err) {
     list.innerHTML = emptyState("Could not load chapters", err.message);
     toast(err.message, "error");

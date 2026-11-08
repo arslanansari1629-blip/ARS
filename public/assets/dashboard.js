@@ -9,6 +9,7 @@ import {
   emptyState,
 } from "./app.js";
 import { getLibrary } from "./library.js";
+import { favouriteCount } from "./favourites.js";
 
 mountChrome("dashboard");
 
@@ -29,6 +30,62 @@ if (session) {
   document.getElementById("statBatches").textContent = lib.batches.length;
   document.getElementById("statLectures").textContent = lib.lectures.length;
   document.getElementById("statDocs").textContent = lib.docs.length;
+  document.getElementById("statFavs").textContent = favouriteCount();
+
+  /**
+   * Resume rail + watch time.
+   *
+   * The player saves its position under `pos:<lectureId>` every few seconds;
+   * nothing on the dashboard ever read it, so "Continue watching" was a list of
+   * lectures with no idea how far in you were. Reading the same keys costs no
+   * request and is always current, because the player writes them.
+   */
+  const fmtLeft = (sec) => {
+    const m = Math.round(sec / 60);
+    if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m left`;
+    return `${m}m left`;
+  };
+
+  let watched = 0;
+  const resumable = [];
+  for (const l of lib.lectures) {
+    const pos = Number(localStorage.getItem(`pos:${l.id}`) || 0);
+    watched += pos;
+    if (pos > 12) resumable.push({ ...l, pos });
+  }
+  // Longest-watched first: that is the lecture actually in progress.
+  resumable.sort((a, b) => b.pos - a.pos);
+
+  document.getElementById("statWatch").textContent =
+    watched >= 3600
+      ? `${Math.floor(watched / 3600)}h ${Math.round((watched % 3600) / 60)}m`
+      : `${Math.round(watched / 60)}m`;
+
+  const band = document.getElementById("resumeBand");
+  const rail = document.getElementById("resumeRail");
+  if (band && rail && resumable.length) {
+    band.hidden = false;
+    rail.innerHTML = resumable
+      .slice(0, 6)
+      .map((l) => {
+        const href = `/lecture.html?batch=${encodeURIComponent(l.batch)}&subject=${encodeURIComponent(
+          l.subject
+        )}&id=${encodeURIComponent(l.id)}&title=${encodeURIComponent(l.title || "Lecture")}`;
+        return `
+          <a class="resume-card" href="${href}">
+            <span class="resume-thumb">
+              ${l.thumbnail ? `<img src="${esc(l.thumbnail)}" alt="" loading="lazy" onerror="this.remove()" />` : `<span class="resume-ph">▶</span>`}
+              <span class="resume-at">${Math.round(l.pos / 60)}m in</span>
+            </span>
+            <span class="resume-text">
+              <strong>${esc(l.title || "Lecture")}</strong>
+              <span class="tiny dim">${esc(l.chapter || l.subject || "")}</span>
+            </span>
+            <span class="resume-go">Resume</span>
+          </a>`;
+      })
+      .join("");
+  }
 
   document.getElementById("recentList").innerHTML = lib.batches.length
     ? lib.batches

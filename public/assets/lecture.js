@@ -3,7 +3,6 @@
 import {
   api,
   mountChrome,
-  SITE,
   esc,
   qs,
   toast,
@@ -267,17 +266,28 @@ async function resolvePlan(n) {
 async function startStream() {
   showLoading("Preparing your lecture…", "Fetching stream details from Physics Wallah.");
 
+  // One retry helper for every "try again" in this file. It bumps the attempt
+  // (so the resolver bypasses its cache) and re-enters the bootstrap, which is
+  // what these buttons always claimed to do and, on the first one, never did.
+  const retry = (btnId) =>
+    $(btnId)?.addEventListener("click", () => {
+      attempt += 1;
+      hideOverlay();
+      startStream();
+    });
+
   let plan = null;
   try {
     plan = await resolvePlan(attempt);
   } catch (err) {
-    return showMessage(
+    showMessage(
       "Stream unavailable",
       err.message || "The stream service did not respond.",
       true,
-      `<button class="btn btn-primary" id="retryStreamBtn">Try again</button>
-       <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Watch on source</a>`
+      `<button class="btn btn-primary" id="retryStreamBtn">Try again</button>`
     );
+    retry("retryStreamBtn");
+    return;
   }
 
   // Upstream signing is intermittently rate-limited; a short retry is cheaper
@@ -291,13 +301,17 @@ async function startStream() {
 
   if (!plan || !plan.playable || !plan.url) {
     if (plan && plan.external) {
-      return showMessage(
-        "Watch on the original host",
-        plan.reason,
-        false,
-        `<a class="btn btn-primary" href="${plan.external}" target="_blank" rel="noopener">Open the video</a>
+      // The upstream declined to sign this video. Say so and offer Retry; the
+      // site does not hand the reader off to a third-party host.
+      showMessage(
+        "This video is not available right now",
+        plan.reason || "The source did not sign this lecture. Retry in a moment.",
+        true,
+        `<button class="btn btn-primary" id="retryExtBtn">Retry</button>
          <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>`
       );
+      retry("retryExtBtn");
+      return;
     }
     const reason =
       (plan && plan.reason) || "PW has not published a playable stream for this lecture yet.";
@@ -308,10 +322,7 @@ async function startStream() {
       `<a class="btn btn-primary" href="${checkUrl()}" target="_blank" rel="noopener">Run playback check</a>
        <button class="btn btn-ghost" id="retryBtn">Retry</button>`
     );
-    $("retryBtn")?.addEventListener("click", () => {
-      attempt += 1;
-      startStream();
-    });
+    retry("retryBtn");
     return;
   }
 
@@ -335,8 +346,7 @@ function createPlayer() {
         text,
         true,
         `<button class="btn btn-primary" id="retryStreamBtn2">Retry stream</button>
-         <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>
-         <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Source player</a>`
+         <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>`
       );
       $("retryStreamBtn2")?.addEventListener("click", () => {
         hideOverlay();
@@ -410,8 +420,7 @@ function attachPlayer(plan) {
         "Playback not supported",
         err.message || "This browser could not start the player.",
         true,
-        `<button class="btn btn-primary" id="retryStreamBtn3">Retry</button>
-         <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
+        `<button class="btn btn-primary" id="retryStreamBtn3">Retry</button>`
       );
       $("retryStreamBtn3")?.addEventListener("click", () => {
         hideOverlay();

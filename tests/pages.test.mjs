@@ -13,6 +13,7 @@ import { register } from "node:module";
 import { JSDOM } from "jsdom";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 
 register("./loader.mjs", import.meta.url);
 
@@ -71,7 +72,7 @@ const nativeFetch = globalThis.fetch;
  */
 async function render(
   pathname,
-  { waitForSelector, settle = 900, fetchWrap = null, extraModules = [] } = {}
+  { waitForSelector, settle = 900, fetchWrap = null, extraModules = [], seed = null } = {}
 ) {
   const res = await nativeFetch(`${BASE}${pathname}`);
   const html = await res.text();
@@ -87,6 +88,10 @@ async function render(
   globalThis.location = window.location;
   globalThis.CustomEvent = window.CustomEvent;
   globalThis.HTMLElement = window.HTMLElement;
+  // Seed storage before the page module runs: a dashboard that reads the saved
+  // library on boot cannot be tested by writing localStorage afterwards.
+  if (seed) seed(window.localStorage, window);
+
   globalThis.fetch = (input, init) => {
     const target = typeof input === "string" ? new URL(input, BASE) : input;
     if (fetchWrap) {
@@ -291,7 +296,7 @@ test("subject page renders chapters with counts", async () => {
     { waitForSelector: ".chapter-row" }
   );
   const rows = doc.querySelectorAll(".chapter-row");
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 8);
   assert.match(rows[0].textContent, /Ch 01: Units and Dimension/);
   assert.match(rows[0].textContent, /11 lectures/);
   dom.window.close();
@@ -774,16 +779,157 @@ test("no page still shows the old brand mark", async () => {
   }
 });
 
-test("the site is branded ArsVibe and still points at the real upstream host", async () => {
+test("the batch page trades the source-site box for a favourite toggle", async () => {
+  const { doc, dom, window } = await render(
+    "/batch.html?id=698ad3519549b300a5e1cc6a",
+    { waitForSelector: "#favBatchBtn" }
+  );
+
+  // Round K/M: the outbound "open on the source site" action is gone for good.
+  const outbound = [...doc.querySelectorAll("a[href]")].filter((a) =>
+    /pw\.eduvibe|vidcloud|studyspark/.test(a.getAttribute("href") || "")
+  );
+  assert.deepEqual(outbound.map((a) => a.href), [], "an outbound source-site link is back");
+  assert.equal(
+    /open (on )?(the )?source site/i.test(doc.body.textContent),
+    false,
+    "the copy still invites the visitor to leave for the source site"
+  );
+
+  // In its place: a real, working favourite toggle.
+  const fav = doc.getElementById("favBatchBtn");
+  assert.ok(fav, "the favourite toggle is missing from the batch hero");
+  assert.match(fav.textContent, /Favourite/i);
+  assert.equal(fav.getAttribute("aria-pressed"), "false");
+
+  fav.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 120));
+
+  assert.equal(fav.getAttribute("aria-pressed"), "true", "the toggle did not flip state");
+  assert.ok(fav.classList.contains("on"), "the toggle did not take its pressed style");
+  assert.match(doc.getElementById("favBatchText").textContent, /Saved/i);
+  const stored = JSON.parse(window.localStorage.getItem("arsvibe.favourites") || "[]");
+  assert.ok(
+    stored.some((b) => b.id === "698ad3519549b300a5e1cc6a"),
+    "the batch was not stored"
+  );
+
+  // And it toggles back off.
+  fav.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(fav.getAttribute("aria-pressed"), "false");
+  assert.deepEqual(JSON.parse(window.localStorage.getItem("arsvibe.favourites") || "[]"), []);
+
+  dom.window.close();
+});
+
+test("the dashboard summarises favourites, watch time and where to resume", async () => {
+  const lecture = {
+    id: "6a6b462b26b614560bceb74b",
+    title: "Vectors — full lecture",
+    batch: "698ad3519549b300a5e1cc6a",
+    subject: "physics-by-saleem-ahmad-sir-886822",
+    chapter: "Physics",
+    at: Date.now(),
+  };
+  const { doc, dom } = await render("/dashboard.html", {
+    waitForSelector: "#resumeRail .resume-card",
+    seed: (ls) => {
+      ls.setItem("arsvibe.library", JSON.stringify({ batches: [], lectures: [lecture], docs: [] }));
+      ls.setItem(`pos:${lecture.id}`, "630");
+      ls.setItem("arsvibe.session", JSON.stringify({ name: "Test Student", email: "s@example.com" }));
+    },
+  });
+
+  // "Data source" was a dead readout; it is now a live count that links out.
+  assert.equal(doc.getElementById("statSource"), null, "the old data-source tile is back");
+  assert.ok(doc.getElementById("statFavs"), "the favourites tile is missing");
+  assert.match(
+    doc.querySelector(".stat a[href$='favourites.html']")?.getAttribute("href") || "",
+    /favourites\.html$/,
+    "the favourites tile does not link to the favourites page"
+  );
+
+  // Watch time is summed from the per-lecture positions the player saves.
+  assert.match(doc.getElementById("statWatch").textContent.trim(), /^1[01]m$/, "watch time is not summed");
+
+  // Resume cards carry a real link and a time stamp, not a decorative arrow.
+  const cards = doc.querySelectorAll("#resumeRail .resume-card");
+  assert.equal(cards.length, 1, `expected one resume card, got ${cards.length}`);
+  assert.equal(doc.getElementById("resumeBand").hidden, false, "the resume band stayed hidden");
+  const card = cards[0];
+  assert.match(card.getAttribute("href") || "", /^\/lecture\.html\?/, "a resume card is not a link");
+  assert.match(card.getAttribute("href") || "", /id=6a6b462b26b614560bceb74b/);
+  assert.match(card.querySelector(".resume-at").textContent, /^1[01]m in$/, "the resume stamp is wrong");
+  assert.match(card.querySelector(".resume-go").textContent, /Resume/);
+
+  dom.window.close();
+});
+
+test("the subject page can filter a long chapter list", async () => {
+  const path =
+    "/subject.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822";
+  const { doc, dom, window } = await render(path, {
+    waitForSelector: "#list .chapter-row",
+  });
+
+  assert.ok(doc.getElementById("listTools"), "the filter row is missing");
+  const before = doc.querySelectorAll("#list .chapter-row").length;
+  assert.ok(before >= 6, `expected a long chapter list, got ${before}`);
+
+  const input = doc.getElementById("chapterFilter");
+  input.value = "zzzz-nothing";
+  input.dispatchEvent(new window.Event("input", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 120));
+
+  assert.equal(
+    doc.querySelectorAll("#list .chapter-row").length,
+    0,
+    "a non-matching query should empty the list"
+  );
+  assert.match(doc.getElementById("list").textContent, /No chapter matches/i);
+
+  // Clearing restores every chapter and leaves no empty state behind.
+  doc.getElementById("clearFilterBtn")?.click();
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(doc.querySelectorAll("#list .chapter-row").length, before, "clearing the filter lost rows");
+  assert.equal(/No chapter matches/i.test(doc.getElementById("list").textContent), false);
+
+  dom.window.close();
+});
+
+test("a broken stream offers Retry, never a link off-site", async () => {
+  const source = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
+
+  // The dead "Try again" control: every retry button is wired to the same helper,
+  // which bumps the attempt counter and restarts the stream.
+  assert.match(source, /const retry = \(btnId\)/, "the retry helper is gone");
+  for (const id of ["retryStreamBtn", "retryExtBtn", "retryBtn"]) {
+    assert.match(source, new RegExp(`retry\\(\\"${id}\\"\\)|retry\\("${id}"\\)`), `${id} is not wired`);
+  }
+  assert.match(source, /attempt \+= 1/, "retry no longer counts attempts");
+
+  // And the failure plan it recovers from no longer hands the visitor elsewhere.
+  assert.equal(/fallbackPlayer|SITE\.source/.test(source), false, "an outbound fallback is back");
+});
+
+test("the site is branded ArsVibe and keeps the upstream data path intact", async () => {
   const home = await (await nativeFetch(`${BASE}/`)).text();
 
   assert.match(home, /ArsVibe/, "the brand is missing from the home page");
+  assert.equal(/EduVibe/.test(home), false, "the old brand still appears on the home page");
+
+  // No outbound escape hatch: the pages themselves never hand the visitor off
+  // to a third-party host. Recovery from a broken stream is a Retry button.
   assert.equal(
-    /EduVibe/.test(home.replace(/pw\.eduvibe\.cc\.cd/g, "")),
+    /pw\.eduvibe\.cc\.cd|vidcloud\.eu\.org|studyspark\.study/.test(home),
     false,
-    "the old brand still appears outside the upstream URL"
+    "the home page points at the source/mirror site again"
   );
 
-  // The upstream data host is not ours to rename: changing it breaks every fetch.
-  assert.match(home, /pw\.eduvibe\.cc\.cd/, "the upstream source link disappeared");
+  // The upstream data host is not ours to rename: changing it breaks every fetch,
+  // so the server-side pass-through must still target it.
+  const pw = await readFile(new URL("../api/pw.mjs", import.meta.url), "utf8");
+  const app = await readFile(new URL("../lib/api-data.mjs", import.meta.url), "utf8");
+  assert.match(pw + app, /eduvibe\.cc\.cd|static\.pw\.live/, "the upstream API host disappeared");
 });

@@ -10,12 +10,13 @@ import {
   fmtRelative,
   rememberBatch,
   emptyState,
-  SITE,
 } from "./app.js";
 import { trackBatch } from "./library.js";
+import { isFavourite, toggleFavourite, wireFavourites } from "./favourites.js";
 import { loadBatch as fetchBatchData, loadAnnouncements } from "./data.js";
 
 mountChrome("batches");
+wireFavourites();
 
 const batchId = qs("id");
 const detailGrid = document.getElementById("detailGrid");
@@ -69,9 +70,25 @@ function renderDetail() {
       </div>
       <div class="row mt-2">
         ${batch.subjects.length ? `<button class="btn btn-primary" id="startBtn">Start learning</button>` : ""}
-        <a class="btn btn-ghost" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Open on source site</a>
+        <button class="btn btn-ghost fav-wide${isFavourite(batch.id) ? " on" : ""}" id="favBatchBtn" type="button"
+          aria-pressed="${isFavourite(batch.id)}">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 20.3 4.9 13.4a4.2 4.2 0 0 1 0-6 4.3 4.3 0 0 1 6 0l1.1 1.1 1.1-1.1a4.3 4.3 0 0 1 6 0 4.2 4.2 0 0 1 0 6Z"/></svg>
+          <span id="favBatchText">${isFavourite(batch.id) ? "Saved" : "Favourite"}</span>
+        </button>
       </div>
     </div>`;
+
+  // The wide favourite button on a batch page speaks the card hearts' language:
+  // same store, same event, painted in place instead of re-rendering the page.
+  document.getElementById("favBatchBtn")?.addEventListener("click", () => {
+    const now = toggleFavourite(batch);
+    const btn = document.getElementById("favBatchBtn");
+    btn?.classList.toggle("on", now);
+    btn?.setAttribute("aria-pressed", String(now));
+    const label = document.getElementById("favBatchText");
+    if (label) label.textContent = now ? "Saved" : "Favourite";
+    toast(now ? "Added to favourites" : "Removed from favourites");
+  });
 
   document.getElementById("startBtn")?.addEventListener("click", () => {
     const first = batch.subjects[0];
@@ -83,7 +100,7 @@ function renderSubjects() {
   if (!batch.subjects.length) {
     tabBody.innerHTML = emptyState(
       "No subjects published yet",
-      "This batch has no subject content on the source site right now."
+      "This batch has no subject list published yet. Check back after the next upload."
     );
     return;
   }
@@ -179,9 +196,8 @@ async function loadBatch() {
     if (out.degraded || batch.degraded) {
       tabBody.innerHTML = emptyState(
         "Subject list is loading slowly",
-        "The lecture index did not answer this time. The batch itself is fine — retry in a moment, or open it on the source player.",
-        `<button class="btn btn-primary" id="retryBatchBtn">Retry</button>
-         <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
+        "The lecture index did not answer this time. The batch itself is fine — retry in a moment.",
+        `<button class="btn btn-primary" id="retryBatchBtn">Retry</button>`
       );
       document.getElementById("retryBatchBtn")?.addEventListener("click", () => loadBatch());
       return;

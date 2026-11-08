@@ -1,4 +1,76 @@
-{"data":[
-{"_id":"6a6b461cce4ac4e9ab51ee98","name":"Ch 01: Units and Dimension","displayOrder":10,"notes":18,"exercises":8,"videos":11,"lectureVideos":11},
-{"_id":"6a6b462bce4ac4e9ab51eeb9","name":"Ch 02 : Basic Maths","displayOrder":11,"notes":3,"exercises":0,"videos":3,"lectureVideos":3}
-]}
+{
+ "data": [
+  {
+   "_id": "6a6b461cce4ac4e9ab51ee98",
+   "name": "Ch 01: Units and Dimension",
+   "displayOrder": 10,
+   "notes": 18,
+   "exercises": 8,
+   "videos": 11,
+   "lectureVideos": 11
+  },
+  {
+   "_id": "6a6b462bce4ac4e9ab51eeb9",
+   "name": "Ch 02 : Basic Maths",
+   "displayOrder": 11,
+   "notes": 3,
+   "exercises": 0,
+   "videos": 3,
+   "lectureVideos": 3
+  },
+  {
+   "_id": "chap030000000000000000000ff",
+   "name": "Ch 03 : Vectors and Scalars",
+   "displayOrder": 13,
+   "notes": 6,
+   "exercises": 3,
+   "videos": 14,
+   "lectureVideos": 14
+  },
+  {
+   "_id": "chap040000000000000000000ff",
+   "name": "Ch 04 : Kinematics in a Straight Line",
+   "displayOrder": 14,
+   "notes": 9,
+   "exercises": 4,
+   "videos": 22,
+   "lectureVideos": 22
+  },
+  {
+   "_id": "chap050000000000000000000ff",
+   "name": "Ch 05 : Laws of Motion",
+   "displayOrder": 15,
+   "notes": 7,
+   "exercises": 5,
+   "videos": 19,
+   "lectureVideos": 19
+  },
+  {
+   "_id": "chap060000000000000000000ff",
+   "name": "Ch 06 : Work, Energy and Power",
+   "displayOrder": 16,
+   "notes": 5,
+   "exercises": 2,
+   "videos": 16,
+   "lectureVideos": 16
+  },
+  {
+   "_id": "chap070000000000000000000ff",
+   "name": "Ch 07 : Rotational Motion",
+   "displayOrder": 17,
+   "notes": 10,
+   "exercises": 6,
+   "videos": 24,
+   "lectureVideos": 24
+  },
+  {
+   "_id": "chap080000000000000000000ff",
+   "name": "Ch 08 : Gravitation",
+   "displayOrder": 18,
+   "notes": 4,
+   "exercises": 2,
+   "videos": 12,
+   "lectureVideos": 12
+  }
+ ]
+}

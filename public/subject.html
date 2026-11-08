@@ -55,7 +55,17 @@
       <a class="btn btn-ghost btn-sm" id="batchLink" href="#">Batch overview</a>
     </div>
 
-    <div id="list"><div class="list">${""}</div></div>
+    <!-- A PW subject runs to 20+ chapters. Without a filter that is a scroll,
+         not a list, so the count and the field sit above it. -->
+    <div class="list-tools" id="listTools" hidden>
+      <label class="search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.6-3.6"/></svg>
+        <input type="search" id="chapterFilter" placeholder="Filter chapters…" aria-label="Filter chapters" autocomplete="off" />
+      </label>
+      <span class="tiny dim" id="filterCount"></span>
+    </div>
+
+    <div id="list"></div>
   </div>
 </main>
 

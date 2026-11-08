@@ -5289,3 +5289,207 @@ body.side-rail .side-brand:hover .brand-img {
 .now-state-finished {
   color: var(--ink-4);
 }
+
+/* The wide favourite button on a batch page: the card heart, spelled out. */
+.btn.fav-wide {
+  gap: 0.35rem;
+}
+
+.btn.fav-wide svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+}
+
+.btn.fav-wide.on {
+  border-color: rgba(176, 35, 43, 0.4);
+  color: var(--danger);
+}
+
+.btn.fav-wide.on svg {
+  fill: currentColor;
+}
+
+/* ==========================================================================
+   33 — Resume rail on the dashboard
+   --------------------------------------------------------------------------
+   The dashboard's "Continue watching" was a list with no progress in it. The
+   player already saves a position per lecture, so this band reads those and
+   shows the three facts a resume needs: which lecture, how far in, and a way
+   back to it.
+   ========================================================================== */
+
+.resume-band {
+  margin-bottom: var(--s-5);
+}
+
+.resume-band h3 {
+  font-size: 0.95rem;
+}
+
+.resume-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(240px, 1fr);
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+  padding-bottom: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+
+.resume-card {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 0.15rem 0.6rem;
+  padding: 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card-2);
+  color: var(--ink);
+  scroll-snap-align: start;
+  transition: border-color 0.14s var(--ease), box-shadow 0.16s var(--ease),
+    transform 0.16s var(--ease);
+}
+
+.resume-card:hover {
+  border-color: var(--rule-2);
+  box-shadow: var(--lift-2);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.resume-thumb {
+  position: relative;
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--case);
+  color: var(--case-ink-2);
+}
+
+.resume-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.92);
+}
+
+.resume-ph {
+  font-size: 0.9rem;
+}
+
+/* How far in, as a stamp on the thumbnail. */
+.resume-at {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 0 0.22rem;
+  border-radius: var(--r-sm);
+  background: rgba(8, 12, 18, 0.82);
+  color: #e7eef8;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.03em;
+}
+
+.resume-text {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+}
+
+.resume-text strong {
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-text .dim {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-go {
+  align-self: end;
+  justify-self: start;
+  color: var(--blue);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 720px) {
+  .resume-rail {
+    grid-auto-columns: minmax(210px, 82vw);
+  }
+}
+
+/* ==========================================================================
+   34 — List tools: a filter above a long list
+   ========================================================================== */
+
+.list-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-3);
+}
+
+.list-tools .search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 1 320px;
+  height: 34px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--r);
+  background: var(--card-2);
+  color: var(--ink-4);
+  transition: border-color 0.14s var(--ease), box-shadow 0.14s var(--ease);
+}
+
+.list-tools .search-box:focus-within {
+  border-color: var(--blue);
+  box-shadow: var(--focus);
+  color: var(--blue);
+}
+
+.list-tools .search-box input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.list-tools .search-box input::placeholder {
+  color: var(--ink-4);
+}
+
+.list-tools #filterCount {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .list-tools .search-box {
+    flex: 1;
+  }
+}
