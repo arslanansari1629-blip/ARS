@@ -295,6 +295,17 @@ test("the lecture player ships quality control and recovery", async () => {
   assert.match(source, /recoverMediaError|startLoad\(\)/, "no hls.js error recovery");
   assert.match(source, /data-speed/, "speed control binding is missing");
   assert.match(source, /id="quality"|getElementById\("quality"\)/, "quality picker is missing");
+
+  // A picker that exists but never gets options is the same as no picker: the
+  // player must consume the plan's rendition list and re-apply a saved choice.
+  assert.match(
+    source,
+    /plan\.renditions/,
+    "the player ignores the plan's rendition list, so the picker would be empty"
+  );
+  assert.match(source, /MANIFEST_PARSED[\s\S]{0,600}getPrefs\(\)\.quality/, "saved quality is never re-applied");
+  assert.match(source, /function applyQuality/, "quality switching is not factored, so load-time cannot reuse it");
+
   assert.ok(
     !/location\.reload\(\)/.test(source),
     "playback failures must re-resolve the stream, not reload the page"
