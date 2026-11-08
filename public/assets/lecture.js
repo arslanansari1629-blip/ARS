@@ -398,9 +398,10 @@ function renderState(s) {
     playBtn.title = playing ? "Pause (k)" : "Play (k)";
   }
 
-  // buffering veil
+  // buffering veil: never under the loading/error overlay, which already says
+  // more than "Buffering…" at that point.
   if (veil) {
-    const show = Boolean(s.buffering) && !s.error;
+    const show = Boolean(s.buffering) && !s.error && !overlayOn;
     veil.classList.toggle("on", show);
     if (show && s.note) veilText.textContent = s.note;
   }
