@@ -301,3 +301,42 @@ test("/api/token reports the token, its source and the signer probes", async () 
   assert.ok(body.probes.length >= 3);
   assert.ok(body.probes.every((p) => typeof p.ms === "number"));
 });
+
+test("/api/pw passes the bearer as a query param to the signing endpoints", async () => {
+  // get-hls-key and get-otp reject the same token as a header (401) and accept it
+  // in the query string. Sending both is how the working clients do it.
+  const { default: handler } = await import("../lib/pw-proxy.mjs");
+  const seen = [];
+  const { result } = await withFetch(
+    async (url) => {
+      seen.push(url);
+      return new Response(Buffer.alloc(16, 7), {
+        status: 200,
+        headers: { "content-type": "application/octet-stream" },
+      });
+    },
+    async () => {
+      const res = mockRes();
+      await handler(req("/api/pw/v1/videos/get-hls-key?videoKey=abc&key=enc.key"), res);
+      return res;
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.match(seen[0], /[?&]authorization=/, "signing call must carry the token in the query");
+  assert.equal(Buffer.concat(result.chunks || []).length, 16);
+
+  // …and a normal data route must not leak the token into the URL, where it
+  // would end up in logs and Referer headers for no reason.
+  const second = [];
+  await withFetch(
+    async (url) => {
+      second.push(url);
+      return jsonResponse({ success: true, data: [] });
+    },
+    async () => {
+      await handler(req("/api/pw/v3/batches/abc/details"), mockRes());
+    }
+  );
+  assert.doesNotMatch(second[0], /authorization=/, "data routes keep the token in the header");
+});
