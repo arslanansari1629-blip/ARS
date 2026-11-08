@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 import { cors, json, query } from "../lib/http.mjs";
-import { resolveStream, parseFolder, fetchSchedule } from "../lib/api-data.mjs";
+import {
+  resolveStream,
+  parseFolder,
+  fetchSchedule,
+  fetchChapterContents,
+} from "../lib/api-data.mjs";
 import { upstreamJson } from "../lib/upstream.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
 
@@ -263,20 +268,17 @@ async function checkLecture({ batch, subject, id, url, base }) {
 
 /** Lecture ids of a chapter, newest first, plus their titles. */
 async function chapterLectures(batch, subject, chapter) {
-  const res = await upstreamJson(
-    `/TopicInfo?BatchId=${encodeURIComponent(batch)}&SubjectId=${encodeURIComponent(
-      subject
-    )}&TopicId=${encodeURIComponent(chapter)}&ContentType=videos&page=1`
-  );
-  const body = (res.ok && res.data) || {};
-  const list = body.data || body.items || [];
-  return list
-    .map((item) => ({
-      id: item._id,
-      title: (item.topic || (item.videoDetails && item.videoDetails.name) || "").trim(),
-      status: (item.videoDetails && item.videoDetails.status) || item.status || "",
-    }))
-    .filter((l) => l.id);
+  // Same reader the chapter page uses, so the sweep lists the lectures a student
+  // would actually see. It used to call the legacy `/TopicInfo` route, which the
+  // live API no longer serves — hence "0 lectures" for a chapter that shows 11.
+  const res = await fetchChapterContents(batch, subject, chapter, "videos");
+  if (!res.ok) return { ok: false, error: res.error || "contents unavailable", items: [] };
+  return {
+    ok: true,
+    items: res.items
+      .map((it) => ({ id: it.id, title: it.title, status: it.status }))
+      .filter((l) => l.id),
+  };
 }
 
 /**
@@ -285,7 +287,11 @@ async function chapterLectures(batch, subject, chapter) {
  * caller is told what was covered.
  */
 async function sweepChapter({ batch, subject, chapter, base, limit }) {
-  const lectures = await chapterLectures(batch, subject, chapter);
+  const listed = await chapterLectures(batch, subject, chapter);
+  const lectures = listed.items || [];
+  if (!listed.ok) {
+    return { verified: 0, totalLectures: 0, playing: 0, notPlaying: 0, lectures: [], note: listed.error };
+  }
   const take = lectures.slice(0, limit);
   const results = [];
   let cursor = 0;
