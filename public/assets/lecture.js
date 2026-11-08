@@ -396,6 +396,17 @@ async function attachPlayer(plan) {
             document.getElementById("retryStreamBtn")?.addEventListener("click", () => startStream());
             return;
           }
+          // A manifest/level failure means the signed playlist itself is bad
+          // (expired or a signer gave up). Retrying the same URL cannot help —
+          // resolve a fresh plan, which walks the other signer hosts.
+          const details = String(data.details || "");
+          if (/manifest|level/i.test(details) && retriesLeft > 0) {
+            retriesLeft -= 1;
+            destroyPlayers();
+            startStream();
+            return;
+          }
+
           recovered += 1;
           if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
             hls.startLoad();
