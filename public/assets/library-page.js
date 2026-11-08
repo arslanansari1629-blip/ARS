@@ -2,8 +2,10 @@
 
 import { mountChrome, esc, fmtRelative, emptyState, toast } from "./app.js";
 import { getLibrary, clearLibrary } from "./library.js";
+import { heartButton, wireFavourites } from "./favourites.js";
 
 mountChrome("library");
+wireFavourites();
 
 const body = document.getElementById("body");
 const tabs = document.getElementById("tabs");
@@ -20,6 +22,7 @@ function render() {
           <a class="batch-card fade-up" href="/batch.html?id=${encodeURIComponent(b.id)}">
             <div class="batch-thumb">
               ${b.image ? `<img src="${esc(b.image)}" alt="" loading="lazy" onerror="this.remove()" />` : `<span class="placeholder">${esc((b.name || "PW").slice(0, 2).toUpperCase())}</span>`}
+              ${heartButton(b)}
             </div>
             <div class="batch-body">
               <div class="batch-title">${esc(b.name)}</div>

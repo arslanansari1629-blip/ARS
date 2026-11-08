@@ -12,8 +12,10 @@ import {
   emptyState,
 } from "./app.js";
 import { loadCatalog as fetchCatalog, searchBatches } from "./data.js";
+import { heartButton, wireFavourites } from "./favourites.js";
 
 mountChrome("home");
+wireFavourites();
 
 const trendingGrid = document.getElementById("trendingGrid");
 const catalogGrid = document.getElementById("catalogGrid");
@@ -31,6 +33,7 @@ function batchCard(b) {
         ${thumb}
         ${b.image ? "" : `<span class="placeholder">${esc((b.name || "PW").slice(0, 2).toUpperCase())}</span>`}
         ${b.feeTotal ? "" : `<span class="free">Free</span>`}
+        ${heartButton(b)}
       </div>
       <div class="batch-body">
         <div class="batch-title">${esc(b.name)}</div>
@@ -96,6 +99,7 @@ function renderRecent() {
       <a class="batch-card fade-up" href="/batch.html?id=${encodeURIComponent(b.id)}">
         <div class="batch-thumb">
           ${b.image ? `<img src="${esc(b.image)}" alt="" loading="lazy" onerror="this.remove()" />` : `<span class="placeholder">${esc((b.name || "PW").slice(0, 2).toUpperCase())}</span>`}
+          ${heartButton(b)}
         </div>
         <div class="batch-body"><div class="batch-title">${esc(b.name)}</div></div>
       </a>`

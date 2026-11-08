@@ -25,6 +25,7 @@ const REQUIRED_PAGES = [
   "login.html",
   "dashboard.html",
   "library.html",
+  "favourites.html",
   "404.html",
 ];
 

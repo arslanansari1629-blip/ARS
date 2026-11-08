@@ -325,6 +325,109 @@ test("chapter page shows lectures then notes/DPP PDFs", async () => {
   dom.window.close();
 });
 
+test("every batch card carries a heart, and the heart saves without navigating", async () => {
+  const { doc, dom } = await render("/batches.html", {
+    waitForSelector: "#grid .batch-card",
+  });
+
+  const cards = doc.querySelectorAll("#grid .batch-card");
+  assert.ok(cards.length > 0, "the catalogue rendered no cards");
+  const heart = cards[0].querySelector(".fav-btn");
+  assert.ok(heart, "a batch card has no favourite control");
+  assert.equal(heart.getAttribute("aria-pressed"), "false", "a fresh heart reports itself as saved");
+  assert.ok(cards[0].contains(heart), "the heart is not part of the card");
+
+  // It carries enough of the card to save a favourite without a refetch.
+  assert.ok(heart.dataset.fav, "the heart has no batch id");
+  assert.ok(heart.dataset.favName, "the heart has no batch name");
+
+  // Pressing it must save — and must cancel the navigation the card's anchor
+  // would otherwise perform. The handler is delegated on the document, so the
+  // verdict is read off the event after it has finished bubbling.
+  const press = new dom.window.MouseEvent("click", { bubbles: true, cancelable: true });
+  heart.dispatchEvent(press);
+
+  assert.equal(heart.getAttribute("aria-pressed"), "true", "the heart did not flip to saved");
+  assert.ok(heart.classList.contains("on"), "the saved heart is not marked visually");
+  assert.equal(press.defaultPrevented, true, "pressing the heart left the card's link to navigate");
+
+  const saved = JSON.parse(dom.window.localStorage.getItem("arsvibe.favourites") || "[]");
+  assert.equal(saved.length, 1, "the favourite was not stored");
+  assert.equal(saved[0].id, heart.dataset.fav);
+
+  // Pressing it again drops it again.
+  heart.click();
+  assert.equal(heart.getAttribute("aria-pressed"), "false", "the heart cannot be un-set");
+  assert.equal(
+    JSON.parse(dom.window.localStorage.getItem("arsvibe.favourites") || "[]").length,
+    0,
+    "un-hearting left the favourite behind"
+  );
+
+  dom.window.close();
+});
+
+test("the favourites page lists saved batches and drops them live", async () => {
+  const { doc, dom } = await render("/favourites.html", { waitForSelector: "#body" });
+
+  // Empty state first: it has to say what a favourite is.
+  assert.match(doc.getElementById("body").textContent, /No favourites yet/);
+
+  dom.window.localStorage.setItem(
+    "arsvibe.favourites",
+    JSON.stringify([
+      { id: "698ad3519549b300a5e1cc6a", name: "Arjuna JEE 2027", language: "Hinglish", feeTotal: 1999, at: Date.now() },
+      { id: "6779345c20fa0756e4a7fd08", name: "Lakshya JEE 2027", language: "Hinglish", feeTotal: 999, at: Date.now() - 1000 },
+    ])
+  );
+
+  // The page repaints from the store on any favourites change, which is what
+  // makes un-hearting on this page drop the card instead of leaving it.
+  await import("/assets/favourites-page.js?v=" + Date.now());
+  await new Promise((r) => setTimeout(r, 250));
+
+  const cards = doc.querySelectorAll("#body .batch-card");
+  assert.equal(cards.length, 2, `expected both saved batches, got ${cards.length}`);
+  assert.match(doc.getElementById("body").textContent, /Arjuna JEE 2027/);
+
+  const heart = cards[0].querySelector(".fav-btn");
+  assert.ok(heart.classList.contains("on"), "a saved batch renders an empty heart");
+  heart.click();
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(
+    doc.querySelectorAll("#body .batch-card").length,
+    1,
+    "un-hearting did not remove the card from the list"
+  );
+
+  dom.window.close();
+});
+
+test("the sidebar links favourites with a live count", async () => {
+  const { doc, dom } = await render("/", {
+    waitForSelector: "#side",
+    extraModules: ["/assets/shell.mjs"],
+  });
+
+  const link = doc.querySelector('#side a[href="/favourites.html"]');
+  assert.ok(link, "the sidebar has no favourites entry");
+  assert.equal(link.dataset.label, "Favourites", "the rail label is missing");
+  const count = link.querySelector("[data-fav-count]");
+  assert.ok(count, "the favourites link has no count");
+  assert.equal(count.hidden, true, "an empty favourites list shows a count");
+
+  // A change anywhere on the page repaints the count.
+  dom.window.localStorage.setItem(
+    "arsvibe.favourites",
+    JSON.stringify([{ id: "x", name: "X", at: 1 }])
+  );
+  doc.dispatchEvent(new dom.window.CustomEvent("favourites:change", { detail: { list: [] } }));
+  assert.equal(count.textContent, "1", "the count did not follow the store");
+  assert.equal(count.hidden, false, "the count stays hidden when there is something in it");
+
+  dom.window.close();
+});
+
 test("lecture page loads metadata and attached notes + DPP", async () => {
   const url =
     "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b&title=Units%20and%20Dimension%2010";
@@ -416,6 +519,34 @@ test("lecture page bootstraps a stream plan instead of erroring", async () => {
       finalSrc.includes("/api/stream"),
     `no media was attached to the player (src=${finalSrc || "empty"})`
   );
+  dom.window.close();
+});
+
+test("the lecture page no longer offers a source-player link or a health panel", async () => {
+  const { doc, dom } = await render(
+    "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b",
+    { waitForSelector: "#docs .attach-row" }
+  );
+
+  // Both were removed at the user's request: the player stands on its own, and
+  // the right column is notes, not diagnostics.
+  assert.equal(doc.getElementById("sourceLink"), null, "the vidcloud link is back");
+  assert.equal(doc.getElementById("healthBadge"), null, "the playback-health card is back");
+  assert.equal(
+    doc.querySelector(".queue-bar a[href*='vidcloud'], .queue-bar a[href*='eduvibe']"),
+    null,
+    "a source-player link survived in the queue bar"
+  );
+
+  // The stream inspector stays, but as a closed pane behind the gear.
+  const stats = doc.getElementById("playerStats");
+  assert.ok(stats, "the stream-stats pane is gone");
+  assert.ok(stats.hidden, "the stream-stats pane should start closed");
+
+  // What must survive: the stopped player's way back, and the shortcut sheet.
+  assert.ok(doc.getElementById("bigPlayBtn"), "the stopped player lost its start control");
+  assert.match(doc.body.textContent, /Keyboard shortcuts/);
+
   dom.window.close();
 });
 

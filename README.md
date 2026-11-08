@@ -27,6 +27,7 @@ Home → All batches → Batch (subjects) → Subject (chapters) → Chapter (le
 | `/viewer?url=…` | In-app PDF reader for notes and DPPs |
 | `/login` | "Continue with Google" (local profile) and **Bypass Login** — mirrors the source sign-in |
 | `/dashboard`, `/library` | Student dashboard: recent batches, continue watching, saved PDFs |
+| `/favourites` | Batches kept on this device — the heart on any batch card adds and removes |
 
 ## How the data flows
 
@@ -111,7 +112,7 @@ lib/                 shared upstream client + normalisers (server side)
   playback.mjs       one explanation for "why has this lecture no video", shared by both routes
 public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
-  viewer.html login.html dashboard.html library.html 404.html
+  viewer.html login.html dashboard.html library.html favourites.html 404.html
   assets/            arsvibe.css (the whole design system) · app.js · data.js · page modules
 data/batches.json.gz complete batch catalogue (13,631 upstream → 14,201 with the full list)
 scripts/dev.mjs      local dev server (same (req,res) contract as Vercel)

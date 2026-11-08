@@ -21,6 +21,7 @@
     <nav class="nav-links" id="navLinks">
       <a href="/" data-page="home">Home</a>
       <a href="/batches.html" data-page="batches">Batches</a>
+      <a href="/favourites.html" data-page="favourites">Favourites</a>
       <a href="/library.html" data-page="library">My Library</a>
       <a href="/dashboard.html" data-page="dashboard">Dashboard</a>
     </nav>
@@ -204,7 +205,6 @@
         <div class="queue-bar" id="queueBar">
           <button class="btn btn-ghost btn-sm" id="prevBtn" style="display:none">← Previous</button>
           <button class="btn btn-ghost btn-sm" id="nextBtn" style="display:none">Next lecture →</button>
-          <a class="btn btn-ghost btn-sm" id="sourceLink" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Source player</a>
           <span class="queue-spacer"></span>
           <button class="btn btn-ghost btn-sm" id="shortcutsBtn">Keyboard shortcuts <kbd>?</kbd></button>
         </div>
@@ -227,22 +227,11 @@
         </div>
 
         <div class="card pad-md">
-          <div class="row between">
-            <h3>Playback health</h3>
-            <span class="pill pill-accent" id="healthBadge">checking</span>
-          </div>
-          <p class="tiny muted mt-2" id="healthText">
-            Running the stream self-test for this lecture.
-          </p>
-          <a class="btn btn-ghost btn-sm mt-3" id="checkLink" target="_blank" rel="noopener">Full report</a>
-        </div>
-
-        <div class="card pad-md">
           <h3>FAQ</h3>
           <p class="tiny muted mt-1">
             Streams are relayed through this site so they play without cross-origin errors.
-            If a lecture shows “not published yet”, PW has not released the video for this class —
-            use the source player link above.
+            If a lecture shows “not published yet”, PW has not released the video for this class yet.
+            Press Retry, or open the chapter again — the recording appears once PW publishes it.
           </p>
         </div>
       </aside>

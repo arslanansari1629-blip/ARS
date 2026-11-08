@@ -11,8 +11,10 @@ import {
   emptyState,
 } from "./app.js";
 import { loadCatalog, searchBatches } from "./data.js";
+import { heartButton, wireFavourites } from "./favourites.js";
 
 mountChrome("batches");
+wireFavourites();
 
 const grid = document.getElementById("grid");
 const pager = document.getElementById("pager");
@@ -44,6 +46,7 @@ function card(b) {
       <div class="batch-thumb">
         ${b.image ? `<img src="${esc(b.image)}" alt="" loading="lazy" onerror="this.remove()" />` : `<span class="placeholder">${esc((b.name || "PW").slice(0, 2).toUpperCase())}</span>`}
         ${b.feeTotal ? "" : `<span class="free">Free</span>`}
+        ${heartButton(b)}
       </div>
       <div class="batch-body">
         <div class="batch-title">${esc(b.name)}</div>

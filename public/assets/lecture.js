@@ -52,7 +52,6 @@ const docCount = $("docCount");
 const crumbs = $("crumbs");
 const aboutText = $("aboutText");
 const positionLabel = $("positionLabel");
-const sourceLink = $("sourceLink");
 const queueNav = $("queueNav");
 
 const playBtn = $("playBtn");
@@ -74,9 +73,6 @@ const playerMenu = $("playerMenu");
 const menuSpeed = $("menuSpeed");
 const statsPane = $("playerStats");
 const healthChip = $("streamHealth");
-const healthBadge = $("healthBadge");
-const healthText = $("healthText");
-const checkLink = $("checkLink");
 
 const scrubber = $("scrubber");
 const scrubberTip = $("scrubberTip");
@@ -110,7 +106,6 @@ function checkUrl() {
     subjectSlug
   )}&id=${encodeURIComponent(lectureId)}`;
 }
-checkLink.href = checkUrl();
 
 function showMessage(title, text, error = false, actions = "") {
   overlay.style.display = "grid";
@@ -264,7 +259,6 @@ async function startStream() {
   try {
     plan = await resolvePlan(attempt);
   } catch (err) {
-    healthBadge.textContent = "offline";
     return showMessage(
       "Stream unavailable",
       err.message || "The stream service did not respond.",
@@ -306,13 +300,11 @@ async function startStream() {
       attempt += 1;
       startStream();
     });
-    runServerHealth();
     return;
   }
 
   currentPlan = plan;
   attachPlayer(plan);
-  runServerHealth();
 }
 
 /* -------------------------------- player --------------------------------- */
@@ -365,7 +357,6 @@ function attachPlayer(plan) {
       video.style.display = "none";
     }
     hideOverlay();
-    if (sourceLink && plan.url) sourceLink.href = plan.url;
     return;
   }
 
@@ -532,6 +523,7 @@ function paintProgress() {
   }
   const pct = (t) => Math.min(100, Math.max(0, (t / dur) * 100));
   if (playedBar) playedBar.style.width = `${pct(video.currentTime)}%`;
+  paintResumeMark();
   if (scrubberKnob) scrubberKnob.style.left = `${pct(video.currentTime)}%`;
 
   if (bufferedBar && video.buffered && video.buffered.length) {
@@ -658,6 +650,34 @@ if (scrubber) {
 
 /* ------------------------------ transport UI ------------------------------ */
 
+/**
+ * Where you left off, drawn on the rail.
+ *
+ * A two-hour lecture has no chapters in the stream, and inventing evenly
+ * spaced ticks would be a lie about the content. What the player does know
+ * exactly is the position it saved last time, so that is what the rail shows:
+ * one hairline marker, which disappears once you have played past it.
+ */
+function paintResumeMark() {
+  const track = scrubberTrack;
+  if (!track) return;
+  const dur = Number(video.duration);
+  const saved = Number(localStorage.getItem(positionKey) || 0);
+  const existing = track.querySelector(".scrubber-resume");
+  if (!Number.isFinite(dur) || dur <= 0 || !saved || saved < 12 || saved >= dur - 5) {
+    existing?.remove();
+    return;
+  }
+  const mark = existing || document.createElement("i");
+  mark.className = "scrubber-resume";
+  mark.style.left = `${(saved / dur) * 100}%`;
+  mark.title = `Last watched · ${fmtTime(saved)}`;
+  mark.dataset.at = String(saved);
+  if (!existing) track.appendChild(mark);
+  // Once the marker is behind the playhead it has done its job.
+  mark.hidden = video.currentTime > saved + 2;
+}
+
 function seekBy(delta) {
   const player = pro;
   if (!player) return;
@@ -702,6 +722,37 @@ nextBtn?.addEventListener("click", () => goToLecture(1));
 // Click the picture to play/pause, double-click to fullscreen. Deliberately not
 // on the scrubbing rail or the bar, where a click means something else.
 let clickTimer = null;
+/**
+ * The picture is a transport too.
+ *
+ * Left third = back 10 s, right third = forward 10 s, middle = play/pause, and
+ * a double tap anywhere is fullscreen. The zone is decided from the pointer's
+ * position inside the stage, and the feedback is drawn *at the tap*, so the
+ * tap reads as one gesture instead of a button press somewhere else.
+ */
+function stageZone(clientX) {
+  const rect = stage?.getBoundingClientRect();
+  if (!rect || !rect.width) return "mid";
+  const x = (clientX - rect.left) / rect.width;
+  if (x < 0.3) return "back";
+  if (x > 0.7) return "fwd";
+  return "mid";
+}
+
+/** A short ring at the tap point, on the film, not over the controls. */
+function ripple(clientX, clientY, dir) {
+  if (!stage) return;
+  const rect = stage.getBoundingClientRect();
+  const ring = document.createElement("span");
+  ring.className = `tap-ripple tap-ripple-${dir}`;
+  ring.style.left = `${Math.round(clientX - rect.left)}px`;
+  ring.style.top = `${Math.round(clientY - rect.top)}px`;
+  // Two quick taps should show two rings, so these clean themselves up.
+  ring.addEventListener("animationend", () => ring.remove());
+  setTimeout(() => ring.remove(), 900);
+  stage.appendChild(ring);
+}
+
 surface?.addEventListener("click", (e) => {
   if (clickTimer) {
     clearTimeout(clickTimer);
@@ -709,11 +760,16 @@ surface?.addEventListener("click", (e) => {
     toggleFullscreen();
     return;
   }
+  const zone = stageZone(e.clientX);
+  const dir = zone === "mid" ? "mid" : zone;
   clickTimer = setTimeout(() => {
     clickTimer = null;
     if (!pro) return;
     hideOverlay();
+    if (zone === "back") return seekBy(-10), ripple(e.clientX, e.clientY, "back");
+    if (zone === "fwd") return seekBy(10), ripple(e.clientX, e.clientY, "fwd");
     pro.toggle();
+    ripple(e.clientX, e.clientY, "mid");
   }, 220);
 });
 
@@ -1042,40 +1098,6 @@ function goToLecture(offset) {
   window.location.assign(url.toString());
 }
 
-/* --------------------------- server-side health -------------------------- */
-
-/**
- * Show the server's own verdict for this lecture.
- *
- * The player can fail for client-only reasons (a blocked CDN, no MSE). Having
- * the server say "this stream plays, here is the rendition" separates a real
- * upstream problem from a local one, in one line, without opening a report.
- */
-async function runServerHealth() {
-  try {
-    const out = await fetch(checkUrl(), { headers: { Accept: "application/json" } }).then((r) =>
-      r.json()
-    );
-    if (out && out.result === "plays") {
-      healthBadge.textContent = "playable";
-      healthBadge.className = "pill pill-accent";
-      healthText.textContent = `Server verified: ${out.quality || "720"}p HLS, AES key and media segments all resolve.`;
-    } else if (out && out.success === false) {
-      healthBadge.textContent = "check failed";
-      healthBadge.className = "pill";
-      healthText.textContent = out.explain || out.error || "The self-test could not complete.";
-    } else {
-      healthBadge.textContent = out.result || "unknown";
-      healthBadge.className = "pill";
-      healthText.textContent = out.explain || "The self-test returned no verdict.";
-    }
-  } catch {
-    healthBadge.textContent = "unavailable";
-    healthBadge.className = "pill";
-    healthText.textContent = "The self-test endpoint did not answer.";
-  }
-}
-
 /* ------------------------------- bootstrapping --------------------------- */
 
 video.playbackRate = Number(getPrefs().speed || 1);
@@ -1087,7 +1109,4 @@ video.addEventListener("timeupdate", () => paintTime(pro?._state || {}));
 video.addEventListener("progress", paintProgress);
 video.addEventListener("seeked", paintProgress);
 video.addEventListener("loadedmetadata", paintProgress);
-
-sourceLink.href = SITE.fallbackPlayer;
-sourceLink.textContent = "Open in vidcloud";
 

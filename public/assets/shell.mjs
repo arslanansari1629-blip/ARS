@@ -10,6 +10,7 @@
    ========================================================================= */
 
 import { getSession, recentBatches, getPrefs, setPref, esc } from "./app.js";
+import { favouriteCount } from "./favourites.js";
 
 const page = (document.body && document.body.dataset.page) || "home";
 
@@ -27,6 +28,7 @@ const NAV = [
     key: "study",
     title: "Study",
     items: [
+      { id: "favourites", href: "/favourites.html", label: "Favourites", icon: "heart", badge: "fav" },
       { id: "library", href: "/library.html", label: "My Library", icon: "bookmark" },
       { id: "dashboard", href: "/dashboard.html", label: "Dashboard", icon: "chart" },
     ],
@@ -62,6 +64,7 @@ const ICONS = {
   globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 2.4 14.4 0 17M12 3.5c-2.4 2.6-2.4 14.4 0 17"/>',
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   list: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  heart: '<path d="M12 20.3 4.9 13.4a4.2 4.2 0 0 1 0-6 4.3 4.3 0 0 1 6 0l1.1 1.1 1.1-1.1a4.3 4.3 0 0 1 6 0 4.2 4.2 0 0 1 0 6Z"/>',
   collapse: '<path d="M9 6l-6 6 6 6"/><path d="M21 6v12"/>',
   pin: '<path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z"/><path d="M12 13v7"/>',
   help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.6v.4"/><path d="M12 17h.01"/>',
@@ -87,7 +90,7 @@ function buildSidebar() {
           </button>`;
         }
         return `<a class="side-link${active}" href="${item.href}" data-label="${item.label}">${icon(item.icon)}<span>${item.label}</span>${
-          item.kbd ? `<kbd>${item.kbd}</kbd>` : ""
+          item.badge === "fav" ? `<em class="side-count" data-fav-count hidden>0</em>` : ""
         }</a>`;
       })
       .join("");
@@ -279,6 +282,19 @@ function mount() {
       setPref("sideFolded", closed);
     });
   });
+
+  // The favourites count lives on the link itself. It is repainted from the
+  // store on load, on every heart anywhere on the page, and when another tab
+  // changes the list.
+  const favCount = aside.querySelector("[data-fav-count]");
+  const paintFavCount = () => {
+    if (!favCount) return;
+    const n = favouriteCount();
+    favCount.textContent = String(n);
+    favCount.hidden = n === 0;
+  };
+  paintFavCount();
+  document.addEventListener("favourites:change", paintFavCount);
 
   buildTopbar();
 
