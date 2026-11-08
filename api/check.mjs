@@ -350,10 +350,15 @@ async function sweepChapter({ batch, subject, chapter, base, limit }) {
     totalLectures: lectures.length,
     playing,
     notPlaying: results.length - playing,
+    // An empty chapter must not read like a success: the usual cause is asking
+    // for a chapter id under the wrong subject, and "all lectures were checked"
+    // about zero lectures tells the caller nothing.
     note:
-      lectures.length > take.length
-        ? `Checked the first ${take.length} of ${lectures.length} lectures to stay within the request limit. Re-run with &limit= and one &id= to check others.`
-        : "All lectures in this chapter were checked.",
+      lectures.length === 0
+        ? "This chapter has no lectures to check. A chapter id only resolves under the subject that owns it — check the &subject= value against /api/contents."
+        : lectures.length > take.length
+          ? `Checked the first ${take.length} of ${lectures.length} lectures to stay within the request limit. Re-run with &limit= and one &id= to check others.`
+          : "All lectures in this chapter were checked.",
     lectures: results,
   };
 }
