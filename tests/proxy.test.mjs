@@ -377,3 +377,62 @@ test("pwFetch (the in-process path) walks hosts through a 404 too", async () => 
   );
   assert.ok(dataCalls.some((c) => !c.url.includes("api.penpencil.co")), "reached a mirror");
 });
+
+test("the credential ladder presents every token before giving up on a 401", async () => {
+  // One 401 used to be the end of the road: the route retried once, and only if a
+  // freshly minted token happened to differ. If the relay was down the "fresh"
+  // token was the same stale string and no retry happened at all, so an endpoint
+  // that simply needed a different credential looked like it did not exist.
+  const { default: handler } = await import("../lib/pw-proxy.mjs");
+
+  const seen = new Set();
+  const { result, calls } = await withFetch(
+    (url, init) => {
+      if (url.includes("generate_token")) {
+        // A relay that is up but hands out a token this host rejects.
+        return new Response("relay-token-aaaaaaaaaaaaaaaa", { status: 200 });
+      }
+      const auth = (init.headers && (init.headers.authorization || init.headers.Authorization)) || "";
+      seen.add(auth);
+      // Only the built-in anonymous token is accepted, and only on a mirror.
+      if (/t-IDcSemACt8x4iTMCda8Yhe3iZaWbvV5XKSTbuAn0M/.test(auth)) {
+        return jsonResponse({ success: true, data: { ok: true } });
+      }
+      return jsonResponse({ success: false, message: "Unauthorized" }, 401);
+    },
+    async () => {
+      const res = mockRes();
+      await handler(req("/api/pw/v3/batches/698ad3519549b300a5e1cc6a/details"), res);
+      return res;
+    }
+  );
+
+  assert.equal(result.statusCode, 200, "a working credential must be found, not surface the first 401");
+  assert.equal(result.json().data.ok, true);
+  assert.ok(seen.size >= 2, `expected more than one credential to be tried, saw ${seen.size}`);
+  assert.ok(
+    calls.some((c) => /t-IDcSemACt8x4iTMCda8Yhe3iZaWbvV5XKSTbuAn0M/.test(String(c.headers.authorization || ""))),
+    "the static anonymous token is a real fallback and must be presented"
+  );
+});
+
+test("pwFetch retries with another credential instead of returning the 401", async () => {
+  const { pwFetch } = await import("../lib/pw-proxy.mjs");
+
+  const { result } = await withFetch(
+    (url, init) => {
+      if (url.includes("generate_token")) {
+        return new Response("relay-token-bbbbbbbbbbbbbbbb", { status: 200 });
+      }
+      const auth = String((init.headers && init.headers.authorization) || "");
+      if (/t-IDcSemACt8x4iTMCda8Yhe3iZaWbvV5XKSTbuAn0M/.test(auth)) {
+        return jsonResponse({ success: true, data: { title: "Lecture" } });
+      }
+      return jsonResponse({ success: false }, 401);
+    },
+    () => pwFetch("/v3/batches/x/details")
+  );
+
+  assert.equal(result.status, 200);
+  assert.equal((await result.json()).data.title, "Lecture");
+});

@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "GET") return methodNotAllowed(res);
 
-  const { url, folder, id, batch, subject } = query(req);
+  const { url, folder, id, batch, subject, attempt } = query(req);
   const mode = modeOf(req);
 
   try {
@@ -97,7 +97,14 @@ export default async function handler(req, res) {
       }
     }
 
-    const plan = await resolveStream({ rawUrl, folder: folderHint || parseFolder(rawUrl) });
+    // `&attempt=N` (the player sends one on every retry) means "do not hand me
+    // the plan you cached" — a cached plan points at the signer host that was
+    // reachable a few minutes ago, which is exactly the one that just failed.
+    const plan = await resolveStream({
+      rawUrl,
+      folder: folderHint || parseFolder(rawUrl),
+      fresh: Number(attempt || 0) > 0,
+    });
 
     // The schedule succeeded but no rendition answered: upstream signing is
     // usually rate-limited for a few seconds, not permanently broken, so say

@@ -90,9 +90,14 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ success: false, error: "videoKey is required" }));
   }
 
+  // `skip` pins the order away from the host that just failed: the player sends
+  // a new attempt number on every retry, so a dead relay is rotated out instead
+  // of being retried first forever.
+  const skip = Math.max(0, Number(url.searchParams.get("skip") || 0));
+  const rotated = [...FALLBACK_SIGNERS.slice(skip % FALLBACK_SIGNERS.length), ...FALLBACK_SIGNERS.slice(0, skip % FALLBACK_SIGNERS.length)];
   const signers = hostParam
-    ? [hostParam, ...FALLBACK_SIGNERS.filter((s) => s !== hostParam)]
-    : FALLBACK_SIGNERS;
+    ? [hostParam, ...rotated.filter((s) => s !== hostParam)]
+    : rotated;
 
   // `key=master.m3u8` is the one thing the signer does not store, and it is the
   // one thing a player needs: the quality picker only has levels to choose from

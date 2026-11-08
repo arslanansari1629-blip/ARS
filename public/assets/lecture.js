@@ -13,7 +13,7 @@ import {
   emptyState,
 } from "./app.js";
 import { trackLecture } from "./library.js";
-import { loadLecture } from "./data.js";
+import { loadLecture, loadContents } from "./data.js";
 import { upstream as upstreamJson } from "./client-api.js";
 
 mountChrome("batches");
@@ -40,10 +40,21 @@ const aboutText = document.getElementById("aboutText");
 const positionLabel = document.getElementById("positionLabel");
 const sourceLink = document.getElementById("sourceLink");
 
+const prevBtn = document.getElementById("prevBtn");
+const nextBtn = document.getElementById("nextBtn");
+const pipBtn = document.getElementById("pipBtn");
+const fullscreenBtn = document.getElementById("fullscreenBtn");
+const skipBackBtn = document.getElementById("skipBackBtn");
+const skipFwdBtn = document.getElementById("skipFwdBtn");
+
 const positionKey = `pos:${lectureId}`;
+/** Where this lecture sits in its chapter, so "next" means the next class. */
+let queue = { ids: [], index: -1 };
 
 /** Automatic retries left for a transient stream failure (rate limiting). */
 let retriesLeft = 2;
+/** Stream resolution attempts so far; each one bypasses the resolver's cache. */
+let attempt = 0;
 
 if (titleParam) {
   titleEl.textContent = titleParam;
@@ -136,6 +147,9 @@ async function boot() {
       chapter: (l.tags && l.tags[0]) || titleParam || "",
     });
     renderDocs(detail.docs || []);
+    // Navigation and the stream both start immediately; neither awaits the
+    // other, so a slow contents call cannot delay playback.
+    loadQueue((l.tags && l.tags[0]) || "");
   } else {
     metaEl.textContent = "Lecture details are loading from the chapter list.";
     docsEl.innerHTML = `<div class="tiny dim">No attachments could be loaded for this lecture.</div>`;
@@ -170,10 +184,13 @@ function renderDocs(docs) {
 async function startStream() {
   let plan = null;
   try {
+    // `attempt` tells the resolver to skip any cached plan and re-probe the
+    // signer hosts. A cached plan is what a dead signer looks like from here:
+    // the same unreachable host is handed back on every retry.
     plan = await api(
       `/api/stream?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
         subjectSlug
-      )}&id=${encodeURIComponent(lectureId)}`
+      )}&id=${encodeURIComponent(lectureId)}${attempt ? `&attempt=${attempt}` : ""}`
     );
 
     // Server could not reach upstream: resolve the video URL in the browser.
@@ -209,6 +226,7 @@ async function startStream() {
   // worth retrying on its own before showing the user anything.
   if (plan && !plan.playable && plan.retryAfter && retriesLeft > 0) {
     retriesLeft -= 1;
+    attempt += 1;
     showLoading("Reconnecting…", "The stream service is catching up. Trying again.");
     await new Promise((r) => setTimeout(r, plan.retryAfter * 1000));
     return startStream();
@@ -241,7 +259,11 @@ async function startStream() {
        <button class="btn btn-ghost" id="retryBtn">Retry</button>`
     );
     const retry = document.getElementById("retryBtn");
-    if (retry) retry.addEventListener("click", () => startStream());
+    if (retry)
+      retry.addEventListener("click", () => {
+        attempt += 1;
+        startStream();
+      });
     return;
   }
 
@@ -412,7 +434,10 @@ async function attachPlayer(plan) {
          <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>
          <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Source player</a>`
       );
-      document.getElementById("retryStreamBtn")?.addEventListener("click", () => startStream());
+      document.getElementById("retryStreamBtn")?.addEventListener("click", () => {
+    attempt += 1;
+    startStream();
+  });
     },
     { once: false }
   );
@@ -478,7 +503,10 @@ async function attachPlayer(plan) {
               `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
                <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>`
             );
-            document.getElementById("retryStreamBtn")?.addEventListener("click", () => startStream());
+            document.getElementById("retryStreamBtn")?.addEventListener("click", () => {
+    attempt += 1;
+    startStream();
+  });
             return;
           }
           // A manifest/level failure means the signed playlist itself is bad
@@ -487,6 +515,9 @@ async function attachPlayer(plan) {
           const details = String(data.details || "");
           if (/manifest|level/i.test(details) && retriesLeft > 0) {
             retriesLeft -= 1;
+            // A new attempt means a *different* signer host, not the same
+            // unreachable one the cached plan pointed at.
+            attempt += 1;
             destroyPlayers();
             startStream();
             return;
@@ -560,7 +591,10 @@ async function attachPlayer(plan) {
       `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
        <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
     );
-    document.getElementById("retryStreamBtn")?.addEventListener("click", () => startStream());
+    document.getElementById("retryStreamBtn")?.addEventListener("click", () => {
+    attempt += 1;
+    startStream();
+  });
   }
 }
 
@@ -622,6 +656,54 @@ function applyQuality(height) {
   }
 }
 
+/* --------------------------- queue / navigation -------------------------- */
+
+/**
+ * Resolve the neighbouring lectures in the same chapter.
+ *
+ * `loadContents` returns the chapter's videos in catalogue order, which is the
+ * order a student watches them. Failure is silent on purpose: navigation is a
+ * convenience, and a rate-limited contents call must never block the lecture.
+ */
+async function loadQueue(chapter) {
+  if (!chapter) {
+    if (prevBtn) prevBtn.style.display = "none";
+    if (nextBtn) nextBtn.style.display = "none";
+    return queue;
+  }
+  try {
+    const all = await loadContents(batchId, subjectSlug, chapter, "videos");
+    const list = (all && all.items) || [];
+    const ids = list.map((l) => l.id).filter(Boolean);
+    const index = ids.indexOf(lectureId);
+    queue = { ids, index };
+  } catch {
+    queue = { ids: [], index: -1 };
+  }
+
+  const hasPrev = queue.index > 0;
+  const hasNext = queue.index >= 0 && queue.index < queue.ids.length - 1;
+  if (prevBtn) prevBtn.style.display = hasPrev ? "" : "none";
+  if (nextBtn) nextBtn.style.display = hasNext ? "" : "none";
+  // Prev/next follow the chapter order, so "next" is the next class, not the
+  // next item in a filtered list.
+  return queue;
+}
+
+/** Navigate to another lecture in the same chapter without a page reload. */
+function goToLecture(offset) {
+  const target = queue.index + offset;
+  if (queue.index < 0 || target < 0 || target >= queue.ids.length) return;
+  const id = queue.ids[target];
+  const url = new URL(window.location.href);
+  url.searchParams.set("id", id);
+  url.searchParams.delete("title");
+  // A full navigation is correct here: a new lecture means a new stream, a new
+  // saved position and a new document title, and the page never reload-loops
+  // because this only runs from an explicit click or keyboard shortcut.
+  window.location.assign(url.toString());
+}
+
 /* ------------------------------ position/speed --------------------------- */
 
 function restorePosition() {
@@ -644,20 +726,63 @@ function formatTime(s) {
  * like a broken site; a "reconnecting" chip plus a saved position does not.
  */
 let stalls = 0;
+let stallTimer = null;
+
+/**
+ * Buffering is not the same as reconnecting, and saying so matters.
+ *
+ * A two-second buffer hiccup is normal on a long lecture; showing "Reconnecting"
+ * for it trains people to distrust the player. The first wait shows "Buffering"
+ * after a short grace period, and only a *repeated* stall is reported as a
+ * reconnection attempt.
+ */
+function health(text) {
+  const chip = document.getElementById("streamHealth");
+  if (!chip) return;
+  if (!text) {
+    chip.style.display = "none";
+    return;
+  }
+  chip.textContent = text;
+  chip.style.display = "";
+}
+
 video.addEventListener("waiting", () => {
   stalls += 1;
-  if (stalls < 3) return;
-  const chip = document.getElementById("streamHealth");
-  if (chip) {
-    chip.textContent = "Reconnecting…";
-    chip.style.display = "";
-  }
+  // Give a normal short stall a moment to resolve before saying anything.
+  clearTimeout(stallTimer);
+  stallTimer = setTimeout(() => {
+    if (!video.paused && video.readyState < 3) {
+      health(stalls > 2 ? "Reconnecting…" : "Buffering…");
+    }
+  }, 1200);
 });
+
 video.addEventListener("playing", () => {
-  // A playing video is healthy again: clear the chip and the stall counter.
   stalls = 0;
-  const chip = document.getElementById("streamHealth");
-  if (chip) chip.style.display = "none";
+  clearTimeout(stallTimer);
+  health("");
+});
+
+video.addEventListener("stalled", () => {
+  if (!video.paused) health("Buffering…");
+});
+
+/**
+ * Persist the position when the tab is hidden or closed.
+ *
+ * `timeupdate` only fires every few hundred milliseconds while playing, so a
+ * tab closed mid-segment could lose the last stretch of a lecture. `pagehide` is
+ * the only unload event that is reliably delivered on mobile Safari.
+ */
+function savePositionNow() {
+  if (Number.isFinite(video.currentTime) && video.currentTime > 5) {
+    localStorage.setItem(positionKey, String(Math.floor(video.currentTime)));
+  }
+}
+window.addEventListener("pagehide", savePositionNow);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") savePositionNow();
 });
 
 video.addEventListener("timeupdate", () => {
@@ -668,6 +793,90 @@ video.addEventListener("timeupdate", () => {
 document.getElementById("restartBtn").addEventListener("click", () => {
   video.currentTime = 0;
   video.play().catch(() => {});
+});
+
+/* ------------------------------ transport -------------------------------- */
+
+/** Seek by a relative number of seconds, clamped to the clip. */
+function seekBy(delta) {
+  const duration = Number(video.duration);
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  const next = Math.min(duration - 0.25, Math.max(0, video.currentTime + delta));
+  video.currentTime = next;
+  toast(`${delta > 0 ? "Forward" : "Back"} ${Math.abs(delta)}s`);
+}
+
+skipBackBtn?.addEventListener("click", () => seekBy(-10));
+skipFwdBtn?.addEventListener("click", () => seekBy(10));
+prevBtn?.addEventListener("click", () => goToLecture(-1));
+nextBtn?.addEventListener("click", () => goToLecture(1));
+
+// Only offer picture-in-picture where the browser actually implements it —
+// a button that throws on click is worse than no button.
+if (pipBtn && document.pictureInPictureEnabled && video.requestPictureInPicture) {
+  pipBtn.style.display = "";
+  pipBtn.addEventListener("click", async () => {
+    try {
+      if (document.pictureInPictureElement) await document.exitPictureInPicture();
+      else await video.requestPictureInPicture();
+    } catch (err) {
+      toast("Picture in picture is unavailable for this video");
+    }
+  });
+}
+
+fullscreenBtn?.addEventListener("click", async () => {
+  const stage = video.closest(".player-stage") || video;
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await (stage.requestFullscreen ? stage.requestFullscreen() : Promise.reject());
+  } catch {
+    // iOS Safari only fullscreens the video element itself.
+    if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+    else toast("Fullscreen is not available here");
+  }
+});
+
+/**
+ * Keyboard control, as every video site has.
+ *
+ * Ignored while the user is typing (search boxes) and while a modifier is held,
+ * so it cannot swallow a browser shortcut.
+ */
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = (e.target && e.target.tagName) || "";
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || (e.target && e.target.isContentEditable)) return;
+  if (video.style.display === "none") return; // an embed owns the screen
+
+  const actions = {
+    " ": () => (video.paused ? video.play().catch(() => {}) : video.pause()),
+    k: () => (video.paused ? video.play().catch(() => {}) : video.pause()),
+    ArrowRight: () => seekBy(10),
+    ArrowLeft: () => seekBy(-10),
+    l: () => seekBy(10),
+    j: () => seekBy(-10),
+    ArrowUp: () => {
+      video.volume = Math.min(1, video.volume + 0.1);
+      toast(`Volume ${Math.round(video.volume * 100)}%`);
+    },
+    ArrowDown: () => {
+      video.volume = Math.max(0, video.volume - 0.1);
+      toast(`Volume ${Math.round(video.volume * 100)}%`);
+    },
+    m: () => {
+      video.muted = !video.muted;
+      toast(video.muted ? "Muted" : "Unmuted");
+    },
+    f: () => fullscreenBtn && fullscreenBtn.click(),
+    n: () => goToLecture(1),
+    p: () => goToLecture(-1),
+  };
+
+  const action = actions[e.key] || actions[e.key.toLowerCase?.()];
+  if (!action) return;
+  e.preventDefault();
+  action();
 });
 
 document.getElementById("speed").addEventListener("click", (e) => {

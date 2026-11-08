@@ -306,6 +306,21 @@ test("the lecture player ships quality control and recovery", async () => {
   assert.match(source, /MANIFEST_PARSED[\s\S]{0,600}getPrefs\(\)\.quality/, "saved quality is never re-applied");
   assert.match(source, /function applyQuality/, "quality switching is not factored, so load-time cannot reuse it");
 
+  // Transport and navigation controls.
+  assert.match(source, /function seekBy/, "no keyboard/click seeking");
+  assert.match(source, /requestPictureInPicture/, "picture-in-picture is missing");
+  assert.match(source, /goToLecture/, "there is no next/previous lecture navigation");
+  assert.match(source, /addEventListener\("keydown"/, "no keyboard shortcuts");
+
+  // Buffering and reconnecting must be reported as different things.
+  assert.match(source, /Buffering…/, "buffering is never reported");
+  assert.match(source, /Reconnecting…/, "reconnection is never reported");
+
+  // A retry must bypass the resolver cache, otherwise it re-probes the same
+  // signer host that just failed.
+  assert.match(source, /attempt \+= 1/, "retries do not bump the resolution attempt");
+  assert.match(source, /attempt=\$\{attempt\}|attempt=\$\{attempt\}/, "the attempt is never sent to /api/stream");
+
   assert.ok(
     !/location\.reload\(\)/.test(source),
     "playback failures must re-resolve the stream, not reload the page"
