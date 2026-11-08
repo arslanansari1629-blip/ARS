@@ -3,3 +3,7 @@ node_modules/
 .DS_Store
 *.log
 public/build.json
+public/assets/catalog.json
+
+# The raw JSON is decompressed from the committed gzip at build time.
+data/batches.json

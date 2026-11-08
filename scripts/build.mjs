@@ -82,6 +82,21 @@ async function main() {
     }
   }
 
+  // The complete batch catalogue (vidcloud's own source list) must be present:
+  // /api/batches searches it locally, so without it the site falls back to the
+  // upstream search, which cannot see parts of the catalogue.
+  try {
+    const { loadCatalogIndex } = await import("../lib/catalog.mjs");
+    const index = await loadCatalogIndex();
+    if (!index || index.batches.length < 1000) {
+      problems.push(`batch catalogue looks incomplete (${index ? index.batches.length : 0} rows)`);
+    } else {
+      console.log(`catalogue OK — ${index.batches.length} batches indexed`);
+    }
+  } catch (err) {
+    problems.push(`batch catalogue unavailable: ${err.message}`);
+  }
+
   // page modules must not reference identifiers they never imported
   const { execFile } = await import("node:child_process");
   const moduleCheck = await new Promise((resolve) => {

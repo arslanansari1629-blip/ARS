@@ -24,6 +24,8 @@ const lectureId = qs("id");
 const titleParam = qs("title");
 
 const video = document.getElementById("video");
+const embed = document.getElementById("embed");
+const playerBar = document.querySelector(".player-bar");
 const overlay = document.getElementById("overlay");
 const overlayTitle = document.getElementById("overlayTitle");
 const overlayText = document.getElementById("overlayText");
@@ -192,6 +194,17 @@ async function startStream() {
   }
 
   if (!plan || !plan.playable || !plan.url) {
+    // The lecture may simply live on a host we do not relay. Say that, and give
+    // the student the direct link instead of a retry button that cannot help.
+    if (plan && plan.external) {
+      return showMessage(
+        "Watch on the original host",
+        plan.reason,
+        false,
+        `<a class="btn btn-primary" href="${plan.external}" target="_blank" rel="noopener">Open the video</a>
+         <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>`
+      );
+    }
     const reason =
       (plan && plan.reason) || "PW has not published a playable stream for this lecture yet.";
     const check = checkUrl();
@@ -297,8 +310,55 @@ function showQuality(levels) {
   qualitySelect.style.display = "";
 }
 
+/**
+ * Play a YouTube/Vimeo-hosted lecture.
+ *
+ * A handful of batches publish the recording to YouTube rather than to a PW
+ * CDN. The quality picker, the speed buttons and the resume position all
+ * belong to the <video> element and simply do not apply inside an embed, so
+ * they are hidden instead of being shown as dead controls.
+ */
+function attachEmbed(plan) {
+  const src = plan.embed;
+  if (!src || !embed) {
+    return showMessage(
+      "Video could not be embedded",
+      "This lecture is hosted on YouTube. Open it on the source player instead.",
+      false,
+      `<a class="btn btn-primary" href="${plan.url || SITE.fallbackPlayer}" target="_blank" rel="noopener">Watch the lecture</a>`
+    );
+  }
+
+  destroyPlayers();
+  video.style.display = "none";
+  embed.style.display = "";
+  embed.src = src;
+  if (playerBar) playerBar.querySelectorAll(".speed, .quality-select, #streamHealth").forEach((el) => {
+    el.style.display = "none";
+  });
+  showQuality([]);
+  overlay.style.display = "none";
+  if (sourceLink && plan.url) sourceLink.href = plan.url;
+}
+
 async function attachPlayer(plan) {
   currentPlan = plan;
+
+  if (plan.engine === "embed" || plan.kind === "youtube" || plan.kind === "vimeo") {
+    attachEmbed(plan);
+    return;
+  }
+
+  // A previously embedded lecture must give the <video> element back.
+  if (embed && embed.style.display !== "none") {
+    embed.src = "about:blank";
+    embed.style.display = "none";
+    video.style.display = "";
+    if (playerBar) playerBar.querySelectorAll(".speed, .quality-select, #streamHealth").forEach((el) => {
+      el.style.removeProperty("display");
+    });
+  }
+
   showLoading("Stream ready", "Starting playback…");
 
   // Layout metrics arrive one event after the player starts; hide the overlay
@@ -467,6 +527,11 @@ async function attachPlayer(plan) {
 
 function destroyPlayers() {
   nativeSource = false;
+  if (embed) {
+    embed.src = "about:blank";
+    embed.style.display = "none";
+  }
+  if (video) video.style.display = "";
   if (hls) {
     try {
       hls.destroy();

@@ -128,14 +128,16 @@ test("home page renders live catalogue cards and hero copy", async () => {
   assert.match(cards[0].textContent, /Arjuna JEE 2027/);
   assert.match(doc.body.textContent.replace(/\s+/g, " "), /Every Physics Wallah batch/i);
   assert.match(doc.body.textContent, /Lakshya JEE 2027/);
-  assert.match(doc.getElementById("statSubjects").textContent, /13,631/);
+  // The complete catalogue (14 201 batches) is the whole point of shipping the
+  // list locally — the source site's own search only sees 13 631.
+  assert.match(doc.getElementById("statSubjects").textContent, /14,201/);
   dom.window.close();
 });
 
 test("batches page lists catalogue with pager and result count", async () => {
   const { doc, dom } = await render("/batches.html", { waitForSelector: "#grid .batch-card" });
   assert.ok(doc.querySelectorAll("#grid .batch-card").length >= 2);
-  assert.match(doc.getElementById("resultCount").textContent, /13,631 batches/);
+  assert.match(doc.getElementById("resultCount").textContent, /14,201 batches/);
   assert.ok(doc.querySelectorAll("#pager button").length >= 3);
   const langs = [...doc.querySelectorAll("#langFilter option")].map((o) => o.textContent);
   assert.ok(langs.includes("Hinglish"), langs.join(","));
@@ -341,6 +343,28 @@ test("API routes reject bad input and answer normalised JSON", async () => {
   assert.match(data.batches[0].image, /^https:\/\/static\.pw\.live/);
 });
 
+test("catalogue search finds batches the upstream search cannot see", async () => {
+  const res = await nativeFetch(`${BASE}/api/batches?search=capcut`);
+  const data = await res.json();
+  assert.equal(data.success, true);
+  assert.ok(data.total >= 1, "expected at least one hit");
+  const hit = data.batches.find((b) => /capcut/i.test(b.name));
+  assert.ok(hit, "Capcut Video Editing Course should be findable");
+  assert.equal(hit.id, "6ae495eefeacf9ee7140e421");
+  assert.match(hit.image, /^https:\/\/static\.pw\.live/);
+});
+
+test("catalogue covers every batch vidcloud lists, page by page", async () => {
+  const first = await (await nativeFetch(`${BASE}/api/batches?page=1`)).json();
+  const last = await (await nativeFetch(`${BASE}/api/batches?page=${first.totalPages}`)).json();
+  assert.equal(first.total, 14201);
+  assert.ok(first.totalPages > 700, `expected the pager to reach the end, got ${first.totalPages}`);
+  assert.ok(last.batches.length > 0);
+  const ids = new Set();
+  for (const b of [...first.batches, ...last.batches]) ids.add(b.id);
+  assert.equal(ids.size, first.batches.length + last.batches.length);
+});
+
 test("stream route resolves a signed PW URL into a relayed plan", async () => {
   const signed =
     "https://d1d34p8vz63oiq.cloudfront.net/d780e1e3-f446-4218-97f8-5d3f4dd4ca05/master.mpd?Signature=abc&Key-Pair-Id=XYZ&Policy=p";
@@ -350,6 +374,36 @@ test("stream route resolves a signed PW URL into a relayed plan", async () => {
   assert.equal(plan.playable, true);
   assert.equal(plan.kind, "dash");
   assert.match(plan.url, /^\/api\/stream\?folder=d780e1e3/);
+});
+
+test("stream route hands YouTube-hosted lectures to the embed player", async () => {
+  // The PW Skills batches publish recordings on YouTube. Reporting those as
+  // "not published" was wrong: the lecture exists and must be watchable.
+  const res = await nativeFetch(
+    `${BASE}/api/stream?url=${encodeURIComponent("https://youtu.be/s2Xdz8mUQMA")}`
+  );
+  const plan = await res.json();
+  assert.equal(plan.playable, true);
+  assert.equal(plan.kind, "youtube");
+  assert.equal(plan.engine, "embed");
+  assert.equal(plan.embed, "https://www.youtube-nocookie.com/embed/s2Xdz8mUQMA");
+});
+
+test("stream route does not claim an unknown host has no video", async () => {
+  const external = "https://videos.example.com/lecture-01.mp4";
+  const res = await nativeFetch(`${BASE}/api/stream?url=${encodeURIComponent(external)}`);
+  const plan = await res.json();
+  assert.equal(plan.playable, false);
+  assert.equal(plan.external, external);
+  assert.doesNotMatch(plan.reason, /has not published/i);
+  assert.match(plan.reason, /hosted outside/i);
+});
+
+test("lecture page ships an embed element for non-CDN lectures", async () => {
+  const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  assert.match(html, /id="embed"/);
+  const js = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
+  assert.match(js, /attachEmbed/);
 });
 
 test("hls relay rewrites playlists through the gateway", async () => {

@@ -10,6 +10,7 @@ import {
   fmtRelative,
   rememberBatch,
   emptyState,
+  SITE,
 } from "./app.js";
 import { trackBatch } from "./library.js";
 import { loadBatch as fetchBatchData, loadAnnouncements } from "./data.js";
@@ -172,6 +173,19 @@ async function loadBatch() {
     batch.subjects = out.subjects || [];
     renderDetail();
     renderSubjects();
+    // The subject list comes from a second upstream call that can be
+    // rate-limited. Show that plainly instead of an empty-looking page, and
+    // point at the source player rather than leaving the reader stuck.
+    if (out.degraded || batch.degraded) {
+      tabBody.innerHTML = emptyState(
+        "Subject list is loading slowly",
+        "The lecture index did not answer this time. The batch itself is fine — retry in a moment, or open it on the source player.",
+        `<button class="btn btn-primary" id="retryBatchBtn">Retry</button>
+         <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
+      );
+      document.getElementById("retryBatchBtn")?.addEventListener("click", () => loadBatch());
+      return;
+    }
     rememberBatch({ id: batch.id, name: batch.name, image: batch.image });
     trackBatch({ id: batch.id, name: batch.name, image: batch.image });
     document.getElementById("detailGrid").classList.add("fade-up");

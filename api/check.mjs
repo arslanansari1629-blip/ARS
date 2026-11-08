@@ -110,6 +110,19 @@ async function checkLecture({ batch, subject, id, url, base }) {
       return report;
     }
 
+    // An embedded lecture has no manifest and no AES key to verify: the only
+    // meaningful check is that the host answers for that video id.
+    if (plan.engine === "embed") {
+      report.result = "embed";
+      report.ok = true;
+      report.explain =
+        "This lecture is hosted on " +
+        (plan.kind === "vimeo" ? "Vimeo" : "YouTube") +
+        " and plays in an embed — no PW key or segment check applies.";
+      report.steps.embed = { url: plan.embed, videoId: plan.videoId };
+      return report;
+    }
+
     /* 2 ── playlist -------------------------------------------------------- */
     const playlistUrl = plan.url.startsWith("http") ? plan.url : base + plan.url;
     const pl = await grab(playlistUrl);

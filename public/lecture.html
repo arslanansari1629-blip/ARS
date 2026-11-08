@@ -43,6 +43,18 @@
         <div class="player-wrap">
           <div class="player-stage">
             <video id="video" playsinline controls preload="metadata"></video>
+            <!-- Some batches publish the recording on YouTube/Vimeo instead of a
+                 PW CDN. Those play in an embed, so the element ships alongside
+                 the <video> and only one of the two is ever visible. -->
+            <iframe
+              id="embed"
+              class="player-embed"
+              style="display:none"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+              referrerpolicy="strict-origin-when-cross-origin"
+              title="Lecture video"
+            ></iframe>
             <div class="player-overlay" id="overlay">
               <div class="spinner" id="spinner"></div>
               <h3 id="overlayTitle">Preparing your lecture…</h3>

@@ -75,7 +75,9 @@ function renderPager() {
     pager.innerHTML = "";
     return;
   }
-  const total = Math.min(state.totalPages || 1, 700);
+  // The local catalogue is complete (≈14 200 batches / 711 pages), so the pager
+  // has to reach the last page — it used to be capped at 700 arbitrarily.
+  const total = Math.max(1, state.totalPages || 1);
   const cur = state.page;
   const nums = new Set([1, total, cur, cur - 1, cur + 1]);
   const list = Array.from(nums).filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
@@ -116,7 +118,10 @@ async function load() {
         "No batches matched",
         `Nothing found for “${state.search}”. Try a different name.`
       );
-      resultCount.textContent = `${list.length} result${list.length === 1 ? "" : "s"} for “${state.search}”`;
+      const total = out.total ?? list.length;
+      resultCount.textContent =
+        `${total.toLocaleString("en-IN")} result${total === 1 ? "" : "s"} for “${state.search}”` +
+        (total > list.length ? ` · showing the closest ${list.length}` : "");
       return;
     }
 

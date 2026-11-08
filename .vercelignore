@@ -1,2 +1,5 @@
+# The batch catalogue ships as data/batches.json.gz and is read by /api/batches.
+# Everything else below is source-only and does not belong in a deployment.
 legacy/
 tests/
+data/batches.json
