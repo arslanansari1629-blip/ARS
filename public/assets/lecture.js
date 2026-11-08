@@ -289,13 +289,20 @@ async function attachPlayer(plan) {
     video.addEventListener(
       "error",
       () => {
+        // A reload re-downloads the whole page to get a fresh signed link; asking
+        // for a new plan is enough and keeps the user's place in the lecture.
         showMessage(
           "Playback error",
-          "The stream link may have expired. Reload the page to fetch a fresh link.",
+          "This stream could not be opened. Retry to fetch a fresh link, or run the playback check to see which step failed.",
           true,
-          `<button class="btn btn-primary" onclick="location.reload()">Reload</button>
+          `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
+           <a class="btn btn-ghost" href="/api/check?batch=${encodeURIComponent(
+             batchId
+           )}&subject=${encodeURIComponent(subjectSlug)}&id=${encodeURIComponent(lectureId)}" target="_blank" rel="noopener">Playback check</a>
            <a class="btn btn-ghost" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Source player</a>`
         );
+        const retryBtn = document.getElementById("retryStreamBtn");
+        if (retryBtn) retryBtn.addEventListener("click", () => startStream());
       },
       { once: true }
     );
