@@ -1,4 +1,5 @@
 import { cors } from "../lib/http.mjs";
+import { guestToken } from "../lib/api-data.mjs";
 
 /**
  * GET /api/sign?host=<signer>&videoKey=<folder>&key=720/main.m3u8
@@ -6,14 +7,42 @@ import { cors } from "../lib/http.mjs";
  * Relays the upstream PW "get-hls-key" signing service. It returns a freshly
  * signed CloudFront playlist / segment / AES key for a video folder, which lets
  * the player stream lectures whose published URL lost its signature.
+ *
+ * The signer relays are PW partner APIs: they require an anonymous guest token
+ * (Authorization: Bearer … plus a `token` header). Without it they answer 401,
+ * which is why every signer below is tried with the same credential set.
  */
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 const FALLBACK_SIGNERS = [
-  "https://www.learnxpw.site/api/v1/videos/get-hls-key",
+  "https://api.studyspark.study/api/penpencil/v1/videos/get-hls-key",
   "https://vidcloud.eu.org/api/v1/videos/get-hls-key",
+  "https://www.learnxpw.site/api/v1/videos/get-hls-key",
 ];
+
+/** Quality order used when the caller does not name a rendition. */
+const QUALITIES = ["720", "480", "360", "240"];
+
+function signerHeaders(token) {
+  return {
+    Authorization: `Bearer ${token}`,
+    token,
+    "client-type": "WEB",
+    "client-version": "1.0.0",
+    Accept: "*/*",
+    "User-Agent": UA,
+  };
+}
+
+async function fetchSigned(signer, videoKey, key, token) {
+  const target = `${signer}?videoKey=${encodeURIComponent(videoKey)}&key=${encodeURIComponent(key)}`;
+  return fetch(target, {
+    headers: signerHeaders(token),
+    redirect: "follow",
+    signal: AbortSignal.timeout(20000),
+  });
+}
 
 export default async function handler(req, res) {
   cors(res);
@@ -21,7 +50,7 @@ export default async function handler(req, res) {
 
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   const videoKey = url.searchParams.get("videoKey") || "";
-  const key = url.searchParams.get("key") || "720/main.m3u8";
+  const key = url.searchParams.get("key") || "";
   const hostParam = url.searchParams.get("host") || "";
 
   if (!videoKey) {
@@ -30,41 +59,46 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ success: false, error: "videoKey is required" }));
   }
 
-  const signers = hostParam ? [hostParam, ...FALLBACK_SIGNERS] : FALLBACK_SIGNERS;
+  const signers = hostParam ? [hostParam, ...FALLBACK_SIGNERS.filter((s) => s !== hostParam)] : FALLBACK_SIGNERS;
+  const token = await guestToken();
 
-  for (const signer of signers) {
-    try {
-      const target = `${signer}?videoKey=${encodeURIComponent(videoKey)}&key=${encodeURIComponent(
-        key
-      )}`;
-      const upstream = await fetch(target, {
-        headers: { Accept: "*/*", "User-Agent": UA },
-        redirect: "follow",
-        signal: AbortSignal.timeout(20000),
-      });
+  // Resolve the rendition master playlist when the caller does not pin one.
+  const keys = key ? [key] : QUALITIES.map((q) => `${q}/main.m3u8`);
 
+  for (const candidate of keys) {
+    for (const signer of signers) {
+      let upstream;
+      try {
+        upstream = await fetchSigned(signer, videoKey, candidate, token);
+      } catch {
+        continue;
+      }
       if (!upstream.ok) continue;
 
-      const contentType = upstream.headers.get("content-type") || "application/octet-stream";
-      if (/json|html|text\/plain/i.test(contentType)) {
+      const contentType = (upstream.headers.get("content-type") || "").toLowerCase();
+      const looksLikePlaylist = /\.(m3u8|mpd)$/i.test(candidate);
+      const declaredText = /json|html|text\/|xml|mpegurl|dash/i.test(contentType);
+
+      // A playlist can arrive with almost any content-type, so read it as text
+      // whenever either the requested path or the response type says so.
+      if (looksLikePlaylist || declaredText) {
         const text = await upstream.text();
-        if (text.includes("#EXTM3U") || text.includes("<MPD>")) {
+        if (text.includes("#EXTM3U") || text.includes("<MPD")) {
           res.statusCode = 200;
           res.setHeader(
             "Content-Type",
             text.includes("#EXTM3U") ? "application/vnd.apple.mpegurl" : "application/dash+xml"
           );
           res.setHeader("Cache-Control", "no-store");
-          return res.end(rewritePlaylist(text, req, videoKey));
+          return res.end(rewritePlaylist(text, req, videoKey, candidate));
         }
-        // signer answered with JSON (error or a signed redirect payload)
-        res.statusCode = 200;
-        res.setHeader("Content-Type", "application/json");
-        return res.end(text);
+        // JSON / HTML / error body — try the remaining signers.
+        continue;
       }
 
-      res.statusCode = upstream.status;
-      res.setHeader("Content-Type", contentType);
+      // Binary payload (AES key or a media segment) — pass it through untouched.
+      res.statusCode = 200;
+      res.setHeader("Content-Type", contentType || "application/octet-stream");
       res.setHeader("Cache-Control", "public, max-age=300");
       if (!upstream.body) return res.end();
       const reader = upstream.body.getReader();
@@ -74,8 +108,6 @@ export default async function handler(req, res) {
         res.write(Buffer.from(value));
       }
       return res.end();
-    } catch {
-      /* try the next signer */
     }
   }
 
@@ -90,26 +122,39 @@ export default async function handler(req, res) {
   );
 }
 
-function rewritePlaylist(text, req, videoKey) {
+/**
+ * Rewrite every child reference of a signed playlist back through this route so
+ * the browser never has to talk to CloudFront directly.
+ */
+function rewritePlaylist(text, req, videoKey, requestedKey) {
   const proto = (req.headers["x-forwarded-proto"] || "https").toString().split(",")[0];
   const host = req.headers["x-forwarded-host"] || req.headers.host;
   const base = `${proto}://${host}`;
+  const rendition = (String(requestedKey).match(/^(\d+)\//) || [])[1] || "";
+
+  const relay = (childKey) =>
+    `${base}/api/sign?videoKey=${encodeURIComponent(videoKey)}&key=${encodeURIComponent(childKey)}`;
+
+  /** Reduce a playlist reference to the `[<rendition>/]<file>` form the signer wants. */
+  const toKey = (ref) => {
+    const clean = String(ref).split("?")[0];
+    const rel = clean.replace(/^https?:\/\/[^/]+\//, "");
+    const parts = rel.split("/").filter(Boolean);
+    if (!parts.length) return ref;
+    if (parts.length === 1) return rendition ? `${rendition}/${parts[0]}` : parts[0];
+    return `${parts[parts.length - 2]}/${parts[parts.length - 1]}`;
+  };
+
   return text
     .split("\n")
     .map((line) => {
       const raw = line.trim();
       if (!raw) return line;
       if (raw.startsWith("#")) {
-        return line.replace(/URI="([^"]+)"/g, (_m, uri) => {
-          const key = uri.split("/").slice(-2).join("/");
-          return `URI="${base}/api/sign?videoKey=${encodeURIComponent(videoKey)}&key=${encodeURIComponent(key)}"`;
-        });
+        // EXT-X-KEY / EXT-X-MAP carry their target in URI="…"
+        return line.replace(/URI="([^"]+)"/g, (_m, uri) => `URI="${relay(toKey(uri))}"`);
       }
-      const clean = raw.split("?")[0];
-      const rel = clean.replace(/^https?:\/\/[^/]+\//, "");
-      const parts = rel.split("/").filter(Boolean);
-      const key = parts.length >= 2 ? `${parts[parts.length - 2]}/${parts[parts.length - 1]}` : raw;
-      return `${base}/api/sign?videoKey=${encodeURIComponent(videoKey)}&key=${encodeURIComponent(key)}`;
+      return relay(toKey(raw));
     })
     .join("\n");
 }
