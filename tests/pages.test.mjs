@@ -173,6 +173,14 @@ test("chapter page shows lectures then notes/DPP PDFs", async () => {
   const rows = doc.querySelectorAll("#body .list-row");
   assert.ok(rows.length >= 2);
   assert.match(rows[0].textContent, /Units and Dimension 10/);
+  // Every row carries an honest availability tag so nobody opens a lecture
+  // expecting a video the source never published.
+  const tags = [...rows].map((r) => r.querySelector(".badge-live, .badge-soon"));
+  assert.ok(tags.every(Boolean), "each lecture row needs a playability badge");
+  assert.ok(
+    tags.some((t) => /Video ready/.test(t.textContent)),
+    "the processed lecture should be tagged as playable"
+  );
 
   const notesTab = [...doc.querySelectorAll("#tabs .tab")].find((t) => t.dataset.type === "notes");
   notesTab.click();

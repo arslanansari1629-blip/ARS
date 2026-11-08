@@ -44,6 +44,30 @@ function watchUrl(item) {
   )}&id=${encodeURIComponent(item.id)}&title=${encodeURIComponent(item.title)}`;
 }
 
+/**
+ * Flag whether a lecture actually has something to play.
+ *
+ * The chapter listing never contains the stream URL (that only comes from
+ * `Schedule`), but it does say how the item was published: a `PDF`/`NOTES`
+ * entry is material only, and a class without any rendition list or with a
+ * pending status has no recording yet. Saying so on the row saves the user a
+ * dead click into an empty player.
+ */
+function streamBadge(item) {
+  const type = String(item.lectureType || "").toUpperCase();
+  const status = String(item.status || "").toLowerCase();
+  const renditions = Array.isArray(item.types) ? item.types : [];
+  const hasStream = Boolean(item.videoId) || renditions.length > 0;
+
+  if (/PDF|NOTE|DOC/.test(type)) {
+    return `<span class="badge-soon">Notes only</span>`;
+  }
+  if (hasStream || /^(ready|completed|published)$/.test(status)) {
+    return `<span class="badge-live">Video ready</span>`;
+  }
+  return `<span class="badge-soon">Recording pending</span>`;
+}
+
 function videoRow(item, index) {
   return `
     <a class="list-row fade-up" href="${watchUrl(item)}">
@@ -54,6 +78,7 @@ function videoRow(item, index) {
           ${item.date ? `<span>${esc(fmtDate(item.date))}</span>` : ""}
           ${item.duration ? `<span>${esc(item.duration)}</span>` : ""}
           ${item.lectureType ? `<span>${esc(item.lectureType)}</span>` : ""}
+          ${streamBadge(item)}
         </span>
       </span>
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--brand-2)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z" fill="var(--brand-2)" stroke="none"/></svg>

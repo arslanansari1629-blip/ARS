@@ -172,14 +172,25 @@ async function startStream() {
   }
 
   if (!plan || !plan.playable || !plan.url) {
-    const reason = (plan && plan.reason) || "PW has not published a playable stream for this lecture yet.";
-    return showMessage(
-      "Stream not published",
-      reason,
+    const reason =
+      (plan && plan.reason) || "PW has not published a playable stream for this lecture yet.";
+    const check = `/api/check?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
+      subjectSlug
+    )}&id=${encodeURIComponent(lectureId)}`;
+    const notesHint =
+      plan && plan.lecture && plan.lecture.hasNotes
+        ? " The class notes and DPPs for this lecture are available in the list below."
+        : "";
+    showMessage(
+      "This class has no video yet",
+      reason + notesHint,
       false,
-      `<a class="btn btn-primary" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Open source player</a>
+      `<a class="btn btn-primary" href="${check}" target="_blank" rel="noopener">Run playback check</a>
        <button class="btn btn-ghost" id="retryBtn">Retry</button>`
     );
+    const retry = document.getElementById("retryBtn");
+    if (retry) retry.addEventListener("click", () => startStream());
+    return;
   }
 
   attachPlayer(plan);
@@ -241,9 +252,13 @@ async function attachPlayer(plan) {
               "Playback error",
               "The stream link may have expired. Reload the page to fetch a fresh link.",
               true,
-              `<button class="btn btn-primary" onclick="location.reload()">Reload</button>
-               <a class="btn btn-ghost" href="https://pw.eduvibe.cc.cd/" target="_blank" rel="noopener">Source player</a>`
+              `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
+               <button class="btn btn-ghost" id="reloadBtn">Reload</button>`
             );
+            const r = document.getElementById("retryStreamBtn");
+            if (r) r.addEventListener("click", () => startStream());
+            const l = document.getElementById("reloadBtn");
+            if (l) l.addEventListener("click", () => location.reload());
             return;
           }
           recovered += 1;
