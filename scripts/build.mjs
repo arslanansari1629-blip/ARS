@@ -40,7 +40,6 @@ const REQUIRED_API = [
   "media.mjs",
   "pw.mjs",
   "token.mjs",
-  "pw/[...path].mjs",
 ];
 
 async function exists(p) {
@@ -60,6 +59,17 @@ async function main() {
   }
   for (const fn of REQUIRED_API) {
     if (!(await exists(path.join(API, fn)))) problems.push(`missing function: api/${fn}`);
+  }
+
+  // Vercel's Hobby plan rejects a deployment with more than 12 serverless
+  // functions ("exceeded_serverless_functions_per_deployment"). Catch that here
+  // rather than after a two-minute build.
+  const functions = (await readdir(API)).filter((f) => f.endsWith(".mjs"));
+  if (functions.length > 12) {
+    problems.push(
+      `too many serverless functions: ${functions.length} (Hobby plan allows 12) — ` +
+        `fold the extra route into an existing file and rewrite it in vercel.json`
+    );
   }
 
   // sanity check: every page that loads a module script must reference a real file
