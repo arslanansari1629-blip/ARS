@@ -142,7 +142,16 @@ function render(items) {
   }
 
   if (type === "videos" || type === "DppVideos") {
-    chapterMeta.textContent = `${items.length} ${type === "videos" ? "lectures" : "DPP solution videos"}`;
+    const label = type === "videos" ? "lectures" : "DPP solution videos";
+    // Playability is decided per lecture by the source, not by this list, so
+    // link the whole-chapter verification next to the count.
+    const check =
+      type === "videos"
+        ? ` <a href="/api/check?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
+            subjectSlug
+          )}&chapter=${encodeURIComponent(chapterId)}" target="_blank" rel="noopener">verify playback →</a>`
+        : "";
+    chapterMeta.innerHTML = `${items.length} ${label}${check}`;
     body.innerHTML = `<div class="list">${items.map(videoRow).join("")}</div>`;
   } else {
     const total = items.reduce((n, i) => n + (i.docs ? i.docs.length : 0), 0);
