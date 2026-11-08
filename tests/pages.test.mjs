@@ -179,6 +179,8 @@ test("the sidebar is a complete panel: three bands, foldable groups, a rail", as
 
   // No loose text crammed into the footer: it is a session row or a CTA.
   assert.ok(!side.querySelector(".side-note"), "the old footer note is back");
+  // …and exactly one of them. A second pass over the footer would stack two.
+  assert.equal(side.querySelectorAll(".side-who, .side-cta").length, 2, "footer rows duplicated");
 
   dom.window.close();
 });

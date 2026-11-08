@@ -266,19 +266,6 @@ function mount() {
     const link = e.target.closest(".side-link, .side-mini");
     if (link) document.body.classList.remove("nav-open");
   });
-
-  // Show the account name in the sidebar footer when signed in.
-  const session = getSession();
-  if (session) {
-    const foot = document.querySelector(".side-foot");
-    if (foot) {
-      const who = document.createElement("a");
-      who.className = "side-who";
-      who.href = "/dashboard.html";
-      who.textContent = session.name;
-      foot.insertBefore(who, foot.firstChild);
-    }
-  }
 }
 
 mount();
