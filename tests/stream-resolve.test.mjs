@@ -200,3 +200,49 @@ test("each kind of video-less entry gets its own explanation", async () => {
 
   assert.match(explainNoVideo(null), /could not be found/i);
 });
+
+/**
+ * The site's own reads must not loop back over HTTP.
+ *
+ * `UPSTREAM_BASE` used to be the literal `/api/pw`, resolved against
+ * `VERCEL_URL`. On Vercel the deployment URL sits behind deployment protection,
+ * so that self-fetch got an HTML auth page and every lecture resolved to "no
+ * video" while `/api/pw` itself worked fine when called directly. The reads now
+ * call the same dispatcher in-process.
+ */
+test("site reads go through the in-process PW dispatcher", async () => {
+  // This file pins PW_UPSTREAM_BASE for the other tests, so read the default
+  // from a fresh module instance with the override removed.
+  const pinned = process.env.PW_UPSTREAM_BASE;
+  delete process.env.PW_UPSTREAM_BASE;
+  const fresh = await import("../lib/upstream.mjs?in-process-default");
+  if (pinned === undefined) delete process.env.PW_UPSTREAM_BASE;
+  else process.env.PW_UPSTREAM_BASE = pinned;
+
+  assert.equal(fresh.UPSTREAM_BASE, "pw", "default must be in-process, not a URL");
+
+  const { upstreamJson } = await import("../lib/upstream.mjs?in-process-default");
+
+  const seen = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    seen.push(url);
+    // A loopback would show up as a request to our own deployment.
+    assert.doesNotMatch(url, /\/api\/pw/, "must not fetch its own HTTP route");
+    return new Response(JSON.stringify({ success: true, data: { _id: "batch-1" } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    const result = await upstreamJson("/v3/batches/batch-1/details");
+    assert.equal(result.ok, true);
+    assert.equal(result.data.data._id, "batch-1");
+    assert.equal(seen.length, 1);
+    // The credential is attached by the dispatcher, not by the caller.
+    assert.match(seen[0], /^https:\/\/api\.penpencil\.co\/v3\/batches\/batch-1\/details$/);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
