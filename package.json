@@ -14,6 +14,8 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "dashjs": "^4.7.4",
+    "hls.js": "^1.5.17",
     "jsdom": "^25.0.1"
   }
 }

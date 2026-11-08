@@ -74,6 +74,14 @@ async function main() {
   const assets = await readdir(path.join(PUBLIC, "assets"));
   if (!assets.includes("theme.css")) problems.push("missing assets/theme.css");
 
+  // The player libraries ship with the site so playback never depends on a
+  // third-party CDN being reachable from the user's network.
+  for (const vendor of ["hls.min.js", "dash.all.min.js"]) {
+    if (!(await exists(path.join(PUBLIC, "assets", "vendor", vendor)))) {
+      problems.push(`missing assets/vendor/${vendor}`);
+    }
+  }
+
   // page modules must not reference identifiers they never imported
   const { execFile } = await import("node:child_process");
   const moduleCheck = await new Promise((resolve) => {

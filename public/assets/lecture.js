@@ -345,7 +345,10 @@ async function attachPlayer(plan) {
         // A blocked CDN must not kill the lecture: if hls.js cannot load, hand
         // the manifest to the browser and let it try natively.
         try {
+          // Same-origin copy first: a blocked CDN used to leave the player
+          // spinning forever on networks that block jsdelivr/unpkg/cdnjs.
           await loadScript([
+            "/assets/vendor/hls.min.js",
             "https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js",
             "https://unpkg.com/hls.js@1.5.17/dist/hls.min.js",
             "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js",
@@ -419,6 +422,7 @@ async function attachPlayer(plan) {
       }
     } else if (plan.kind === "dash") {
       await loadScript([
+        "/assets/vendor/dash.all.min.js",
         "https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js",
         "https://unpkg.com/dashjs@4.7.4/dist/dash.all.min.js",
       ]);
