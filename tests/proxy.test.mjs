@@ -183,12 +183,35 @@ test("/api/pw keeps walking hosts through a 4xx and signs on the right one", asy
   );
 });
 
-test("/api/pw treats a 404 as definitive instead of fanning out", async () => {
-  // A mirror cannot invent an endpoint. Retrying a 404 on five hosts only makes
-  // genuinely missing paths five times slower.
+test("/api/pw also walks hosts through a 404", async () => {
+  // Not hypothetical: the legacy /Schedule route 404s on api.penpencil.co and is
+  // served by the mirrors, so treating 404 as definitive made every lecture
+  // resolve to "no video" while the endpoint plainly existed one host over.
   const { default: handler } = await import("../lib/pw-proxy.mjs");
   const { result, calls } = await withFetch(
-    async () => jsonResponse({ success: false, message: "Not found" }, 404),
+    async (url) => {
+      if (url.includes("learnxpw.site")) {
+        return jsonResponse({ success: true, data: { _id: "content-1" } });
+      }
+      return jsonResponse({ success: false, message: "Not Found" }, 404);
+    },
+    async () => {
+      const res = mockRes();
+      await handler(req("/api/pw/Schedule?BatchId=b&SubjectId=s&ContentId=c"), res);
+      return res;
+    }
+  );
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.json().data._id, "content-1");
+  assert.ok(calls.length > 1, "should have kept looking after the 404");
+  assert.match(result.headers["x-pw-upstream"], /learnxpw\.site/);
+});
+
+test("/api/pw still answers a path no host serves", async () => {
+  const { default: handler } = await import("../lib/pw-proxy.mjs");
+  const { result, calls } = await withFetch(
+    async () => jsonResponse({ success: false, message: "Not Found" }, 404),
     async () => {
       const res = mockRes();
       await handler(req("/api/pw/v1/videos/get-dash-key?key=abc"), res);
@@ -196,8 +219,9 @@ test("/api/pw treats a 404 as definitive instead of fanning out", async () => {
     }
   );
 
-  assert.equal(result.statusCode, 404);
-  assert.equal(calls.length, 1, "one host is enough to know it is missing");
+  assert.ok(calls.length > 1, "every host is tried before giving up");
+  assert.notEqual(result.statusCode, 200);
+  assert.equal(result.json().upstreamStatus, 404, "reports the honest upstream answer");
 });
 
 test("/api/pw streams binary payloads untouched", async () => {
