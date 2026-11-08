@@ -1,5 +1,6 @@
 import { cors, json, query, badRequest, methodNotAllowed, modeOf, relayUrl } from "../lib/http.mjs";
 import { resolveStream, parseFolder } from "../lib/api-data.mjs";
+import { explainNoVideo } from "../lib/playback.mjs";
 
 /**
  * GET /api/stream?batch=&subject=&id=      → resolve a playable plan for a lecture
@@ -51,23 +52,6 @@ async function readSchedule(batch, subject, id) {
       startTime: d.startTime || d.date || "",
     },
   };
-}
-
-/** A precise explanation for lectures that legitimately have no video. */
-function explainNoVideo(detail) {
-  if (!detail) {
-    return "This lecture could not be found in the PW catalogue.";
-  }
-  if (detail.lectureType === "PDF" || detail.isVideoLecture === false) {
-    return "This entry is a document, not a video class — open the notes or DPP attached to it.";
-  }
-  if (detail.status && /NOT|UPCOMING|SCHEDULED|LIVE$/i.test(detail.status)) {
-    return "This is an upcoming or in-progress live class. PW publishes the recording after the class ends.";
-  }
-  if (detail.hasNotes) {
-    return "PW has not published a recording for this class yet. Its notes and DPPs are available below.";
-  }
-  return "PW has not published a video for this lecture.";
 }
 
 export default async function handler(req, res) {

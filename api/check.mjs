@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { cors, json, query } from "../lib/http.mjs";
 import { resolveStream, parseFolder } from "../lib/api-data.mjs";
 import { upstreamJson } from "../lib/upstream.mjs";
+import { explainNoVideo } from "../lib/playback.mjs";
 
 /**
  * GET /api/check?batch=&subject=&id=   → verify one lecture plays, end to end
@@ -57,6 +58,8 @@ async function scheduleInfo(batch, subject, id) {
     title: vd.name || d.topic || "",
     lectureType: d.lectureType || "",
     videoStatus: vd.status || d.status || "",
+    isVideoLecture: d.isVideoLecture !== false,
+    hasNotes: Array.isArray(d.homeworkIds) && d.homeworkIds.length > 0,
   };
 }
 
@@ -84,11 +87,12 @@ export default async function handler(req, res) {
       if (!rawUrl) {
         report.ok = false;
         report.result = "no_video_url";
-        report.explain = /PDF|NOTE|DOC/i.test(sched.lectureType)
-          ? "This entry is a document (notes/DPP), not a video. Open it from the Notes tab instead."
-          : /LIVE/i.test(sched.lectureType)
-            ? "This is a live class that has not been published as a recording yet. Nothing can play here."
-            : "PW has not published a video for this lecture, and its recording has not finished processing. Nothing can play here.";
+        report.explain = explainNoVideo({
+          lectureType: sched.lectureType,
+          status: sched.videoStatus,
+          isVideoLecture: sched.isVideoLecture,
+          hasNotes: sched.hasNotes,
+        });
         return json(res, 200, report);
       }
     }

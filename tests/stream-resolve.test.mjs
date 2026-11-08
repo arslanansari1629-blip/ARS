@@ -182,3 +182,21 @@ test("non-video entries are explained instead of reported as broken", async () =
   assert.equal(payload.playable, false);
   assert.match(payload.reason, /document, not a video/i);
 });
+
+test("each kind of video-less entry gets its own explanation", async () => {
+  const { explainNoVideo } = await import("../lib/playback.mjs");
+
+  const doc = explainNoVideo({ lectureType: "PDF", status: "COMPLETED", isVideoLecture: false });
+  assert.match(doc, /document, not a video/i);
+
+  const upcoming = explainNoVideo({ lectureType: "LIVE", status: "NOT_STARTED", isVideoLecture: true });
+  assert.match(upcoming, /live class/i);
+
+  const processing = explainNoVideo({ lectureType: "RECORDED", status: "PENDING", hasNotes: true });
+  assert.match(processing, /notes and DPPs/i);
+
+  const missing = explainNoVideo({ lectureType: "LIVE", status: "COMPLETED", hasNotes: false });
+  assert.match(missing, /has not published a video/i);
+
+  assert.match(explainNoVideo(null), /could not be found/i);
+});
