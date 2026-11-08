@@ -19,7 +19,8 @@ export default async function handler(req, res) {
       if (!batch || !subject || !pdf || !attachment) {
         return badRequest(res, "Provide url, or batch + subject + pdf + attachment");
       }
-      target = await resolvePdfUrl(batch, subject, pdf, attachment);
+      const resolved = await resolvePdfUrl(batch, subject, pdf, attachment);
+      target = resolved.url;
     }
 
     if (!target) {
