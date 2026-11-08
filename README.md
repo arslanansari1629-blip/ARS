@@ -49,8 +49,13 @@ browser ──► /api/batches | /api/batch | /api/contents | /api/lecture | /ap
   segments are streamed through `/api/hls` (the manifest is rewritten so every child
   request stays on our domain). If a lecture's URL lost its signature, `/api/sign` asks
   PW's public signing relay for a freshly signed playlist.
-* When a lecture genuinely has no published video yet, the player says so and links to the
-  source player instead of failing silently.
+* Renditions differ per video, so `/api/stream` asks the signing relay for `720`, `480`, `360`
+  and then `240` and takes the first one that exists. A lecture published only at 480p used to
+  be reported as "no video"; it now plays.
+* When a lecture genuinely has no published video, `/api/stream` answers `200` with
+  `playable:false` and a specific reason — document-only entry, upcoming live class, or a
+  recording the source has not finished processing — and the player shows that reason plus a
+  retry button instead of a dead overlay.
 
 ## Project layout
 
@@ -61,11 +66,13 @@ api/                 Vercel serverless functions (Node runtime, ESM)
   contents.mjs       chapters + chapter contents
   lecture.mjs        lecture detail, attachments, announcements
   stream.mjs         playable stream resolution
+  check.mjs          playback self-test (one lecture, a URL, or a whole chapter)
   hls.mjs            CORS-safe manifest/segment gateway
   sign.mjs           signed-playlist relay
   pdf.mjs            PDF resolution + redirect
   media.mjs          asset (PDF/image) relay
 lib/                 shared upstream client + normalisers (server side)
+  playback.mjs       one explanation for "why has this lecture no video", shared by both routes
 public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
   viewer.html login.html dashboard.html library.html 404.html
@@ -80,7 +87,7 @@ legacy/              the Flask document-scanner project that previously lived in
 
 ```bash
 npm run dev          # http://localhost:3000
-npm test             # 11 end-to-end page/API tests (jsdom)
+npm test             # 25 end-to-end page/API tests (jsdom)
 ```
 
 No build step, no dependencies at runtime — the front end is plain ES modules and the API
@@ -99,6 +106,26 @@ PW_UPSTREAM_BASE=http://127.0.0.1:4010 npm run dev
 In production no such override is set: `PW_UPSTREAM_BASE` is unset, so requests go to the real
 PW API. If a deployment's region is blocked upstream, the API answers `{ needsProxy: true }` and
 the browser transparently falls back to the public CORS relay — the UI keeps showing live data.
+
+## Is a lecture actually playable?
+
+`GET /api/check` walks the exact path a browser walks and reports the first step that fails:
+
+```bash
+# one lecture: plan -> playlist -> AES key -> segment -> decrypt -> MPEG-TS
+/api/check?batch=<batch>&subject=<subject-slug>&id=<lecture-id>
+
+# a whole chapter (first 6 lectures, 3 at a time; &limit= up to 12)
+/api/check?batch=<batch>&subject=<subject-slug>&chapter=<chapter-id>
+
+# a raw stream URL you already have
+/api/check?url=https://d1d34p8vz63oiq.cloudfront.net/<folder>/master.mpd
+```
+
+`result` is one of `plays`, `no_video_url`, `no_playable_plan`, `playlist_failed`, `key_failed`,
+`no_segments`, `segment_failed`, `decrypt_mismatch` or `error`, and `explain` is the same
+sentence the player shows. The chapter page links this sweep next to the lecture count, so a
+"videos don't play" report comes with evidence instead of a screenshot.
 
 ## Live deployment
 
@@ -131,10 +158,11 @@ vercel --prod
 npm test        # node --test tests/*.test.mjs
 ```
 
-19 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
+25 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
 each page module is executed in jsdom and asserted. Coverage includes page rendering, the
-API contracts, stream planning, the `GetPdf` note resolution path, the `/api/sign` relay
-(token auth, playlist rewriting, key-path recovery) and the lecture stream bootstrap.
+API contracts, stream planning (rendition fallback and signer failover included), the `GetPdf` note resolution
+path, the `/api/sign` relay (token auth, playlist rewriting, key-path recovery), the no-video
+explanations and the lecture stream bootstrap.
 
 ## Notes
 
