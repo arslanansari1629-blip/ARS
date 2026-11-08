@@ -1,0 +1,807 @@
+/* ==========================================================================
+   ArsVibe — Material pass (2026)
+   --------------------------------------------------------------------------
+   The design language: real materials rather than flat translucent panels.
+
+   Every surface is built from the same four physical cues — a key light from
+   above, a hairline specular edge, a soft contact shadow, and a subtle inner
+   gradient — so the interface reads as one set of objects, not a pile of
+   effects. Loaded last; it refines what the earlier sheets establish.
+   ========================================================================== */
+
+:root {
+  /* Materials */
+  --m-1: #0b0d16;                        /* recessed */
+  --m-2: #10131f;                        /* base panel */
+  --m-3: #161a29;                        /* raised panel */
+  --m-4: #1d2233;                        /* control */
+
+  --edge-top: rgba(255, 255, 255, 0.1);
+  --edge-side: rgba(255, 255, 255, 0.05);
+  --edge-bottom: rgba(0, 0, 0, 0.5);
+
+  --key: 0 1px 0 rgba(255, 255, 255, 0.07) inset;
+  --contact: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --lift: 0 2px 6px rgba(0, 0, 0, 0.45), 0 24px 48px -24px rgba(0, 0, 0, 0.9);
+  --focus-ring: 0 0 0 2px rgba(10, 12, 20, 0.9), 0 0 0 4px rgba(139, 123, 255, 0.65);
+
+  --text: #f2f4fb;
+  --text-2: #b6bed6;
+  --text-3: #7c869f;
+}
+
+/* ------------------------------- the ground ------------------------------ */
+
+/* A soft studio backdrop: one large key light above the page, and a faint
+   vignette so the corners sit back. No gradient soup. */
+body {
+  background:
+    radial-gradient(1200px 700px at 50% -20%, rgba(139, 123, 255, 0.14), transparent 70%),
+    linear-gradient(180deg, #090b13 0%, #070810 60%, #06070d 100%);
+  color: var(--text);
+}
+
+body::before {
+  background:
+    radial-gradient(900px 500px at 12% -8%, rgba(139, 123, 255, 0.18), transparent 65%),
+    radial-gradient(800px 460px at 92% 0%, rgba(56, 189, 248, 0.1), transparent 62%);
+}
+
+body::after {
+  opacity: 0.14;
+  background-size: 56px 56px;
+  mask-image: radial-gradient(circle at 50% 0%, #000 8%, transparent 70%);
+}
+
+/* The drifting aurora is what made the page feel like a neon template. A slow,
+   single-source light is more believable; the layer stays for its shape. */
+.aurora {
+  opacity: 0.5;
+  filter: blur(70px) saturate(90%);
+  animation-duration: 60s;
+}
+
+.grid-veil {
+  opacity: 0.5;
+  background-size: 72px 72px;
+}
+
+/* ---------------------------------- nav --------------------------------- */
+
+.nav,
+.side {
+  background: linear-gradient(180deg, rgba(16, 19, 31, 0.94), rgba(10, 12, 20, 0.97));
+  border-color: var(--edge-side);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.nav.scrolled {
+  background: linear-gradient(180deg, rgba(16, 19, 31, 0.99), rgba(9, 11, 18, 1));
+  box-shadow: 0 1px 0 var(--edge-top) inset, 0 14px 30px -26px #000;
+}
+
+.brand-mark,
+.side .brand-mark {
+  background: linear-gradient(160deg, #9b8cff 0%, #6d5cf0 48%, #4a7cf0 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 6px 18px -8px rgba(109, 92, 240, 0.9);
+}
+
+/* The sheen is the one piece of motion in the chrome; keep it rare. */
+.brand-mark::after {
+  animation-duration: 9s;
+  opacity: 0.7;
+}
+
+.side-link.active {
+  background: linear-gradient(180deg, rgba(139, 123, 255, 0.24), rgba(139, 123, 255, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), inset 2px 0 0 #8b7bff;
+  border-color: rgba(139, 123, 255, 0.28);
+}
+
+/* ------------------------------- materials ------------------------------ */
+
+/* A. Raised surface — cards, panels, popovers. */
+.card,
+.glass,
+.player-menu,
+.sheet,
+.cmdk,
+.toolbar {
+  position: relative;
+  background: linear-gradient(180deg, var(--m-3) 0%, var(--m-2) 100%);
+  border: 1px solid var(--edge-side);
+  border-top-color: var(--edge-top);
+  border-bottom-color: var(--edge-bottom);
+  border-radius: 14px;
+  box-shadow: var(--key), var(--contact);
+  backdrop-filter: none;
+}
+
+.card:hover {
+  border-top-color: rgba(255, 255, 255, 0.14);
+  box-shadow: var(--key), var(--lift);
+}
+
+/* The specular edge: a 1px catch-light along the top-left corner arc. */
+.card::before,
+.toolbar::before {
+  display: block;
+  content: "";
+  position: absolute;
+  inset: -1px -1px auto -1px;
+  height: 1px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(
+    90deg,
+    transparent 4%,
+    rgba(255, 255, 255, 0.16) 22%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.16) 78%,
+    transparent 96%
+  );
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* B. Control — buttons, icon buttons, inputs. A raised chip, pressed on click. */
+.btn,
+.icon-btn,
+.input,
+.select,
+.side-cta,
+.cmdk-trigger {
+  background: linear-gradient(180deg, #232838 0%, #1b2030 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom-color: rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 2px 4px rgba(0, 0, 0, 0.35);
+  color: var(--text);
+}
+
+.btn:hover,
+.icon-btn:hover,
+.cmdk-trigger:hover {
+  background: linear-gradient(180deg, #2a3044 0%, #20263a 100%);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.btn:active,
+.icon-btn:active {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45) inset;
+  transform: translateY(1px);
+}
+
+/* The primary action is a lit object, not a gradient fill: it has its own
+   colour, a brighter top edge and a coloured shadow underneath. */
+.btn-primary {
+  background: linear-gradient(180deg, #9a8bff 0%, #7462f2 55%, #5f4ee0 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-bottom-color: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 4px 12px -4px rgba(116, 98, 242, 0.8),
+    0 12px 28px -16px rgba(116, 98, 242, 0.9);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(180deg, #a596ff 0%, #7d6bf7 55%, #6754e8 100%);
+}
+
+.btn-primary:hover::after {
+  transform: translateX(120%);
+}
+
+.btn-primary::after {
+  transition-duration: 0.9s;
+  opacity: 0.5;
+}
+
+.btn-ghost {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  backdrop-filter: none;
+}
+
+.input,
+.select {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) inset, 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: #0d101a;
+}
+
+.input:focus,
+.select:focus {
+  border-color: rgba(139, 123, 255, 0.7);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) inset, var(--focus-ring);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring) !important;
+}
+
+/* C. Inset well — trays, code, stat cells, the stats grid. */
+.player-stats div,
+.stat,
+.hero-stats > div,
+.cmdk-list,
+.menu-row {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.18));
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4) inset, 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* --------------------------------- pills -------------------------------- */
+
+.pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  color: var(--text-2);
+}
+
+.pill-brand {
+  background: rgba(139, 123, 255, 0.16);
+  border-color: rgba(139, 123, 255, 0.26);
+  color: #cfc8ff;
+}
+
+.pill-accent {
+  background: rgba(56, 224, 176, 0.12);
+  border-color: rgba(56, 224, 176, 0.24);
+  color: #8ff3d6;
+}
+
+/* ------------------------------- catalogue ------------------------------ */
+
+.batch-card {
+  background: linear-gradient(180deg, #171b28 0%, #10131e 100%);
+  border: 1px solid var(--edge-side);
+  border-top-color: var(--edge-top);
+  border-bottom-color: var(--edge-bottom);
+  box-shadow: var(--key), var(--contact);
+  border-radius: 13px;
+}
+
+.batch-card:hover {
+  border-top-color: rgba(255, 255, 255, 0.16);
+  box-shadow: var(--key), var(--lift);
+  transform: translateY(-3px);
+}
+
+/* A thumbnail sits *in* the card: inset, with its own contact edge. */
+.batch-thumb {
+  margin: 6px 6px 0;
+  border-radius: 9px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.4) inset;
+  background: #0a0c14;
+}
+
+.batch-thumb img {
+  transition: transform 0.5s var(--ease), filter 0.3s var(--ease);
+  filter: saturate(1.05) contrast(1.02);
+}
+
+.batch-card:hover .batch-thumb img {
+  transform: scale(1.035);
+  filter: saturate(1.12) contrast(1.04);
+}
+
+.batch-thumb::after {
+  height: 30%;
+  background: linear-gradient(transparent, rgba(8, 10, 16, 0.9));
+}
+
+.batch-thumb .free {
+  top: 0.45rem;
+  left: 0.45rem;
+  background: rgba(10, 12, 18, 0.7);
+  border-color: rgba(56, 224, 176, 0.45);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset;
+}
+
+.list-row {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+  border: 1px solid var(--edge-side);
+  border-top-color: rgba(255, 255, 255, 0.07);
+  box-shadow: var(--key);
+}
+
+.list-row:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03));
+}
+
+.list-row .index {
+  background: linear-gradient(180deg, #242a3c, #1a1f2e);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07) inset;
+  color: #b9afff;
+}
+
+/* ------------------------------ hero / header ---------------------------- */
+
+.hero-search {
+  background: linear-gradient(180deg, #12151f, #0d1018);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom-color: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) inset, 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.hero-search:focus-within {
+  border-color: rgba(139, 123, 255, 0.55);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4) inset, 0 0 0 4px rgba(139, 123, 255, 0.14);
+}
+
+.hero-stats > div {
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  border-left: 0;
+}
+
+.hero-stats > div::before {
+  display: none;
+}
+
+.hero-stats strong {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: #fff;
+}
+
+.page-head {
+  border-bottom: 1px solid var(--edge-side);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ==========================================================================
+   PLAYER — a real control surface
+   ========================================================================== */
+
+.player-wrap {
+  background: linear-gradient(180deg, #0d1018 0%, #0a0c12 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 30px 60px -30px rgba(0, 0, 0, 1);
+  border-radius: 16px;
+}
+
+.player-stage {
+  border-radius: 15px 15px 0 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 18px 40px -24px rgba(0, 0, 0, 1) inset;
+}
+
+/* The scrubber is the centrepiece of a real player: a well, a filled band with
+   a highlight, and a thumb you can actually grab. */
+.scrubber {
+  padding: 0.6rem 0.7rem 0.1rem;
+}
+
+.scrubber-track {
+  height: 5px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.4));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) inset, 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.scrubber-buffered {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.scrubber-played {
+  background: linear-gradient(180deg, #a596ff, #7462f2);
+  box-shadow: 0 0 12px rgba(139, 123, 255, 0.55), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+}
+
+.scrubber:hover .scrubber-track,
+.scrubber:focus-visible .scrubber-track {
+  height: 8px;
+}
+
+.scrubber-knob {
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  background: linear-gradient(180deg, #fff, #d9d5ff);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 2px 6px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.scrubber-tip {
+  background: linear-gradient(180deg, #1d2233, #14182a);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 18px -8px #000;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Control bar: a tray at the bottom of the player, not free-floating icons. */
+.player-bar {
+  padding: 0.3rem 0.5rem 0.5rem;
+  background: transparent;
+}
+
+.player-bar .icon-btn {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  border-radius: 8px;
+  color: #aab3cc;
+}
+
+.player-bar .icon-btn:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  color: #fff;
+}
+
+.player-bar .icon-btn.active {
+  color: #cfc8ff;
+  background: rgba(139, 123, 255, 0.2);
+  box-shadow: 0 0 0 1px rgba(139, 123, 255, 0.35) inset;
+}
+
+.player-bar .icon-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #9a8bff, #6f5df1);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 6px 16px -8px rgba(116, 98, 242, 1);
+  border-color: transparent;
+}
+
+.player-bar .icon-primary:hover {
+  background: linear-gradient(180deg, #a99bff, #7a68f6);
+}
+
+.time-label {
+  font-variant-numeric: tabular-nums;
+  color: #b9c1d8;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.time-label:hover {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07) inset;
+}
+
+.volume-slider {
+  accent-color: #9a8bff;
+}
+
+.player-chip {
+  background: linear-gradient(180deg, rgba(255, 176, 32, 0.22), rgba(255, 176, 32, 0.12));
+  border: 1px solid rgba(255, 176, 32, 0.4);
+  border-bottom-color: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+}
+
+/* Settings popover */
+.player-menu {
+  position: absolute;
+  right: 0.6rem;
+  bottom: calc(100% - 0.2rem);
+  z-index: 8;
+  width: min(268px, calc(100% - 1.2rem));
+  padding: 0.5rem;
+  display: grid;
+  gap: 0.35rem;
+  border-radius: 12px;
+  animation: menuIn 0.14s var(--ease);
+}
+
+.player-menu[hidden] {
+  display: none;
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 9px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.menu-row select {
+  background: #12151f;
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0.2rem 0.4rem;
+}
+
+.menu-speed {
+  display: flex;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.menu-speed button {
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-3);
+  border: 1px solid transparent;
+}
+
+.menu-speed button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.menu-speed button.active {
+  color: #fff;
+  background: linear-gradient(180deg, rgba(139, 123, 255, 0.45), rgba(139, 123, 255, 0.22));
+  border-color: rgba(139, 123, 255, 0.45);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset;
+}
+
+.menu-link {
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #b9afff;
+}
+
+.menu-link:hover {
+  background: rgba(139, 123, 255, 0.14);
+}
+
+/* The bar's own speed row stays for muscle memory on desktop, but the popover
+   is the complete control; hide the row when the popover exists so the bar is
+   not doubled up. */
+.player-bar .speed {
+  display: none;
+}
+
+/* Stats readout: an instrument panel. */
+.player-stats {
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.22);
+  gap: 0.4rem;
+  padding: 0.6rem 0.7rem 0.7rem;
+}
+
+.player-stats div {
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+}
+
+.player-stats span {
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  color: #6f788f;
+}
+
+.player-stats strong {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: #e6e9f4;
+}
+
+/* Buffering veil: a lens rather than a blackout. */
+.player-veil {
+  background: radial-gradient(circle at 50% 45%, rgba(13, 16, 24, 0.5), rgba(5, 6, 11, 0.88));
+  backdrop-filter: blur(2px);
+}
+
+.veil-rings span {
+  border-color: rgba(154, 139, 255, 0.5);
+}
+
+.veil-text {
+  color: #cfc8ff;
+  letter-spacing: 0.08em;
+}
+
+.veil-bar {
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) inset;
+}
+
+.veil-bar i {
+  background: linear-gradient(90deg, #9a8bff, #6f5df1);
+  box-shadow: 0 0 10px rgba(139, 123, 255, 0.6);
+}
+
+/* Big play: a physical button with a rim and a coloured cast shadow. */
+.big-play {
+  background: linear-gradient(180deg, #9d8fff 0%, #7462f2 60%, #5d4bdf 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.45) inset, 0 10px 30px -12px rgba(116, 98, 242, 1),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.player-stopped {
+  background: radial-gradient(circle at 50% 45%, rgba(13, 16, 26, 0.7), rgba(4, 5, 9, 0.94));
+}
+
+/* --------------------------- overlays / sheets --------------------------- */
+
+.cmdk-backdrop,
+.sheet-backdrop {
+  background: rgba(4, 5, 10, 0.74);
+  backdrop-filter: blur(6px) saturate(90%);
+}
+
+.cmdk {
+  border-radius: 14px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 40px 90px -40px #000;
+}
+
+.cmdk-item.on,
+.cmdk-item:hover {
+  background: linear-gradient(90deg, rgba(139, 123, 255, 0.26), rgba(139, 123, 255, 0.06));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.cmdk-foot {
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+kbd {
+  background: linear-gradient(180deg, #262c3e, #1b2030);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom-color: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 1px 1px rgba(0, 0, 0, 0.4);
+  color: #cfd5e6;
+}
+
+.toast {
+  background: linear-gradient(180deg, #1d2233, #14182a);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom-color: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 16px 34px -18px #000;
+}
+
+/* --------------------------------- misc --------------------------------- */
+
+.tab.active {
+  border-bottom-color: #8b7bff;
+  box-shadow: inset 0 -1px 0 #8b7bff;
+}
+
+.pager button,
+.tab,
+.speed button {
+  color: var(--text-2);
+}
+
+.pager button {
+  background: linear-gradient(180deg, #1e2333, #171b28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.07) inset;
+}
+
+.pager button.active {
+  background: linear-gradient(180deg, #9a8bff, #6f5df1);
+  border-color: transparent;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 6px 14px -8px rgba(116, 98, 242, 1);
+  color: #fff;
+}
+
+.empty {
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35) inset;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.skeleton {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+}
+
+.footer {
+  border-top: 1px solid var(--edge-side);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+
+/* The logo plate in the sidebar gets the same material treatment. */
+.side-brand .brand-mark {
+  border-radius: 11px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-mark::after {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   Layout consequences of the material pass
+   ========================================================================== */
+
+/* The player popover anchors to the player, not the bar, so it cannot be
+   clipped by the bar's horizontal scroll container. */
+.player-wrap {
+  position: relative;
+}
+
+.player-menu {
+  right: 0.75rem;
+  bottom: 4.2rem;
+}
+
+/* The hero stats are now wells with real padding, so the row needs a gap. */
+.hero-stats {
+  gap: 0.6rem !important;
+  flex-wrap: wrap;
+}
+
+.hero-stats > div {
+  min-width: 116px;
+}
+
+/* Sections need a little more air between the new raised panels. */
+.stack {
+  gap: 0.85rem;
+}
+
+.grid {
+  gap: 0.85rem;
+}
+
+/* Card interiors: one consistent padding step. */
+.card {
+  padding: 0.9rem 1rem;
+}
+
+/* ...except where a card is a pure container for a list or a grid. */
+.card:has(.list-row),
+.card:has(.grid) {
+  padding: 0.85rem;
+}
+
+/* Doc rows inside the lecture sidebar. */
+.doc-row {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--edge-side);
+  border-top-color: rgba(255, 255, 255, 0.07);
+  box-shadow: var(--key);
+}
+
+.doc-row .pdf {
+  background: linear-gradient(180deg, #2a2130, #201a26);
+  border-color: rgba(255, 120, 150, 0.3);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset;
+}
+
+/* Toast and chip text on the new darker surfaces. */
+.tiny.dim,
+.dim {
+  color: #7c869f;
+}
+
+.muted {
+  color: var(--text-2);
+}
+
+/* The dashboard history rows and library rows use the same list material. */
+.history-row {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+  border: 1px solid var(--edge-side);
+  border-top-color: rgba(255, 255, 255, 0.07);
+  box-shadow: var(--key);
+}
+
+.history-row:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.03));
+}

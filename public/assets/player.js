@@ -98,7 +98,11 @@ export class ProPlayer {
     v.addEventListener("pause", () => {
       // A stop is a deliberate action; the toolbar keeps offering Start.
       this.state({ paused: true, playing: false });
+      this._prewarm();
     });
+    // `progress` fires while paused too: the read-ahead buffer keeps filling,
+    // so the progress rail shows real range instead of a frozen bar.
+    v.addEventListener("progress", () => this.state({ buffered: this._bufferedEnd() }));
     v.addEventListener("ended", () => {
       this.state({ ended: true, playing: false });
       this.onEnded();
@@ -153,6 +157,48 @@ export class ProPlayer {
         this.video.currentTime = t + 0.25;
       }
     }, 6000);
+  }
+
+  /** End of the buffered range that contains the playhead. */
+  _bufferedEnd() {
+    const v = this.video;
+    if (!v || !v.buffered || !v.buffered.length) return 0;
+    for (let i = 0; i < v.buffered.length; i += 1) {
+      if (v.buffered.start(i) <= v.currentTime && v.buffered.end(i) >= v.currentTime) {
+        return v.buffered.end(i);
+      }
+    }
+    return v.buffered.end(v.buffered.length - 1);
+  }
+
+  /**
+   * Ask for a little more media around the pause point.
+   *
+   * A lecture is watched in bursts: pause, read a note, come back. Telling the
+   * element to prefer `auto` preloading means the next play starts on local
+   * bytes instead of re-buffering. It deliberately does *not* call `load()`:
+   * that would throw away the current buffer, which is the opposite of what a
+   * pause is for.
+   */
+  _prewarm() {
+    if (!this.video) return;
+    const want = this.video.currentTime + 20;
+    const have = this._bufferedEnd();
+    if (!Number.isFinite(want) || have >= want - 1) return;
+    try {
+      if (this.video.preload !== "auto") this.video.preload = "auto";
+    } catch {
+      /* an element may refuse; nothing else to do */
+    }
+    // hls.js owns fetching when it is attached: ask it to keep loading rather
+    // than touching the element's source.
+    if (this.hls) {
+      try {
+        this.hls.startLoad();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   /* ------------------------------ plan attach ----------------------------- */
@@ -225,6 +271,16 @@ export class ProPlayer {
       // accidental forward tap) is instant instead of a re-fetch.
       maxBufferHole: 0.5,
       highBufferWatchdogPeriod: 4,
+      // After a seek into unbuffered media the player starts at the nearest
+      // keyframe; jumping a small gap is far cheaper than re-fetching a
+      // fragment, and it is what makes ±10 s feel instant on a long lecture.
+      nudgeMaxRetry: 6,
+      nudgeOffset: 0.2,
+      // Do not tear the buffer down on a brief stall during a seek.
+      testBandwidth: false,
+      // A two-hour VOD: never let ABR downshift because of one slow fragment.
+      abrEwmaFastVoD: 4,
+      abrEwmaSlowVoD: 14,
       // Steady ABR: do not flip renditions every fragment (visible quality
       // pumping) and do not start at the top level on a slow line.
       startLevel: -1,
@@ -467,6 +523,10 @@ export class ProPlayer {
    */
   seek(seconds) {
     if (!this.video) return;
+    // A seek *is* the fix for a stall: clear the watchdog so it does not fire
+    // mid-seek and issue a competing load.
+    clearTimeout(this._stalledFor);
+    this.recovery = Math.max(0, this.recovery - 1);
     const d = Number(this.video.duration);
     if (Number.isFinite(d) && d > 0) {
       this.video.currentTime = clamp(seconds, 0, d - 0.3);

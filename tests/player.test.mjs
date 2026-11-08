@@ -175,3 +175,29 @@ test("fmtTime renders hours, minutes and pads seconds", () => {
   assert.equal(fmtTime(NaN), "0:00");
   assert.equal(fmtTime(-4), "0:00");
 });
+
+test("a seek clears the stall watchdog so the two cannot fight", () => {
+  const video = stubVideo({ duration: 600, currentTime: 40, src: "/api/media?url=abc" });
+  const { player } = makeEngine(video, async () => ({ playable: true }));
+
+  // A stall has raised the recovery counter; seeking is itself the fix, so it
+  // must not count against the budget or leave a watchdog about to fire.
+  player.recovery = 3;
+  player.seek(300);
+  assert.equal(video.currentTime, 300);
+  assert.equal(player.recovery, 2, "a seek should refund one recovery attempt");
+});
+
+test("prewarm never calls load() on a paused element", () => {
+  // load() would discard the buffer the pause exists to keep; only the preload
+  // hint may change.
+  let loaded = 0;
+  const video = stubVideo({ duration: 600, currentTime: 10, src: "/api/media?url=abc" });
+  video.load = () => {
+    loaded += 1;
+  };
+  const { player } = makeEngine(video, async () => ({ playable: true }));
+  player._prewarm();
+  assert.equal(loaded, 0, "prewarm must not reload the media element");
+  assert.equal(video.preload, "auto");
+});

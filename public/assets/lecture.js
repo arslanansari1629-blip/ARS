@@ -68,6 +68,9 @@ const speedBox = $("speed");
 const qualitySelect = $("quality");
 const loopBtn = $("loopBtn");
 const statsBtn = $("statsBtn");
+const settingsBtn = $("settingsBtn");
+const playerMenu = $("playerMenu");
+const menuSpeed = $("menuSpeed");
 const statsPane = $("playerStats");
 const healthChip = $("streamHealth");
 const healthBadge = $("healthBadge");
@@ -700,9 +703,11 @@ speedBox?.addEventListener("click", (e) => {
 });
 
 function markSpeed(rate) {
-  speedBox?.querySelectorAll("button").forEach((b) => {
-    b.classList.toggle("active", Number(b.dataset.speed) === Number(rate));
-  });
+  for (const group of [speedBox, menuSpeed]) {
+    group?.querySelectorAll("button[data-speed]").forEach((b) => {
+      b.classList.toggle("active", Number(b.dataset.speed) === Number(rate));
+    });
+  }
 }
 
 qualitySelect?.addEventListener("change", () => {
@@ -711,18 +716,74 @@ qualitySelect?.addEventListener("change", () => {
   toast(value === "-1" ? "Quality: Auto" : `Quality locked to ${value}p`);
 });
 
+
+/**
+ * Playback settings popover.
+ *
+ * Speed and quality used to sit permanently in the bar, which made the bar a
+ * wall of controls. They live here now; the bar keeps the transport that gets
+ * used mid-lecture (play, skip, volume, fullscreen).
+ */
+function setMenu(open) {
+  if (!playerMenu) return;
+  playerMenu.hidden = !open;
+  settingsBtn?.setAttribute("aria-expanded", open ? "true" : "false");
+  settingsBtn?.classList.toggle("active", open);
+  if (open) {
+    // Reflect the live values every time it opens; the state may have changed
+    // through a keyboard shortcut while it was closed.
+    if (video) {
+      menuSpeed?.querySelectorAll("button[data-speed]").forEach((b) => {
+        b.classList.toggle("active", Number(b.dataset.speed) === Number(video.playbackRate));
+      });
+    }
+  }
+}
+
+settingsBtn?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  setMenu(playerMenu ? playerMenu.hidden : false);
+});
+
+playerMenu?.addEventListener("click", (e) => e.stopPropagation());
+document.addEventListener("click", () => setMenu(false));
+
+menuSpeed?.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-speed]");
+  if (!btn) return;
+  pro?.setRate(btn.dataset.speed);
+  markSpeed(Number(btn.dataset.speed));
+});
+
+/** ±N seconds, from the popover's skip row. */
+playerMenu?.addEventListener("click", (e) => {
+  const fwd = e.target.closest("button[data-forward]");
+  const back = e.target.closest("button[data-back]");
+  if (fwd) seekBy(Number(fwd.dataset.forward));
+  if (back) seekBy(-Number(back.dataset.back));
+});
+
+$("menuStats")?.addEventListener("click", () => {
+  setMenu(false);
+  toggleStats();
+});
+
 loopBtn?.addEventListener("click", () => {
   video.loop = !video.loop;
   loopBtn.classList.toggle("active", video.loop);
   toast(video.loop ? "Looping this lecture" : "Loop off");
 });
 
-statsBtn?.addEventListener("click", () => {
-  statsVisible = !statsVisible;
+/** Toggle the stream inspector. Reachable from the popover and the `i` key. */
+function toggleStats(force) {
+  statsVisible = typeof force === "boolean" ? force : !statsVisible;
   if (statsPane) statsPane.hidden = !statsVisible;
-  statsBtn.classList.toggle("active", statsVisible);
+  statsBtn?.classList.toggle("active", statsVisible);
+  settingsBtn?.classList.toggle("stats-on", statsVisible);
   setStatsTimer();
-});
+}
+
+statsBtn?.addEventListener("click", () => toggleStats());
 
 /**
  * Refresh the stats panel while it is open.
@@ -839,7 +900,7 @@ document.addEventListener("keydown", (e) => {
       markSpeed(next);
       flash(`${next}×`);
     },
-    i: () => statsBtn && statsBtn.click(),
+    i: () => toggleStats(),
     r: () => {
       pro.seek(0);
       pro.play();

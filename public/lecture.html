@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/assets/pages.css" />
 <link rel="stylesheet" href="/assets/ui.css" />
 <link rel="stylesheet" href="/assets/shell.css" />
+<link rel="stylesheet" href="/assets/material.css" />
 </head>
 <body data-page="lecture" class="page-lecture">
 <div class="aurora" aria-hidden="true"></div>
@@ -50,7 +51,7 @@
         <!-- ============================ PLAYER ============================ -->
         <div class="player-wrap" id="playerRoot" tabindex="0">
           <div class="player-stage" id="playerStage">
-            <video id="video" playsinline preload="metadata" crossorigin="anonymous"></video>
+            <video id="video" playsinline preload="auto" crossorigin="anonymous"></video>
 
             <!-- YouTube/Vimeo-hosted lectures play in an embed instead. -->
             <iframe
@@ -139,17 +140,47 @@
               <button data-speed="2">2×</button>
             </div>
 
-            <select class="quality-select" id="quality" title="Video quality" aria-label="Video quality">
-              <option value="-1">Auto</option>
-            </select>
+            <button class="icon-btn icon-gear" id="settingsBtn" title="Playback settings" aria-label="Playback settings" aria-expanded="false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6"/></svg>
+            </button>
+
+            <!-- The quality picker lives in a settings popover rather than in the
+                 bar: a bar with eleven controls is a wall of buttons, and quality
+                 is set once per lecture. Kept as a <select> so it stays a native,
+                 keyboard-accessible control. -->
+            <div class="player-menu" id="playerMenu" hidden>
+              <div class="menu-row">
+                <span>Quality</span>
+                <select class="quality-select" id="quality" title="Video quality" aria-label="Video quality">
+                  <option value="-1">Auto</option>
+                </select>
+              </div>
+              <div class="menu-row">
+                <span>Speed</span>
+                <div class="menu-speed" id="menuSpeed">
+                  <button data-speed="0.75">0.75×</button>
+                  <button data-speed="1" class="active">1×</button>
+                  <button data-speed="1.25">1.25×</button>
+                  <button data-speed="1.5">1.5×</button>
+                  <button data-speed="1.75">1.75×</button>
+                  <button data-speed="2">2×</button>
+                </div>
+              </div>
+              <div class="menu-row">
+                <span>Skip</span>
+                <div class="menu-speed">
+                  <button data-forward="10">+10s</button>
+                  <button data-forward="30">+30s</button>
+                  <button data-back="10">−10s</button>
+                </div>
+              </div>
+              <button class="menu-link" id="menuStats">Stream statistics</button>
+            </div>
 
             <button class="icon-btn" id="loopBtn" title="Loop this lecture (l)" aria-label="Loop">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
             </button>
 
-            <button class="icon-btn" id="statsBtn" title="Stream stats (i)" aria-label="Stream stats">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>
-            </button>
 
             <button class="icon-btn" id="pipBtn" title="Picture in picture (o)" aria-label="Picture in picture" style="display:none">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1"/></svg>
