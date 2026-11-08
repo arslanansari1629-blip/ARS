@@ -114,6 +114,11 @@ function collectDeclared(src) {
   for (const m of src.matchAll(/(?:^|[\s{(,;])([\w$]+)\s*=>/g)) declared.add(m[1]);
   for (const m of src.matchAll(/catch\s*\(\s*([\w$]+)\s*\)/g)) declared.add(m[1]);
   for (const m of src.matchAll(/for\s*\(\s*(?:const|let|var)\s+([\w$]+)/g)) declared.add(m[1]);
+  // Class methods: `player.js` is written as a class, so its members are
+  // declarations too — the object-literal heuristic below does not see them.
+  for (const m of src.matchAll(/^\s{2,}(?:static\s+|async\s+|get\s+|set\s+|\*\s*)*([\w$]+)\s*\(/gm)) {
+    declared.add(m[1]);
+  }
 
   return declared;
 }

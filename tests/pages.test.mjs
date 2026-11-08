@@ -285,16 +285,18 @@ test("lecture page bootstraps a stream plan instead of erroring", async () => {
 });
 
 test("the lecture player ships quality control and recovery", async () => {
-  const res = await nativeFetch(
-    `${BASE}/assets/lecture.js`
-  );
-  const source = await res.text();
+  // The transport lives in the player engine module; the page wires it to the
+  // markup. Both halves are asserted, because either one alone ships a player
+  // that looks wired and does nothing.
+  const source =
+    (await (await nativeFetch(`${BASE}/assets/player.js`)).text()) +
+    (await (await nativeFetch(`${BASE}/assets/lecture.js`)).text());
 
   // Regression guards for the playback path.
   assert.match(source, /#EXTM3U|Hls\.Events\.MANIFEST_PARSED/, "hls.js setup is missing");
   assert.match(source, /recoverMediaError|startLoad\(\)/, "no hls.js error recovery");
   assert.match(source, /data-speed/, "speed control binding is missing");
-  assert.match(source, /id="quality"|getElementById\("quality"\)/, "quality picker is missing");
+  assert.match(source, /id="quality"|getElementById\("quality"\)|\$\("quality"\)/, "quality picker is missing");
 
   // A picker that exists but never gets options is the same as no picker: the
   // player must consume the plan's rendition list and re-apply a saved choice.
@@ -303,8 +305,17 @@ test("the lecture player ships quality control and recovery", async () => {
     /plan\.renditions/,
     "the player ignores the plan's rendition list, so the picker would be empty"
   );
-  assert.match(source, /MANIFEST_PARSED[\s\S]{0,600}getPrefs\(\)\.quality/, "saved quality is never re-applied");
-  assert.match(source, /function applyQuality/, "quality switching is not factored, so load-time cannot reuse it");
+  // The saved pick must be re-applied as soon as the manifest is parsed.
+  assert.match(
+    source,
+    /MANIFEST_PARSED[\s\S]{0,900}_applySavedQuality/,
+    "saved quality is never re-applied"
+  );
+  assert.match(
+    source,
+    /setQuality\(/,
+    "quality switching is not factored, so load-time cannot reuse it"
+  );
 
   // Transport and navigation controls.
   assert.match(source, /function seekBy/, "no keyboard/click seeking");
@@ -319,7 +330,11 @@ test("the lecture player ships quality control and recovery", async () => {
   // A retry must bypass the resolver cache, otherwise it re-probes the same
   // signer host that just failed.
   assert.match(source, /attempt \+= 1/, "retries do not bump the resolution attempt");
-  assert.match(source, /attempt=\$\{attempt\}|attempt=\$\{attempt\}/, "the attempt is never sent to /api/stream");
+  assert.match(source, /function seekBy|seekBy\(delta\)/, "skip seeking is missing");
+  // A stopped player must be able to start again; this is the bug being fixed.
+  assert.match(source, /restart\(\)/, "there is no way back from a stopped player");
+  // The page composes the query string with the attempt number it was handed.
+  assert.match(source, /\$\{n \? `&attempt=\$\{n\}` : ""\}/, "the attempt is never sent to /api/stream");
 
   assert.ok(
     !/location\.reload\(\)/.test(source),
@@ -428,8 +443,12 @@ test("stream route does not claim an unknown host has no video", async () => {
 test("lecture page ships an embed element for non-CDN lectures", async () => {
   const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
   assert.match(html, /id="embed"/);
-  const js = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
-  assert.match(js, /attachEmbed/);
+  // Embed handling moved into the engine when the player was rebuilt; the page
+  // still has to route embed plans to it.
+  const js =
+    (await (await nativeFetch(`${BASE}/assets/lecture.js`)).text()) +
+    (await (await nativeFetch(`${BASE}/assets/player.js`)).text());
+  assert.match(js, /engine === "embed"/, "embed plans are not routed");
 });
 
 test("hls relay rewrites playlists through the gateway", async () => {

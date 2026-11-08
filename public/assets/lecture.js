@@ -1,4 +1,4 @@
-/* Lecture page — resolves the PW stream and plays it through our relay */
+/* Lecture page — resolves the PW stream, drives the pro player, persists progress */
 
 import {
   api,
@@ -10,11 +10,11 @@ import {
   fmtDate,
   getPrefs,
   setPref,
-  emptyState,
 } from "./app.js";
 import { trackLecture } from "./library.js";
 import { loadLecture, loadContents } from "./data.js";
 import { upstream as upstreamJson } from "./client-api.js";
+import { ProPlayer, fmtTime } from "./player.js";
 
 mountChrome("batches");
 
@@ -23,42 +23,74 @@ const subjectSlug = qs("subject");
 const lectureId = qs("id");
 const titleParam = qs("title");
 
-const video = document.getElementById("video");
-const embed = document.getElementById("embed");
-const playerBar = document.querySelector(".player-bar");
-const overlay = document.getElementById("overlay");
-const overlayTitle = document.getElementById("overlayTitle");
-const overlayText = document.getElementById("overlayText");
-const overlayActions = document.getElementById("overlayActions");
-const spinner = document.getElementById("spinner");
-const titleEl = document.getElementById("lectureTitle");
-const metaEl = document.getElementById("lectureMeta");
-const docsEl = document.getElementById("docs");
-const docCount = document.getElementById("docCount");
-const crumbs = document.getElementById("crumbs");
-const aboutText = document.getElementById("aboutText");
-const positionLabel = document.getElementById("positionLabel");
-const sourceLink = document.getElementById("sourceLink");
+const $ = (id) => document.getElementById(id);
 
-const prevBtn = document.getElementById("prevBtn");
-const nextBtn = document.getElementById("nextBtn");
-const pipBtn = document.getElementById("pipBtn");
-const fullscreenBtn = document.getElementById("fullscreenBtn");
-const skipBackBtn = document.getElementById("skipBackBtn");
-const skipFwdBtn = document.getElementById("skipFwdBtn");
-const muteBtn = document.getElementById("muteBtn");
-const volumeSlider = document.getElementById("volume");
-const playedBar = document.getElementById("playedBar");
-const bufferedBar = document.getElementById("bufferedBar");
+const video = $("video");
+const embed = $("embed");
+const stage = $("playerStage");
+const root = $("playerRoot");
+const surface = $("playerSurface");
+const veil = $("playerVeil");
+const veilText = $("veilText");
+const veilBuffer = $("veilBuffer");
+const stoppedPane = $("playerStopped");
+const stoppedTitle = $("stoppedTitle");
+const bigPlayBtn = $("bigPlayBtn");
+const gestureFlash = $("gestureFlash");
+
+const overlay = $("overlay");
+const overlayTitle = $("overlayTitle");
+const overlayText = $("overlayText");
+const overlayActions = $("overlayActions");
+const spinner = $("spinner");
+
+const titleEl = $("lectureTitle");
+const metaEl = $("lectureMeta");
+const docsEl = $("docs");
+const docCount = $("docCount");
+const crumbs = $("crumbs");
+const aboutText = $("aboutText");
+const positionLabel = $("positionLabel");
+const sourceLink = $("sourceLink");
+const queueNav = $("queueNav");
+
+const playBtn = $("playBtn");
+const prevBtn = $("prevBtn");
+const nextBtn = $("nextBtn");
+const pipBtn = $("pipBtn");
+const fullscreenBtn = $("fullscreenBtn");
+const skipBackBtn = $("skipBackBtn");
+const skipFwdBtn = $("skipFwdBtn");
+const restartBtn = $("restartBtn");
+const muteBtn = $("muteBtn");
+const volumeSlider = $("volume");
+const speedBox = $("speed");
+const qualitySelect = $("quality");
+const loopBtn = $("loopBtn");
+const statsBtn = $("statsBtn");
+const statsPane = $("playerStats");
+const healthChip = $("streamHealth");
+const healthBadge = $("healthBadge");
+const healthText = $("healthText");
+const checkLink = $("checkLink");
+
+const scrubber = $("scrubber");
+const scrubberTip = $("scrubberTip");
+const playedBar = $("playedBar");
+const bufferedBar = $("bufferedBar");
+const scrubberKnob = $("scrubberKnob");
 
 const positionKey = `pos:${lectureId}`;
 /** Where this lecture sits in its chapter, so "next" means the next class. */
 let queue = { ids: [], index: -1 };
-
-/** Automatic retries left for a transient stream failure (rate limiting). */
-let retriesLeft = 2;
-/** Stream resolution attempts so far; each one bypasses the resolver's cache. */
+/** Stream resolution attempts; each one bypasses the resolver's cache. */
 let attempt = 0;
+let currentPlan = null;
+let pro = null;
+let durations = { elapsed: true };
+let statsVisible = false;
+
+/* ------------------------------ page chrome ------------------------------ */
 
 if (titleParam) {
   titleEl.textContent = titleParam;
@@ -69,11 +101,12 @@ crumbs.innerHTML = `<a href="/">Home</a> <span>/</span>
   <a href="/subject.html?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(subjectSlug)}">Subject</a> <span>/</span>
   <span class="truncate">${esc(titleParam || "Lecture")}</span>`;
 
-if (!batchId || !subjectSlug || !lectureId) {
-  showMessage("Missing lecture", "Open a lecture from a chapter list.", true);
-} else {
-  boot();
+function checkUrl() {
+  return `/api/check?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
+    subjectSlug
+  )}&id=${encodeURIComponent(lectureId)}`;
 }
+checkLink.href = checkUrl();
 
 function showMessage(title, text, error = false, actions = "") {
   overlay.style.display = "grid";
@@ -81,7 +114,9 @@ function showMessage(title, text, error = false, actions = "") {
   overlayText.textContent = text;
   spinner.style.display = "none";
   overlayActions.innerHTML = actions;
-  if (error) overlay.style.background = "radial-gradient(circle at 50% 40%, rgba(255,93,115,.18), rgba(5,6,12,.96))";
+  overlay.style.background = error
+    ? "radial-gradient(circle at 50% 40%, rgba(255,93,115,.18), rgba(5,6,12,.96))"
+    : "radial-gradient(circle at 50% 40%, rgba(108,92,231,.28), rgba(5,6,12,.94))";
 }
 
 function showLoading(title, text) {
@@ -92,35 +127,17 @@ function showLoading(title, text) {
   overlayActions.innerHTML = "";
 }
 
-/** Can this browser decode an HLS manifest without hls.js? (Safari/iOS can.) */
-function canPlayHlsNatively() {
-  return Boolean(video.canPlayType && video.canPlayType("application/vnd.apple.mpegurl"));
+function hideOverlay() {
+  overlay.style.display = "none";
 }
 
-/**
- * hls.js could not be loaded *and* the browser has no native HLS.
- *
- * This is a client-side limitation, not a broken lecture, and saying so matters:
- * the server-side check will happily report the same lecture as playing.
- */
-function hlsUnsupported(plan) {
-  showMessage(
-    "This browser cannot play this video",
-    "The video is fine — this browser has no HLS support and the player script could not be loaded (an extension or a network filter may be blocking it). Try Safari, or open the video directly.",
-    true,
-    `<a class="btn btn-primary" href="${plan && plan.url ? plan.url : checkUrl()}" target="_blank" rel="noopener">Open the video file</a>
-     <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>`
-  );
+if (!batchId || !subjectSlug || !lectureId) {
+  showMessage("Missing lecture", "Open a lecture from a chapter list.", true);
+} else {
+  boot();
 }
 
-/** Deep link to the server-side playback self-test for this lecture. */
-function checkUrl() {
-  return `/api/check?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
-    subjectSlug
-  )}&id=${encodeURIComponent(lectureId)}`;
-}
-
-/* ------------------------------- loaders -------------------------------- */
+/* ------------------------------- boot / data ------------------------------ */
 
 async function boot() {
   showLoading("Preparing your lecture…", "Fetching stream details from Physics Wallah.");
@@ -128,7 +145,7 @@ async function boot() {
   let detail = null;
   try {
     detail = await loadLecture(batchId, subjectSlug, lectureId);
-  } catch (err) {
+  } catch {
     // Lecture metadata is optional — the schedule endpoint may rate-limit.
     detail = null;
   }
@@ -140,7 +157,8 @@ async function boot() {
     metaEl.textContent = [l.date ? fmtDate(l.date) : "", l.duration, l.topicInfo]
       .filter(Boolean)
       .join(" · ");
-    aboutText.textContent = l.description || l.topicInfo || "No description published for this lecture.";
+    aboutText.textContent =
+      l.description || l.topicInfo || "No description published for this lecture.";
     if (l.thumbnail) video.poster = l.thumbnail;
     trackLecture({
       id: lectureId,
@@ -151,8 +169,6 @@ async function boot() {
       chapter: (l.tags && l.tags[0]) || titleParam || "",
     });
     renderDocs(detail.docs || []);
-    // Navigation and the stream both start immediately; neither awaits the
-    // other, so a slow contents call cannot delay playback.
     loadQueue((l.tags && l.tags[0]) || "");
   } else {
     metaEl.textContent = "Lecture details are loading from the chapter list.";
@@ -185,51 +201,51 @@ function renderDocs(docs) {
     .join("");
 }
 
+/** Resolve a plan from the server, honouring the attempt counter. */
+async function resolvePlan(n) {
+  let plan = await api(
+    `/api/stream?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
+      subjectSlug
+    )}&id=${encodeURIComponent(lectureId)}${n ? `&attempt=${n}` : ""}`
+  );
+
+  // Server could not reach upstream: resolve the video URL in the browser.
+  if (plan && plan.needsClientResolve) {
+    const schedule = await upstreamJson(
+      `/Schedule?BatchId=${encodeURIComponent(batchId)}&SubjectId=${encodeURIComponent(
+        subjectSlug
+      )}&ContentId=${encodeURIComponent(lectureId)}`
+    );
+    const d = (schedule && schedule.data) || {};
+    const rawUrl = (d.videoDetails && d.videoDetails.videoUrl) || d.url || "";
+    if (!rawUrl) {
+      return { playable: false, reason: "This class has no released video yet, or the streaming pipeline for it is not ready yet." };
+    }
+    plan = await api(`/api/stream?url=${encodeURIComponent(rawUrl)}`);
+  }
+  return plan;
+}
+
 async function startStream() {
+  showLoading("Preparing your lecture…", "Fetching stream details from Physics Wallah.");
+
   let plan = null;
   try {
-    // `attempt` tells the resolver to skip any cached plan and re-probe the
-    // signer hosts. A cached plan is what a dead signer looks like from here:
-    // the same unreachable host is handed back on every retry.
-    plan = await api(
-      `/api/stream?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
-        subjectSlug
-      )}&id=${encodeURIComponent(lectureId)}${attempt ? `&attempt=${attempt}` : ""}`
-    );
-
-    // Server could not reach upstream: resolve the video URL in the browser.
-    if (plan && plan.needsClientResolve) {
-      showLoading("Resolving stream…", "Fetching the signed stream link.");
-      const schedule = await upstreamJson(
-        `/Schedule?BatchId=${encodeURIComponent(batchId)}&SubjectId=${encodeURIComponent(
-          subjectSlug
-        )}&ContentId=${encodeURIComponent(lectureId)}`
-      );
-      const d = (schedule && schedule.data) || {};
-      const rawUrl = (d.videoDetails && d.videoDetails.videoUrl) || d.url || "";
-      if (!rawUrl) {
-        return showMessage(
-          "No video published",
-          "This class has no released video yet — open the source player to check again later.",
-          false,
-          `<a class="btn btn-primary" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
-        );
-      }
-      plan = await api(`/api/stream?url=${encodeURIComponent(rawUrl)}`);
-    }
+    plan = await resolvePlan(attempt);
   } catch (err) {
+    healthBadge.textContent = "offline";
     return showMessage(
       "Stream unavailable",
       err.message || "The stream service did not respond.",
       true,
-      `<a class="btn btn-primary" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Watch on source</a>`
+      `<button class="btn btn-primary" id="retryStreamBtn">Try again</button>
+       <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Watch on source</a>`
     );
   }
 
-  // Upstream signing is intermittently rate-limited. A transient failure is
-  // worth retrying on its own before showing the user anything.
-  if (plan && !plan.playable && plan.retryAfter && retriesLeft > 0) {
-    retriesLeft -= 1;
+  // Upstream signing is intermittently rate-limited; a short retry is cheaper
+  // than showing the student an error they cannot act on.
+  if (plan && !plan.playable && plan.retryAfter && attempt < 2) {
     attempt += 1;
     showLoading("Reconnecting…", "The stream service is catching up. Trying again.");
     await new Promise((r) => setTimeout(r, plan.retryAfter * 1000));
@@ -237,8 +253,6 @@ async function startStream() {
   }
 
   if (!plan || !plan.playable || !plan.url) {
-    // The lecture may simply live on a host we do not relay. Say that, and give
-    // the student the direct link instead of a retry button that cannot help.
     if (plan && plan.external) {
       return showMessage(
         "Watch on the original host",
@@ -250,598 +264,241 @@ async function startStream() {
     }
     const reason =
       (plan && plan.reason) || "PW has not published a playable stream for this lecture yet.";
-    const check = checkUrl();
-    const notesHint =
-      plan && plan.lecture && plan.lecture.hasNotes
-        ? " The class notes and DPPs for this lecture are available in the list below."
-        : "";
     showMessage(
       "This class has no video yet",
-      reason + notesHint,
+      reason,
       false,
-      `<a class="btn btn-primary" href="${check}" target="_blank" rel="noopener">Run playback check</a>
+      `<a class="btn btn-primary" href="${checkUrl()}" target="_blank" rel="noopener">Run playback check</a>
        <button class="btn btn-ghost" id="retryBtn">Retry</button>`
     );
-    const retry = document.getElementById("retryBtn");
-    if (retry)
-      retry.addEventListener("click", () => {
-        attempt += 1;
-        startStream();
-      });
+    $("retryBtn")?.addEventListener("click", () => {
+      attempt += 1;
+      startStream();
+    });
+    runServerHealth();
     return;
   }
 
-  attachPlayer(plan);
-}
-
-/**
- * Load one script, but never wait forever.
- *
- * A CDN that is blocked by a firewall does not always fire `onerror` — the
- * request simply hangs, and the player would sit on "Starting playback…"
- * indefinitely. Time out and let the next CDN (or the native fallback) try.
- */
-function loadOne(src, timeoutMs = 8000) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) return resolve();
-    const s = document.createElement("script");
-    let settled = false;
-    const finish = (fn, arg) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      fn(arg);
-    };
-    const timer = setTimeout(() => {
-      s.remove();
-      finish(reject, new Error(`Timed out loading ${src}`));
-    }, timeoutMs);
-    s.src = src;
-    s.onload = () => finish(resolve);
-    s.onerror = () => finish(reject, new Error(`Failed to load ${src}`));
-    document.head.appendChild(s);
-  });
-}
-
-/**
- * Load the first CDN that answers — a blocked CDN must not stop playback.
- *
- * There is an overall budget as well as a per-source one: sitting on a spinner
- * for 3 × 8 s while three CDNs hang is indistinguishable from a broken site.
- */
-async function loadScript(sources, budgetMs = 9000) {
-  const list = Array.isArray(sources) ? sources : [sources];
-  const deadline = Date.now() + budgetMs;
-  let lastError = null;
-  for (const src of list) {
-    const remaining = deadline - Date.now();
-    if (remaining < 500) break;
-    try {
-      await loadOne(src, Math.min(6000, remaining));
-      return;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError || new Error("Failed to load the player library");
-}
-
-/* ------------------------------- playback -------------------------------- */
-
-// Guarded: a stale cached copy of this module must never break the player just
-// because the markup predates the quality picker.
-const qualitySelect = document.getElementById("quality");
-
-/** Everything needed to retry a stream without re-resolving the lecture. */
-let currentPlan = null;
-let hls = null;
-let dash = null;
-/** True when the <video> element owns the source (no hls.js / dash.js). */
-let nativeSource = false;
-
-/** Recoverable hls.js failures are almost always a stale or throttled segment. */
-const MAX_RECOVERIES = 4;
-
-function resetQuality() {
-  if (!qualitySelect) return;
-  qualitySelect.innerHTML = `<option value="-1">Auto</option>`;
-  qualitySelect.style.display = "none";
-}
-
-function showQuality(levels) {
-  if (!qualitySelect) return;
-  if (!levels.length) return resetQuality();
-  qualitySelect.innerHTML = `<option value="-1">Auto</option>${levels
-    .map((l) => `<option value="${l.height}">${l.height}p</option>`)
-    .join("")}`;
-  qualitySelect.style.display = "";
-}
-
-/**
- * Play a YouTube/Vimeo-hosted lecture.
- *
- * A handful of batches publish the recording to YouTube rather than to a PW
- * CDN. The quality picker, the speed buttons and the resume position all
- * belong to the <video> element and simply do not apply inside an embed, so
- * they are hidden instead of being shown as dead controls.
- */
-function attachEmbed(plan) {
-  const src = plan.embed;
-  if (!src || !embed) {
-    return showMessage(
-      "Video could not be embedded",
-      "This lecture is hosted on YouTube. Open it on the source player instead.",
-      false,
-      `<a class="btn btn-primary" href="${plan.url || SITE.fallbackPlayer}" target="_blank" rel="noopener">Watch the lecture</a>`
-    );
-  }
-
-  destroyPlayers();
-  video.style.display = "none";
-  embed.style.display = "";
-  embed.src = src;
-  if (playerBar) playerBar.querySelectorAll(".speed, .quality-select, #streamHealth").forEach((el) => {
-    el.style.display = "none";
-  });
-  showQuality([]);
-  overlay.style.display = "none";
-  if (sourceLink && plan.url) sourceLink.href = plan.url;
-}
-
-async function attachPlayer(plan) {
   currentPlan = plan;
+  attachPlayer(plan);
+  runServerHealth();
+}
+
+/* -------------------------------- player --------------------------------- */
+
+function createPlayer() {
+  if (pro) return pro;
+  pro = new ProPlayer({
+    video,
+    root,
+    resolve: resolvePlan,
+    prefs: { get: getPrefs, set: setPref },
+    onState: renderState,
+    onError: (title, text) => {
+      showMessage(
+        title,
+        text,
+        true,
+        `<button class="btn btn-primary" id="retryStreamBtn2">Retry stream</button>
+         <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>
+         <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Source player</a>`
+      );
+      $("retryStreamBtn2")?.addEventListener("click", () => {
+        hideOverlay();
+        pro.retry({ reason: "manual" });
+      });
+    },
+    onEnded: () => {
+      // Auto-advance: a two-hour lecture that ends should offer the next class,
+      // not a frozen last frame.
+      if (queue.index >= 0 && queue.index < queue.ids.length - 1) {
+        toast("Lecture finished — opening the next one");
+        setTimeout(() => goToLecture(1), 1800);
+      } else {
+        toast("Lecture finished");
+      }
+    },
+  });
+  window.__player = pro;
+  return pro;
+}
+
+function attachPlayer(plan) {
+  const player = createPlayer();
+  player.attempt = attempt;
 
   if (plan.engine === "embed" || plan.kind === "youtube" || plan.kind === "vimeo") {
-    attachEmbed(plan);
+    if (embed) {
+      embed.style.display = "";
+      embed.src = plan.embed || "";
+      video.style.display = "none";
+    }
+    hideOverlay();
+    if (sourceLink && plan.url) sourceLink.href = plan.url;
     return;
   }
 
-  // A previously embedded lecture must give the <video> element back.
   if (embed && embed.style.display !== "none") {
     embed.src = "about:blank";
     embed.style.display = "none";
     video.style.display = "";
-    if (playerBar) playerBar.querySelectorAll(".speed, .quality-select, #streamHealth").forEach((el) => {
-      el.style.removeProperty("display");
-    });
   }
 
   showLoading("Stream ready", "Starting playback…");
 
-  // Layout metrics arrive one event after the player starts; hide the overlay
-  // on the first frame the browser can actually paint.
-  const markReady = () => {
-    overlay.style.display = "none";
-    restorePosition();
-  };
-  video.addEventListener("loadedmetadata", markReady);
-  video.addEventListener("playing", markReady);
-  setTimeout(markReady, 9000);
+  // Show the picker from the plan immediately: the control should not sit empty
+  // (or hidden) while the manifest is still being parsed.
+  paintQuality((plan.renditions || []).map((h) => ({ height: Number(h) })), "auto");
 
-  // Native error handler: only meaningful when the <video> element owns the
-  // source. When hls.js/dash.js is attached they report through their own error
-  // events, and a spurious <video> error there must not replace the player with
-  // a dead overlay.
-  video.addEventListener(
-    "error",
-    () => {
-      if (!nativeSource) return;
-      // A browser without an HLS decoder fails every manifest it is handed, so
-      // "this stream could not be opened" would blame the lecture for a missing
-      // capability — while /api/check reports the same lecture as playing.
-      if (!canPlayHlsNatively()) return hlsUnsupported(currentPlan);
-      showMessage(
-        "Playback error",
-        "This stream could not be opened. Retry to fetch a fresh link, or run the playback check to see which step failed.",
-        true,
-        `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
-         <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>
-         <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Source player</a>`
-      );
-      document.getElementById("retryStreamBtn")?.addEventListener("click", () => {
-    attempt += 1;
-    startStream();
-  });
-    },
-    { once: false }
-  );
-
-  try {
-    destroyPlayers();
-
-    if (plan.kind === "hls" || plan.engine === "hls") {
-      if (video.canPlayType("application/vnd.apple.mpegurl") && !window.Hls) {
-        // Safari / iOS plays HLS natively.
-        nativeSource = true;
-        video.src = plan.url;
-        showQuality([]);
-      } else {
-        // A blocked CDN must not kill the lecture: if hls.js cannot load, hand
-        // the manifest to the browser and let it try natively.
-        try {
-          // Same-origin copy first: a blocked CDN used to leave the player
-          // spinning forever on networks that block jsdelivr/unpkg/cdnjs.
-          await loadScript([
-            "/assets/vendor/hls.min.js",
-            "https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js",
-            "https://unpkg.com/hls.js@1.5.17/dist/hls.min.js",
-            "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js",
-          ]);
-        } catch (err) {
-          nativeSource = true;
-          video.src = plan.url;
-          showQuality([]);
-          video.play().catch(() => {});
-          return;
-        }
-        if (!window.Hls || !window.Hls.isSupported()) {
-          // Same idea: Firefox without MSE-HLS still deserves a native attempt.
-          nativeSource = true;
-          video.src = plan.url;
-          showQuality([]);
-          video.play().catch(() => {});
-          return;
-        }
-
-        hls = new window.Hls({
-          maxBufferLength: 30,
-          // A lecture is a 2-hour VOD: start low and switch up instead of
-          // stalling for ten seconds on the first segment.
-          startLevel: -1,
-          manifestLoadingTimeOut: 20000,
-          manifestLoadingMaxRetry: 4,
-          levelLoadingTimeOut: 20000,
-          levelLoadingMaxRetry: 4,
-          fragLoadingTimeOut: 30000,
-          fragLoadingMaxRetry: 6,
-        });
-
-        let recovered = 0;
-        hls.on(window.Hls.Events.ERROR, (_evt, data) => {
-          if (!data || !data.fatal) return;
-          if (recovered >= MAX_RECOVERIES) {
-            showMessage(
-              "Playback stopped",
-              "The stream kept dropping. Retry to reconnect — your position is saved.",
-              true,
-              `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
-               <a class="btn btn-ghost" href="${checkUrl()}" target="_blank" rel="noopener">Playback check</a>`
-            );
-            document.getElementById("retryStreamBtn")?.addEventListener("click", () => {
-    attempt += 1;
-    startStream();
-  });
-            return;
-          }
-          // A manifest/level failure means the signed playlist itself is bad
-          // (expired or a signer gave up). Retrying the same URL cannot help —
-          // resolve a fresh plan, which walks the other signer hosts.
-          const details = String(data.details || "");
-          if (/manifest|level/i.test(details) && retriesLeft > 0) {
-            retriesLeft -= 1;
-            // A new attempt means a *different* signer host, not the same
-            // unreachable one the cached plan pointed at.
-            attempt += 1;
-            destroyPlayers();
-            startStream();
-            return;
-          }
-
-          recovered += 1;
-          if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
-            hls.startLoad();
-          } else if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
-          } else if (window.Hls.ErrorTypes.KEY_SYSTEM_ERROR) {
-            // A fresh token usually fixes key/segment 401s.
-            hls.startLoad();
-          }
-        });
-
-        // Show the picker from the plan immediately, so a slow manifest does not
-        // leave the control hidden while the video is already playing.
-        showQuality((plan.renditions || []).map((height) => ({ height: Number(height) })));
-
-        hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
-          // hls.js knows the real levels (and their heights), so it wins once it
-          // has parsed the manifest.
-          const levels = (hls.levels || []).map((l) => ({ height: l.height || 0 }));
-          showQuality(levels);
-          // Re-apply the quality this user last picked; a refresh used to reset
-          // the picker to Auto without saying so.
-          const wanted = Number(getPrefs().quality);
-          if (wanted > 0 && levels.some((l) => l.height === wanted)) {
-            qualitySelect.value = String(wanted);
-            applyQuality(wanted);
-          }
-        });
-        hls.on(window.Hls.Events.LEVEL_SWITCHED, (_e, data) => {
-          if (!hls || !qualitySelect || qualitySelect.value !== "-1") return;
-          const level = hls.levels && hls.levels[data.level];
-          if (level) qualitySelect.dataset.playing = String(level.height || "");
-        });
-
-        hls.loadSource(plan.url);
-        hls.attachMedia(video);
-        window.__hls = hls;
-      }
-    } else if (plan.kind === "dash") {
-      await loadScript([
-        "/assets/vendor/dash.all.min.js",
-        "https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.all.min.js",
-        "https://unpkg.com/dashjs@4.7.4/dist/dash.all.min.js",
-      ]);
-      if (!window.dashjs) throw new Error("DASH is not supported here");
-      dash = window.dashjs.MediaPlayer().create();
-      dash.initialize(video, plan.url, false);
-      window.__dash = dash;
-      showQuality([]);
-    } else {
-      nativeSource = true;
-      video.src = plan.url;
-      showQuality([]);
-    }
-
-    // Autoplay may be blocked; a muted retry is better than a black frame.
-    video.play().catch(() => {
-      video.muted = true;
-      video.play().catch(() => {});
-    });
-  } catch (err) {
-    showMessage(
-      "Playback not supported",
-      err.message || "This browser could not start the player.",
-      true,
-      `<button class="btn btn-primary" id="retryStreamBtn">Retry</button>
-       <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
-    );
-    document.getElementById("retryStreamBtn")?.addEventListener("click", () => {
-    attempt += 1;
-    startStream();
-  });
-  }
-}
-
-function destroyPlayers() {
-  nativeSource = false;
-  if (embed) {
-    embed.src = "about:blank";
-    embed.style.display = "none";
-  }
-  if (video) video.style.display = "";
-  if (hls) {
-    try {
-      hls.destroy();
-    } catch {}
-    hls = null;
-    window.__hls = null;
-  }
-  if (dash) {
-    try {
-      dash.reset();
-    } catch {}
-    dash = null;
-    window.__dash = null;
-  }
-  resetQuality();
-}
-
-qualitySelect?.addEventListener("change", () => {
-  const height = Number(qualitySelect.value);
-  // Persist the choice so the next lecture opens at the quality this user picked
-  // instead of silently reverting to the server's default.
-  setPref("quality", height);
-  applyQuality(height);
-});
-
-/** Point hls.js / dash.js at one quality, or back to automatic switching. */
-function applyQuality(height) {
-  if (hls && Array.isArray(hls.levels)) {
-    // levels are ordered lowest → highest; pick the closest match
-    if (height === -1) {
-      hls.currentLevel = -1;
-      return;
-    }
-    let best = -1;
-    let delta = Infinity;
-    hls.levels.forEach((l, i) => {
-      const d = Math.abs((l.height || 0) - height);
-      if (d < delta) {
-        delta = d;
-        best = i;
-      }
-    });
-    hls.currentLevel = best;
-  } else if (dash && dash.getBitrateInfoListFor) {
-    const list = dash.getBitrateInfoListFor("video") || [];
-    const target = height === -1 ? -1 : list.findIndex((b) => Math.abs((b.height || 0) - height) < 1);
-    dash.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: height === -1 } } } });
-    if (target >= 0) dash.setQualityFor("video", target, true);
-  }
-}
-
-/* --------------------------- queue / navigation -------------------------- */
-
-/**
- * Resolve the neighbouring lectures in the same chapter.
- *
- * `loadContents` returns the chapter's videos in catalogue order, which is the
- * order a student watches them. Failure is silent on purpose: navigation is a
- * convenience, and a rate-limited contents call must never block the lecture.
- */
-async function loadQueue(chapter) {
-  if (!chapter) {
-    if (prevBtn) prevBtn.style.display = "none";
-    if (nextBtn) nextBtn.style.display = "none";
-    return queue;
-  }
-  try {
-    const all = await loadContents(batchId, subjectSlug, chapter, "videos");
-    const list = (all && all.items) || [];
-    const ids = list.map((l) => l.id).filter(Boolean);
-    const index = ids.indexOf(lectureId);
-    queue = { ids, index };
-  } catch {
-    queue = { ids: [], index: -1 };
-  }
-
-  const hasPrev = queue.index > 0;
-  const hasNext = queue.index >= 0 && queue.index < queue.ids.length - 1;
-  if (prevBtn) prevBtn.style.display = hasPrev ? "" : "none";
-  if (nextBtn) nextBtn.style.display = hasNext ? "" : "none";
-  // Prev/next follow the chapter order, so "next" is the next class, not the
-  // next item in a filtered list.
-  return queue;
-}
-
-/** Navigate to another lecture in the same chapter without a page reload. */
-function goToLecture(offset) {
-  const target = queue.index + offset;
-  if (queue.index < 0 || target < 0 || target >= queue.ids.length) return;
-  const id = queue.ids[target];
-  const url = new URL(window.location.href);
-  url.searchParams.set("id", id);
-  url.searchParams.delete("title");
-  // A full navigation is correct here: a new lecture means a new stream, a new
-  // saved position and a new document title, and the page never reload-loops
-  // because this only runs from an explicit click or keyboard shortcut.
-  window.location.assign(url.toString());
-}
-
-/* ------------------------------ position/speed --------------------------- */
-
-function restorePosition() {
   const saved = Number(localStorage.getItem(positionKey) || 0);
-  if (saved > 12) {
-    video.currentTime = saved;
-    toast(`Resumed at ${formatTime(saved)}`);
-    showResumeChip(saved);
+
+  player
+    .load(plan, { autoplay: true })
+    .then(() => {
+      const resumeAt = () => {
+        if (saved > 12) {
+          player.seek(saved);
+          chip(`From ${fmtTime(saved)} · start over`, () => {
+            player.seek(0);
+            localStorage.removeItem(positionKey);
+            hideChip();
+            player.play();
+          });
+        }
+        video.removeEventListener("loadedmetadata", resumeAt);
+      };
+      if (video.readyState >= 1) resumeAt();
+      else video.addEventListener("loadedmetadata", resumeAt);
+      hideOverlay();
+    })
+    .catch((err) => {
+      showMessage(
+        "Playback not supported",
+        err.message || "This browser could not start the player.",
+        true,
+        `<button class="btn btn-primary" id="retryStreamBtn3">Retry</button>
+         <a class="btn btn-ghost" href="${SITE.fallbackPlayer}" target="_blank" rel="noopener">Open source player</a>`
+      );
+      $("retryStreamBtn3")?.addEventListener("click", () => {
+        hideOverlay();
+        player.retry({ reason: "manual" });
+      });
+    });
+}
+
+/* -------------------------------- rendering ------------------------------- */
+
+function renderState(s) {
+  const overlayOn = overlay && overlay.style.display !== "none";
+  // transport buttons
+  if (playBtn) {
+    const playing = !s.paused && !s.ended;
+    playBtn.querySelector(".i-play").style.display = playing ? "none" : "";
+    playBtn.querySelector(".i-pause").style.display = playing ? "" : "none";
+    playBtn.title = playing ? "Pause (k)" : "Play (k)";
+  }
+
+  // buffering veil
+  if (veil) {
+    const show = Boolean(s.buffering) && !s.error;
+    veil.classList.toggle("on", show);
+    if (show && s.note) veilText.textContent = s.note;
+  }
+
+  // stopped / paused pane — the "stopped and it will not play again" fix
+  if (stoppedPane) {
+    // Never cover a video that is actually playing: `stopped`/`error` describe
+    // the last failure, and a stale one must not sit on top of a live stream.
+    const running = !video.paused && !video.ended;
+    const dim = Boolean(s.stopped || s.error);
+    const showStopped = Boolean((dim || s.paused) && !running && !overlayOn);
+    stoppedPane.hidden = !showStopped;
+    // A plain pause shows only the glyph; a stop or an error dims and explains.
+    stoppedPane.classList.toggle("paused", !dim);
+    if (showStopped) {
+      stoppedTitle.textContent = s.error ? s.errorTitle || "Playback error" : "Paused";
+      stoppedPane.querySelector(".tiny").textContent = s.error
+        ? s.error
+        : `Paused at ${fmtTime(video.currentTime || 0)} — press play to continue`;
+    }
+  }
+
+  // progress + time
+  paintProgress();
+  paintTime(s);
+
+  // volume
+  paintVolume(s);
+
+  // quality list
+  if (s.qualityLevels) paintQuality(s.qualityLevels, s.quality);
+
+  // status chip: buffering / reconnecting / reconnected
+  if (healthChip) {
+    const text = s.error ? "" : s.note || (s.buffering ? "Buffering…" : "");
+    if (text) {
+      healthChip.textContent = text;
+      healthChip.style.display = "";
+    } else if (!chipHeld) {
+      healthChip.style.display = "none";
+    }
+  }
+
+  // stats
+  paintStats(s);
+}
+
+function paintTime(s) {
+  const cur = Number.isFinite(s.currentTime) ? s.currentTime : video.currentTime || 0;
+  const dur = Number.isFinite(s.duration) && s.duration > 0 ? s.duration : video.duration || 0;
+  if (positionLabel) {
+    positionLabel.textContent = durations.elapsed
+      ? `${fmtTime(cur)} / ${fmtTime(dur)}`
+      : `-${fmtTime(Math.max(0, dur - cur))} / ${fmtTime(dur)}`;
   }
 }
 
-/**
- * "Continue where you left off", as a visible chip rather than a two-second toast.
- *
- * Resuming silently is easy to miss on a two-hour lecture — you look up, the
- * clock says 1:12:04 and you cannot tell whether it is right. The chip states the
- * time and gives one tap to go back to the beginning.
- */
-function showResumeChip(saved) {
-  if (!Number.isFinite(saved) || saved <= 12) return;
-  const chip = document.getElementById("streamHealth");
-  if (!chip) return;
-  chip.textContent = `From ${formatTime(saved)} · restart`;
-  chip.style.display = "";
-  chip.style.cursor = "pointer";
-  chip.title = "Start this lecture from the beginning";
-  chip.addEventListener(
-    "click",
-    () => {
-      video.currentTime = 0;
-      localStorage.removeItem(positionKey);
-      chip.style.display = "none";
-      video.play().catch(() => {});
-    },
-    { once: true }
-  );
-  // Let it fade once the lecture is properly under way.
-  video.addEventListener(
-    "playing",
-    () => {
-      setTimeout(() => {
-        if (chip.textContent.includes("restart")) chip.style.display = "none";
-      }, 6000);
-    },
-    { once: true }
-  );
+function paintVolume(s) {
+  if (!muteBtn) return;
+  const muted = s ? Boolean(s.muted) : video.muted;
+  const wave = $("volWave");
+  const cross = $("volMute");
+  if (wave) wave.style.display = muted ? "none" : "";
+  if (cross) cross.style.display = muted ? "" : "none";
+  muteBtn.title = muted ? "Unmute (m)" : "Mute (m)";
+  if (volumeSlider && document.activeElement !== volumeSlider) {
+    volumeSlider.value = String(muted ? 0 : video.volume);
+  }
 }
 
-function formatTime(s) {
-  if (!Number.isFinite(s)) return "0:00";
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${String(sec).padStart(2, "0")}`;
-}
-
-/**
- * Surface stream trouble while it happens. A lecture that silently stalls looks
- * like a broken site; a "reconnecting" chip plus a saved position does not.
- */
-let stalls = 0;
-let stallTimer = null;
-
-/**
- * Buffering is not the same as reconnecting, and saying so matters.
- *
- * A two-second buffer hiccup is normal on a long lecture; showing "Reconnecting"
- * for it trains people to distrust the player. The first wait shows "Buffering"
- * after a short grace period, and only a *repeated* stall is reported as a
- * reconnection attempt.
- */
-function health(text) {
-  const chip = document.getElementById("streamHealth");
-  if (!chip) return;
-  // The resume chip owns this element until it is dismissed; a buffering blip
-  // must not overwrite it a second after the lecture starts.
-  if (chip.textContent.includes("restart") && chip.style.display !== "none" && text) return;
-  if (!text) {
-    if (chip.textContent.includes("restart")) return;
-    chip.style.display = "none";
+function paintQuality(levels, current) {
+  if (!qualitySelect) return;
+  const heights = [...new Set((levels || []).map((l) => l.height).filter(Boolean))].sort(
+    (a, b) => b - a
+  );
+  if (!heights.length) {
+    qualitySelect.innerHTML = `<option value="-1">Auto</option>`;
+    qualitySelect.dataset.empty = "1";
     return;
   }
-  chip.textContent = text;
-  chip.style.display = "";
+  qualitySelect.dataset.empty = "";
+  const selected = current === "auto" || current === undefined ? -1 : Number(current);
+  qualitySelect.innerHTML =
+    `<option value="-1">Auto</option>` +
+    heights.map((h) => `<option value="${h}"${selected === h ? " selected" : ""}>${h}p</option>`).join("");
 }
 
-video.addEventListener("waiting", () => {
-  stalls += 1;
-  // Give a normal short stall a moment to resolve before saying anything.
-  clearTimeout(stallTimer);
-  stallTimer = setTimeout(() => {
-    if (!video.paused && video.readyState < 3) {
-      health(stalls > 2 ? "Reconnecting…" : "Buffering…");
-    }
-  }, 1200);
-});
-
-video.addEventListener("playing", () => {
-  stalls = 0;
-  clearTimeout(stallTimer);
-  health("");
-});
-
-video.addEventListener("stalled", () => {
-  if (!video.paused) health("Buffering…");
-});
-
-/**
- * Persist the position when the tab is hidden or closed.
- *
- * `timeupdate` only fires every few hundred milliseconds while playing, so a
- * tab closed mid-segment could lose the last stretch of a lecture. `pagehide` is
- * the only unload event that is reliably delivered on mobile Safari.
- */
-function savePositionNow() {
-  if (Number.isFinite(video.currentTime) && video.currentTime > 5) {
-    localStorage.setItem(positionKey, String(Math.floor(video.currentTime)));
-  }
-}
-window.addEventListener("pagehide", savePositionNow);
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") savePositionNow();
-});
-
-/**
- * The progress rail: what has been watched, and how far the player has buffered.
- *
- * `buffered` can hold several disjoint ranges; the one containing the playhead is
- * the one that matters, so render that rather than the last range (which is how
- * the bar used to jump backwards after a seek).
- */
+/** Buffered band + watched fill, from the range that contains the playhead. */
 function paintProgress() {
-  const duration = Number(video.duration);
-  if (!Number.isFinite(duration) || duration <= 0) return;
-  if (playedBar) playedBar.style.width = `${(video.currentTime / duration) * 100}%`;
+  const dur = Number(video.duration);
+  if (!Number.isFinite(dur) || dur <= 0) {
+    if (playedBar) playedBar.style.width = "0%";
+    if (bufferedBar) bufferedBar.style.width = "0%";
+    return;
+  }
+  const pct = (t) => Math.min(100, Math.max(0, (t / dur) * 100));
+  if (playedBar) playedBar.style.width = `${pct(video.currentTime)}%`;
+  if (scrubberKnob) scrubberKnob.style.left = `${pct(video.currentTime)}%`;
 
   if (bufferedBar && video.buffered && video.buffered.length) {
     let end = 0;
@@ -852,171 +509,445 @@ function paintProgress() {
       }
       end = Math.max(end, video.buffered.end(i));
     }
-    bufferedBar.style.width = `${Math.min(100, (end / duration) * 100)}%`;
+    bufferedBar.style.width = `${pct(end)}%`;
+    if (veilBuffer) veilBuffer.style.width = `${pct(end)}%`;
+  }
+  if (scrubber) scrubber.setAttribute("aria-valuenow", String(Math.round(pct(video.currentTime))));
+}
+
+function paintStats(s) {
+  if (!statsVisible) return;
+  const set = (id, value) => {
+    const el = $(id);
+    if (el) el.textContent = value;
+  };
+  set("statEngine", s.engine || pro?.engine || "—");
+  set("statQuality", s.quality === "auto" ? "Auto" : s.quality ? `${s.quality}p` : "—");
+  const ahead = bufferAhead();
+  set("statBuffer", `${ahead.toFixed(1)}s`);
+  set(
+    "statBitrate",
+    pro && pro.hls && pro.hls.currentLevel >= 0
+      ? `${Math.round(((pro.hls.levels[pro.hls.currentLevel] || {}).bitrate || 0) / 1000)} kbps`
+      : "—"
+  );
+  set("statStalls", String(pro ? pro.recovery : 0));
+  set("statRetries", String(pro ? pro.attempt : 0));
+}
+
+function bufferAhead() {
+  if (!video || !video.buffered || !video.buffered.length) return 0;
+  for (let i = 0; i < video.buffered.length; i += 1) {
+    if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) >= video.currentTime) {
+      return Math.max(0, video.buffered.end(i) - video.currentTime);
+    }
+  }
+  return 0;
+}
+
+/* ------------------------------ status chip ------------------------------- */
+
+let chipHeld = false;
+function chip(text, onClick) {
+  if (!healthChip) return;
+  healthChip.textContent = text;
+  healthChip.style.display = "";
+  healthChip.classList.add("chip-action");
+  chipHeld = true;
+  if (onClick) healthChip.onclick = onClick;
+}
+function hideChip() {
+  if (!healthChip) return;
+  healthChip.style.display = "none";
+  healthChip.classList.remove("chip-action");
+  healthChip.onclick = null;
+  chipHeld = false;
+}
+
+/* -------------------------------- scrubbing ------------------------------- */
+
+function seekFromPointer(clientX) {
+  const rect = scrubber.getBoundingClientRect();
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  const dur = Number(video.duration);
+  if (!Number.isFinite(dur) || dur <= 0) return;
+  video.currentTime = ratio * dur;
+  if (scrubberTip) {
+    scrubberTip.textContent = fmtTime(ratio * dur);
+    scrubberTip.style.left = `${ratio * 100}%`;
+    scrubberTip.classList.add("on");
   }
 }
 
-video.addEventListener("timeupdate", () => {
-  if (video.currentTime > 5) localStorage.setItem(positionKey, String(Math.floor(video.currentTime)));
-  positionLabel.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
-  paintProgress();
-});
-video.addEventListener("progress", paintProgress);
-video.addEventListener("seeked", paintProgress);
-
-document.getElementById("restartBtn").addEventListener("click", () => {
-  video.currentTime = 0;
-  video.play().catch(() => {});
-});
-
-/* ------------------------------ transport -------------------------------- */
-
-/** Seek by a relative number of seconds, clamped to the clip. */
-function seekBy(delta) {
-  const duration = Number(video.duration);
-  if (!Number.isFinite(duration) || duration <= 0) return;
-  const next = Math.min(duration - 0.25, Math.max(0, video.currentTime + delta));
-  video.currentTime = next;
-  toast(`${delta > 0 ? "Forward" : "Back"} ${Math.abs(delta)}s`);
+let scrubbing = false;
+if (scrubber) {
+  scrubber.addEventListener("pointerdown", (e) => {
+    scrubbing = true;
+    scrubber.setPointerCapture?.(e.pointerId);
+    seekFromPointer(e.clientX);
+  });
+  scrubber.addEventListener("pointermove", (e) => {
+    if (!scrubbing) {
+      // hover preview
+      const rect = scrubber.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      const dur = Number(video.duration) || 0;
+      if (scrubberTip && dur > 0) {
+        scrubberTip.textContent = fmtTime(ratio * dur);
+        scrubberTip.style.left = `${ratio * 100}%`;
+        scrubberTip.classList.add("on");
+      }
+      return;
+    }
+    seekFromPointer(e.clientX);
+  });
+  const end = () => {
+    scrubbing = false;
+    if (scrubberTip) scrubberTip.classList.remove("on");
+  };
+  scrubber.addEventListener("pointerup", end);
+  scrubber.addEventListener("pointercancel", end);
+  scrubber.addEventListener("pointerleave", () => {
+    if (!scrubbing && scrubberTip) scrubberTip.classList.remove("on");
+  });
+  scrubber.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") seekBy(10);
+    if (e.key === "ArrowLeft") seekBy(-10);
+  });
 }
+
+/* ------------------------------ transport UI ------------------------------ */
+
+function seekBy(delta) {
+  const player = pro;
+  if (!player) return;
+  player.seekBy(delta);
+  flash(`${delta > 0 ? "+" : "−"}${Math.abs(delta)}s`);
+}
+
+function flash(text) {
+  if (!gestureFlash) return;
+  gestureFlash.textContent = text;
+  gestureFlash.classList.remove("on");
+  void gestureFlash.offsetWidth;
+  gestureFlash.classList.add("on");
+}
+
+playBtn?.addEventListener("click", () => {
+  if (!pro) return;
+  if (pro._state && pro._state.error) return pro.retry({ reason: "manual" });
+  pro.toggle();
+  hideChip();
+});
+
+bigPlayBtn?.addEventListener("click", () => {
+  if (!pro) return;
+  hideOverlay();
+  if (pro._state && pro._state.error) return pro.retry({ reason: "manual" });
+  if (!pro._hasSource()) return pro.restart();
+  pro.play();
+});
+
+restartBtn?.addEventListener("click", () => {
+  pro?.seek(0);
+  pro?.play();
+});
 
 skipBackBtn?.addEventListener("click", () => seekBy(-10));
-
-/* ------------------------------- volume ---------------------------------- */
-
-/**
- * Volume and mute, persisted like speed and quality.
- *
- * A lecture is watched across several sittings, often on headphones; having to
- * re-set the volume every page load was its own small annoyance.
- */
-function paintVolume() {
-  if (!muteBtn) return;
-  const silent = video.muted || video.volume === 0;
-  const wave = document.getElementById("volWave");
-  const cross = document.getElementById("volMute");
-  if (wave) wave.style.display = silent ? "none" : "";
-  if (cross) cross.style.display = silent ? "" : "none";
-  muteBtn.title = silent ? "Unmute (m)" : "Mute (m)";
-  if (volumeSlider && document.activeElement !== volumeSlider) {
-    volumeSlider.value = String(silent ? 0 : video.volume);
-  }
-}
-
-muteBtn?.addEventListener("click", () => {
-  video.muted = !video.muted;
-  if (!video.muted && video.volume === 0) video.volume = 0.6;
-  paintVolume();
-  setPref("muted", video.muted);
-});
-
-volumeSlider?.addEventListener("input", () => {
-  const value = Number(volumeSlider.value);
-  video.volume = value;
-  // Dragging the slider to a level is an explicit "make sound" instruction.
-  video.muted = value === 0;
-  paintVolume();
-  setPref("volume", value);
-});
-
-video.addEventListener("volumechange", paintVolume);
 skipFwdBtn?.addEventListener("click", () => seekBy(10));
 prevBtn?.addEventListener("click", () => goToLecture(-1));
 nextBtn?.addEventListener("click", () => goToLecture(1));
 
-// Only offer picture-in-picture where the browser actually implements it —
-// a button that throws on click is worse than no button.
+// Click the picture to play/pause, double-click to fullscreen. Deliberately not
+// on the scrubbing rail or the bar, where a click means something else.
+let clickTimer = null;
+surface?.addEventListener("click", (e) => {
+  if (clickTimer) {
+    clearTimeout(clickTimer);
+    clickTimer = null;
+    toggleFullscreen();
+    return;
+  }
+  clickTimer = setTimeout(() => {
+    clickTimer = null;
+    if (!pro) return;
+    hideOverlay();
+    pro.toggle();
+  }, 220);
+});
+
+positionLabel?.addEventListener("click", () => {
+  durations.elapsed = !durations.elapsed;
+  paintTime({ currentTime: video.currentTime, duration: video.duration });
+});
+
+muteBtn?.addEventListener("click", () => pro?.toggleMute());
+volumeSlider?.addEventListener("input", () => pro?.setVolume(volumeSlider.value));
+
+speedBox?.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-speed]");
+  if (!btn) return;
+  pro?.setRate(btn.dataset.speed);
+  markSpeed(Number(btn.dataset.speed));
+});
+
+function markSpeed(rate) {
+  speedBox?.querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("active", Number(b.dataset.speed) === Number(rate));
+  });
+}
+
+qualitySelect?.addEventListener("change", () => {
+  const value = qualitySelect.value;
+  pro?.setQuality(value === "-1" ? "auto" : Number(value));
+  toast(value === "-1" ? "Quality: Auto" : `Quality locked to ${value}p`);
+});
+
+loopBtn?.addEventListener("click", () => {
+  video.loop = !video.loop;
+  loopBtn.classList.toggle("active", video.loop);
+  toast(video.loop ? "Looping this lecture" : "Loop off");
+});
+
+statsBtn?.addEventListener("click", () => {
+  statsVisible = !statsVisible;
+  if (statsPane) statsPane.hidden = !statsVisible;
+  statsBtn.classList.toggle("active", statsVisible);
+  setStatsTimer();
+});
+
+/**
+ * Refresh the stats panel while it is open.
+ *
+ * Deliberately a *conditional* timer: an unconditional 1 s interval keeps the
+ * page (and any headless run of this module) doing work forever, and a stats
+ * readout is the only thing that needs a clock.
+ */
+let statsTimer = null;
+function setStatsTimer() {
+  clearInterval(statsTimer);
+  statsTimer = null;
+  if (statsVisible) {
+    paintStats(pro ? pro._state || {} : {});
+    statsTimer = setInterval(() => paintStats(pro ? pro._state || {} : {}), 1000);
+  }
+}
+
+$("shortcutsBtn")?.addEventListener("click", () => {
+  const sheet = $("shortcutSheet");
+  if (sheet) sheet.hidden = false;
+});
+$("sheetClose")?.addEventListener("click", () => {
+  const sheet = $("shortcutSheet");
+  if (sheet) sheet.hidden = true;
+});
+$("shortcutSheet")?.addEventListener("click", (e) => {
+  if (e.target.id === "shortcutSheet") e.target.hidden = true;
+});
+
+// Only offer picture-in-picture where the browser implements it.
 if (pipBtn && document.pictureInPictureEnabled && video.requestPictureInPicture) {
   pipBtn.style.display = "";
   pipBtn.addEventListener("click", async () => {
     try {
       if (document.pictureInPictureElement) await document.exitPictureInPicture();
       else await video.requestPictureInPicture();
-    } catch (err) {
+    } catch {
       toast("Picture in picture is unavailable for this video");
     }
   });
 }
 
-fullscreenBtn?.addEventListener("click", async () => {
-  const stage = video.closest(".player-stage") || video;
+async function toggleFullscreen() {
+  const target = stage || video;
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
-    else await (stage.requestFullscreen ? stage.requestFullscreen() : Promise.reject());
+    else if (target.requestFullscreen) await target.requestFullscreen();
+    else throw new Error("no api");
   } catch {
-    // iOS Safari only fullscreens the video element itself.
     if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
     else toast("Fullscreen is not available here");
   }
-});
+}
+fullscreenBtn?.addEventListener("click", toggleFullscreen);
 
-/**
- * Keyboard control, as every video site has.
- *
- * Ignored while the user is typing (search boxes) and while a modifier is held,
- * so it cannot swallow a browser shortcut.
- */
+/* ------------------------------- keyboard -------------------------------- */
+
+const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const tag = (e.target && e.target.tagName) || "";
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || (e.target && e.target.isContentEditable)) return;
   if (video.style.display === "none") return; // an embed owns the screen
+  if (!pro) return;
+
+  const key = e.key;
+  const lower = typeof key === "string" ? key.toLowerCase() : "";
+
+  // digits jump to a fraction of the lecture, as on every pro player
+  if (/^[0-9]$/.test(key)) {
+    const dur = Number(video.duration);
+    if (Number.isFinite(dur) && dur > 0) {
+      const ratio = Number(key) / 10;
+      pro.seek(ratio * dur);
+      flash(`${key}0%`);
+      e.preventDefault();
+    }
+    return;
+  }
 
   const actions = {
-    " ": () => (video.paused ? video.play().catch(() => {}) : video.pause()),
-    k: () => (video.paused ? video.play().catch(() => {}) : video.pause()),
+    " ": () => pro.toggle(),
+    k: () => pro.toggle(),
+    s: () => {
+      pro.stop();
+      hideChip();
+      hideOverlay();
+      flash("Stopped");
+    },
     ArrowRight: () => seekBy(10),
     ArrowLeft: () => seekBy(-10),
     l: () => seekBy(10),
     j: () => seekBy(-10),
     ArrowUp: () => {
-      video.volume = Math.min(1, video.volume + 0.1);
-      toast(`Volume ${Math.round(video.volume * 100)}%`);
+      pro.setVolume(Math.min(1, video.volume + 0.1));
+      flash(`Volume ${Math.round(video.volume * 100)}%`);
     },
     ArrowDown: () => {
-      video.volume = Math.max(0, video.volume - 0.1);
-      toast(`Volume ${Math.round(video.volume * 100)}%`);
+      pro.setVolume(Math.max(0, video.volume - 0.1));
+      flash(`Volume ${Math.round(video.volume * 100)}%`);
     },
     m: () => {
-      video.muted = !video.muted;
-      toast(video.muted ? "Muted" : "Unmuted");
+      pro.toggleMute();
+      flash(video.muted ? "Muted" : "Unmuted");
     },
-    f: () => fullscreenBtn && fullscreenBtn.click(),
+    f: () => toggleFullscreen(),
+    o: () => pipBtn && pipBtn.click(),
+    c: () => {
+      const i = SPEEDS.indexOf(Number(video.playbackRate));
+      const next = SPEEDS[(i + 1) % SPEEDS.length] || 1;
+      pro.setRate(next);
+      markSpeed(next);
+      flash(`${next}×`);
+    },
+    i: () => statsBtn && statsBtn.click(),
+    r: () => {
+      pro.seek(0);
+      pro.play();
+      flash("Restart");
+    },
     n: () => goToLecture(1),
     p: () => goToLecture(-1),
   };
 
-  const action = actions[e.key] || actions[e.key.toLowerCase?.()];
+  const action = actions[key] || actions[lower];
   if (!action) return;
+  // Space is the page's scroll key when nothing is focused; here it is play.
   e.preventDefault();
   action();
 });
 
-document.getElementById("speed").addEventListener("click", (e) => {
-  const btn = e.target.closest("button[data-speed]");
-  if (!btn) return;
-  video.playbackRate = Number(btn.dataset.speed);
-  document
-    .querySelectorAll("#speed button")
-    .forEach((b) => b.classList.toggle("active", b === btn));
-  setPref("speed", Number(btn.dataset.speed));
+/* ------------------------------- position -------------------------------- */
+
+function savePositionNow() {
+  if (Number.isFinite(video.currentTime) && video.currentTime > 5) {
+    localStorage.setItem(positionKey, String(Math.floor(video.currentTime)));
+  }
+}
+window.addEventListener("pagehide", savePositionNow);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") savePositionNow();
+});
+let lastSave = 0;
+video.addEventListener("timeupdate", () => {
+  const now = Date.now();
+  if (now - lastSave > 4000) {
+    lastSave = now;
+    savePositionNow();
+  }
 });
 
-/* Restore the saved volume/mute. Guarded: a corrupt pref must not mute a lecture
-   silently, so anything outside 0..1 falls back to full volume. */
-(() => {
-  const prefs = getPrefs();
-  const savedVolume = Number(prefs.volume);
-  video.volume = Number.isFinite(savedVolume) && savedVolume >= 0 && savedVolume <= 1 ? savedVolume : 1;
-  video.muted = prefs.muted === true;
-  paintVolume();
-})();
+/* --------------------------------- queue --------------------------------- */
+
+async function loadQueue(chapter) {
+  if (!chapter) return queue;
+  try {
+    const all = await loadContents(batchId, subjectSlug, chapter, "videos");
+    const list = (all && all.items) || [];
+    const ids = list.map((l) => l.id).filter(Boolean);
+    queue = { ids, index: ids.indexOf(lectureId) };
+  } catch {
+    queue = { ids: [], index: -1 };
+  }
+  const hasPrev = queue.index > 0;
+  const hasNext = queue.index >= 0 && queue.index < queue.ids.length - 1;
+  if (prevBtn) prevBtn.style.display = hasPrev ? "" : "none";
+  if (nextBtn) nextBtn.style.display = hasNext ? "" : "none";
+  if (queueNav) {
+    queueNav.innerHTML =
+      queue.index >= 0
+        ? `<span class="pill">${queue.index + 1} of ${queue.ids.length}</span>`
+        : "";
+  }
+  return queue;
+}
+
+function goToLecture(offset) {
+  const target = queue.index + offset;
+  if (queue.index < 0 || target < 0 || target >= queue.ids.length) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set("id", queue.ids[target]);
+  url.searchParams.delete("title");
+  window.location.assign(url.toString());
+}
+
+/* --------------------------- server-side health -------------------------- */
+
+/**
+ * Show the server's own verdict for this lecture.
+ *
+ * The player can fail for client-only reasons (a blocked CDN, no MSE). Having
+ * the server say "this stream plays, here is the rendition" separates a real
+ * upstream problem from a local one, in one line, without opening a report.
+ */
+async function runServerHealth() {
+  try {
+    const out = await fetch(checkUrl(), { headers: { Accept: "application/json" } }).then((r) =>
+      r.json()
+    );
+    if (out && out.result === "plays") {
+      healthBadge.textContent = "playable";
+      healthBadge.className = "pill pill-accent";
+      healthText.textContent = `Server verified: ${out.quality || "720"}p HLS, AES key and media segments all resolve.`;
+    } else if (out && out.success === false) {
+      healthBadge.textContent = "check failed";
+      healthBadge.className = "pill";
+      healthText.textContent = out.explain || out.error || "The self-test could not complete.";
+    } else {
+      healthBadge.textContent = out.result || "unknown";
+      healthBadge.className = "pill";
+      healthText.textContent = out.explain || "The self-test returned no verdict.";
+    }
+  } catch {
+    healthBadge.textContent = "unavailable";
+    healthBadge.className = "pill";
+    healthText.textContent = "The self-test endpoint did not answer.";
+  }
+}
+
+/* ------------------------------- bootstrapping --------------------------- */
 
 video.playbackRate = Number(getPrefs().speed || 1);
-document.querySelectorAll("#speed button").forEach((b) => {
-  b.classList.toggle("active", Number(b.dataset.speed) === video.playbackRate);
-});
+markSpeed(video.playbackRate);
+if (getPrefs().muted === true) video.muted = true;
+paintVolume({ muted: video.muted });
+video.addEventListener("volumechange", () => paintVolume());
+video.addEventListener("timeupdate", () => paintTime(pro?._state || {}));
+video.addEventListener("progress", paintProgress);
+video.addEventListener("seeked", paintProgress);
+video.addEventListener("loadedmetadata", paintProgress);
 
-// "Source player" opens the mirror with the batch pre-selected when supported.
 sourceLink.href = SITE.fallbackPlayer;
 sourceLink.textContent = "Open in vidcloud";
+
