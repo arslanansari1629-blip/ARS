@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/assets/theme.css" />
 <link rel="stylesheet" href="/assets/pages.css" />
 <link rel="stylesheet" href="/assets/ui.css" />
+<link rel="stylesheet" href="/assets/shell.css" />
 </head>
 <body data-page="chapter">
 <div class="aurora" aria-hidden="true"></div>
@@ -36,10 +37,12 @@
   <div class="shell">
     <div class="crumbs" id="crumbs"><a href="/">Home</a> <span>/</span> <a href="/batches.html">Batches</a></div>
 
-    <div style="margin:1rem 0 1.1rem">
-      <span class="eyebrow">Chapter</span>
-      <h1 id="chapterName" style="font-size:clamp(1.4rem,3vw,2rem)">Loading…</h1>
-      <p class="muted tiny" id="chapterMeta"></p>
+    <div class="page-head">
+      <div>
+        <span class="eyebrow">Chapter</span>
+        <h1 id="chapterName">Loading…</h1>
+        <p id="chapterMeta">Loading the lecture list…</p>
+      </div>
     </div>
 
     <div class="tabs" id="tabs">
@@ -61,6 +64,7 @@
 </footer>
 
 <script type="module" src="/assets/chapter.js"></script>
+<script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
 </body>
 </html>

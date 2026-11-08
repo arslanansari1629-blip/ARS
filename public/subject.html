@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/assets/theme.css" />
 <link rel="stylesheet" href="/assets/pages.css" />
 <link rel="stylesheet" href="/assets/ui.css" />
+<link rel="stylesheet" href="/assets/shell.css" />
 </head>
 <body data-page="subject">
 <div class="aurora" aria-hidden="true"></div>
@@ -38,15 +39,13 @@
       <a href="/">Home</a> <span>/</span> <a href="/batches.html">Batches</a>
     </div>
 
-    <div class="row between" style="margin:1rem 0 1.2rem;align-items:flex-end">
+    <div class="page-head">
       <div>
         <span class="eyebrow">Chapters</span>
-        <h1 id="subjectName" style="font-size:clamp(1.5rem,3vw,2.1rem)">Loading…</h1>
-        <p class="muted tiny" id="subjectMeta"></p>
+        <h1 id="subjectName">Loading…</h1>
+        <p id="subjectMeta">Loading the chapter list…</p>
       </div>
-      <div class="row">
-        <a class="btn btn-ghost btn-sm" id="batchLink" href="#">Batch overview</a>
-      </div>
+      <a class="btn btn-ghost btn-sm" id="batchLink" href="#">Batch overview</a>
     </div>
 
     <div id="list"><div class="list">${""}</div></div>
@@ -61,6 +60,7 @@
 </footer>
 
 <script type="module" src="/assets/subject.js"></script>
+<script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
 </body>
 </html>

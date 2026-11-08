@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/assets/theme.css" />
 <link rel="stylesheet" href="/assets/pages.css" />
 <link rel="stylesheet" href="/assets/ui.css" />
+<link rel="stylesheet" href="/assets/shell.css" />
 </head>
 <body data-page="dashboard">
 <div class="aurora" aria-hidden="true"></div>
@@ -34,11 +35,11 @@
 
 <main class="section" style="padding-top:1.5rem">
   <div class="shell">
-    <div class="row between" style="align-items:flex-end;margin-bottom:1.2rem">
+    <div class="page-head">
       <div>
         <span class="eyebrow">Student dashboard</span>
-        <h1 id="greeting" style="font-size:clamp(1.5rem,3vw,2.1rem)">Welcome back</h1>
-        <p class="muted tiny" id="profileLine"></p>
+        <h1 id="greeting">Welcome back</h1>
+        <p id="profileLine">Your progress on this device</p>
       </div>
       <div class="row">
         <a class="btn btn-ghost btn-sm" href="/batches.html">Browse batches</a>
@@ -80,6 +81,7 @@
 </footer>
 
 <script type="module" src="/assets/dashboard.js"></script>
+<script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
 </body>
 </html>

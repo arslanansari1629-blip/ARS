@@ -22,16 +22,21 @@ const sortBy = document.getElementById("sortBy");
 const resetBtn = document.getElementById("resetBtn");
 const resultCount = document.getElementById("resultCount");
 
+// A deep link with ?lang= pre-applies the language filter, so a sidebar entry
+// like "Hinglish batches" can point at a real filtered view.
+const initialLang = qs("lang") || "";
+const initialSort = ["name", "newest"].includes(qs("sort")) ? qs("sort") : "default";
 const state = {
   page: 1,
   search: qs("q") || "",
-  lang: "",
-  sort: "default",
+  lang: initialLang,
+  sort: initialSort,
   totalPages: 1,
   total: 0,
 };
 
 if (state.search) searchInput.value = state.search;
+if (state.sort !== "default" && sortBy) sortBy.value = state.sort;
 
 function card(b) {
   return `
@@ -53,11 +58,14 @@ function card(b) {
 
 function buildLangOptions(batches) {
   const langs = Array.from(new Set(batches.map((b) => b.language).filter(Boolean))).sort();
-  const current = langFilter.value;
+  const current = langFilter.value || state.lang;
   langFilter.innerHTML =
     `<option value="">All languages</option>` +
     langs.map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
-  if (langs.includes(current)) langFilter.value = current;
+  if (langs.includes(current)) {
+    langFilter.value = current;
+    state.lang = current;
+  }
 }
 
 function sortBatches(list) {

@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/assets/theme.css" />
 <link rel="stylesheet" href="/assets/pages.css" />
 <link rel="stylesheet" href="/assets/ui.css" />
+<link rel="stylesheet" href="/assets/shell.css" />
 </head>
 <body data-page="library">
 <div class="aurora" aria-hidden="true"></div>
@@ -34,11 +35,11 @@
 
 <main class="section" style="padding-top:1.5rem">
   <div class="shell">
-    <div class="row between" style="align-items:flex-end;margin-bottom:1.2rem">
+    <div class="page-head">
       <div>
         <span class="eyebrow">Saved on this device</span>
-        <h1 style="font-size:clamp(1.5rem,3vw,2.1rem)">My library</h1>
-        <p class="muted tiny">Batches you opened, lectures in progress and PDFs you viewed.</p>
+        <h1>My library</h1>
+        <p>Batches you opened, lectures in progress and PDFs you viewed.</p>
       </div>
       <button class="btn btn-ghost btn-sm" id="clearBtn">Clear all</button>
     </div>
@@ -61,6 +62,7 @@
 </footer>
 
 <script type="module" src="/assets/library-page.js"></script>
+<script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
 </body>
 </html>

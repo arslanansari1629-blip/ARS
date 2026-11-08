@@ -1,0 +1,938 @@
+/* ==========================================================================
+   ArsVibe — app shell + final visual pass
+   Loaded last. Owns: the sidebar/top-bar frame, page rhythm, card detailing,
+   and the small print. Nothing here is required for the site to function.
+   ========================================================================== */
+
+:root {
+  --side-w: 252px;
+  --top-h: 62px;
+
+  /* One spacing scale, so every page breathes the same way. */
+  --gap-1: 0.35rem;
+  --gap-2: 0.6rem;
+  --gap-3: 0.9rem;
+  --gap-4: 1.25rem;
+  --gap-5: 1.75rem;
+  --gap-6: 2.5rem;
+
+  /* Type scale: five steps, no ad-hoc sizes. */
+  --t-xs: 0.72rem;
+  --t-sm: 0.8rem;
+  --t-md: 0.9rem;
+  --t-lg: 1.05rem;
+  --t-xl: clamp(1.5rem, 3vw, 2.1rem);
+  --t-2xl: clamp(2rem, 4.4vw, 3.2rem);
+
+  --hair: rgba(255, 255, 255, 0.07);
+  --hair-strong: rgba(255, 255, 255, 0.14);
+  --ink: #eaeefc;
+  --ink-2: #a7b0cb;
+  --ink-3: #737d99;
+  --violet: #8b7bff;
+  --cyan: #46d5ff;
+  --mint: #38e0b0;
+}
+
+body {
+  color: var(--ink);
+  font-size: 14.5px;
+}
+
+::selection {
+  background: rgba(139, 123, 255, 0.4);
+}
+
+/* A consistent scrollbar keeps the app from feeling like a document. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+  background-clip: content-box;
+}
+
+/* ==========================================================================
+   Shell frame
+   ========================================================================== */
+
+.side {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--side-w);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-4);
+  padding: 1rem 0.85rem 1rem;
+  border-right: 1px solid var(--hair);
+  background: linear-gradient(180deg, rgba(12, 14, 26, 0.92), rgba(7, 9, 18, 0.96));
+  backdrop-filter: blur(22px) saturate(140%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem 0.7rem;
+  font-weight: 800;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+
+.side-brand-text small {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  flex: 1;
+}
+
+.side-group {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.side-title {
+  padding: 0 0.6rem 0.35rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  font-size: var(--t-md);
+  font-weight: 600;
+  color: var(--ink-2);
+  border: 1px solid transparent;
+  transition: color 0.15s var(--ease), background 0.15s var(--ease),
+    border-color 0.15s var(--ease);
+}
+
+.side-link svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.side-link span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-link kbd {
+  font-size: 0.6rem;
+  opacity: 0.7;
+}
+
+.side-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.side-link.active {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(139, 123, 255, 0.26), rgba(139, 123, 255, 0.04));
+  border-color: rgba(139, 123, 255, 0.32);
+  box-shadow: inset 2px 0 0 var(--violet);
+}
+
+.side-mini {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 9px;
+  font-size: var(--t-sm);
+  color: var(--ink-2);
+  min-width: 0;
+}
+
+.side-mini:hover {
+  background: rgba(255, 255, 255, 0.055);
+  color: #fff;
+}
+
+.side-mini img,
+.side-mini-ph {
+  width: 30px;
+  height: 20px;
+  border-radius: 5px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.side-foot {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--hair);
+}
+
+.side-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 11px;
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: #ece9ff;
+  background: linear-gradient(135deg, rgba(139, 123, 255, 0.28), rgba(70, 213, 255, 0.14));
+  border: 1px solid rgba(139, 123, 255, 0.35);
+}
+
+.side-cta svg {
+  width: 15px;
+  height: 15px;
+}
+
+.side-cta:hover {
+  border-color: rgba(139, 123, 255, 0.6);
+}
+
+.side-who {
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: var(--ink);
+  padding: 0 0.55rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-note {
+  padding: 0 0.55rem;
+  font-size: 0.66rem;
+  color: var(--ink-3);
+}
+
+.side-scrim {
+  display: none;
+}
+
+/* ------------------------------- top bar --------------------------------- */
+
+.topbar {
+  left: var(--side-w);
+  right: 0;
+}
+
+.topbar .nav-inner {
+  height: var(--top-h);
+  gap: 0.75rem;
+}
+
+.brand-compact {
+  display: none;
+}
+
+.nav-links-legacy {
+  display: none !important;
+}
+
+.topbar .nav-toggle {
+  display: none;
+}
+
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  padding: 0.42rem 0.55rem 0.42rem 0.7rem;
+  min-width: min(380px, 42vw);
+  border-radius: 10px;
+  border: 1px solid var(--hair);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink-3);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  transition: 0.16s var(--ease);
+}
+
+.topbar-search svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.topbar-search span {
+  flex: 1;
+  text-align: left;
+}
+
+.topbar-search:hover {
+  color: var(--ink);
+  border-color: var(--hair-strong);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.topbar .nav-actions {
+  margin-left: 0;
+}
+
+.topbar .cmdk-trigger {
+  display: none;
+}
+
+/* The content column and the page rhythm. */
+body.has-shell main {
+  margin-left: var(--side-w);
+  padding-top: calc(var(--top-h) + var(--gap-4)) !important;
+}
+
+body.has-shell .footer {
+  margin-left: var(--side-w);
+}
+
+body.has-shell .nav {
+  position: fixed;
+  top: 0;
+}
+
+body.has-shell .shell {
+  width: min(1180px, 100% - 3rem);
+}
+
+body.has-shell main > .shell > .crumbs {
+  margin-bottom: 0.4rem;
+}
+
+/* A page header block: title, one-line purpose, actions on the right. */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gap-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--gap-3);
+  margin-bottom: var(--gap-4);
+  border-bottom: 1px solid var(--hair);
+}
+
+.page-head h1 {
+  font-size: var(--t-xl);
+  letter-spacing: -0.03em;
+}
+
+.page-head p {
+  margin-top: 0.3rem;
+  color: var(--ink-3);
+  font-size: var(--t-sm);
+}
+
+/* ==========================================================================
+   Component refinements
+   ========================================================================== */
+
+/* Buttons: one height, one radius, one weight. */
+.btn {
+  border-radius: 10px;
+  padding: 0.55rem 0.95rem;
+  font-size: var(--t-md);
+  font-weight: 650;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.7rem;
+  font-size: var(--t-sm);
+  border-radius: 9px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #8b7bff, #5b8cff 60%, #46d5ff);
+  box-shadow: 0 10px 24px -16px rgba(139, 123, 255, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: var(--hair);
+}
+
+.icon-btn {
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.045);
+  border-color: var(--hair);
+}
+
+/* Pills: quieter, so they read as metadata rather than buttons. */
+.pill {
+  border-radius: 7px;
+  padding: 0.16rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  background: rgba(255, 255, 255, 0.055);
+  border-color: var(--hair);
+  color: var(--ink-2);
+}
+
+.pill-brand {
+  background: rgba(139, 123, 255, 0.16);
+  border-color: rgba(139, 123, 255, 0.3);
+  color: #c9c0ff;
+}
+
+.pill-accent {
+  background: rgba(56, 224, 176, 0.12);
+  border-color: rgba(56, 224, 176, 0.28);
+  color: #86f0d1;
+}
+
+/* Cards: flatter, calmer, with one clear border. */
+.card {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.032);
+  border: 1px solid var(--hair);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.card::before {
+  display: none;
+}
+
+.card:hover {
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
+.glass {
+  border-radius: 16px;
+  border-color: var(--hair);
+}
+
+/* Catalogue cards: portrait-ish thumb, tighter body, price aligned. */
+.batch-card {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--hair);
+  box-shadow: none;
+}
+
+.batch-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(139, 123, 255, 0.42);
+  box-shadow: 0 22px 40px -30px rgba(0, 0, 0, 0.95);
+}
+
+.batch-card::after {
+  display: none;
+}
+
+.batch-thumb {
+  aspect-ratio: 16 / 9.4;
+}
+
+.batch-thumb::after {
+  height: 34%;
+  background: linear-gradient(transparent, rgba(6, 7, 15, 0.85));
+}
+
+.batch-body {
+  padding: 0.75rem 0.85rem 0.9rem;
+  gap: 0.3rem;
+}
+
+.batch-title {
+  font-size: var(--t-md);
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.batch-sub {
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+
+.batch-meta {
+  margin-top: 0.35rem;
+  gap: 0.3rem;
+}
+
+p,
+.list-row .meta {
+  color: var(--ink-2);
+}
+
+/* List rows: aligned index, title, and trailing meta on one baseline. */
+.list-row {
+  border-radius: 11px;
+  padding: 0.65rem 0.8rem;
+  background: rgba(255, 255, 255, 0.028);
+  border-color: var(--hair);
+}
+
+.list-row:hover {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(139, 123, 255, 0.35);
+}
+
+.list-row .index {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font-size: 0.68rem;
+  background: rgba(139, 123, 255, 0.14);
+  border-color: rgba(139, 123, 255, 0.22);
+}
+
+.list-row .title {
+  font-size: var(--t-md);
+  font-weight: 600;
+}
+
+/* Tabs: an underline strip instead of pills, which is the app convention. */
+.tabs {
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--hair);
+  padding-bottom: 0;
+  margin-bottom: var(--gap-3);
+}
+
+.tab {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--t-md);
+  font-weight: 600;
+  color: var(--ink-3);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--ink);
+  background: transparent;
+}
+
+.tab.active {
+  color: #fff;
+  background: transparent;
+  box-shadow: none;
+  border-bottom-color: var(--violet);
+}
+
+/* Inputs: one shape everywhere. */
+.input,
+.select {
+  border-radius: 10px;
+  padding: 0.55rem 0.8rem;
+  font-size: var(--t-md);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--hair);
+}
+
+.search .input {
+  padding-left: 2.2rem;
+}
+
+.select {
+  padding-right: 1.9rem;
+  background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%;
+}
+
+/* Section headings inside a page. */
+.section-head {
+  margin-bottom: var(--gap-3);
+  align-items: flex-end;
+}
+
+.section-head h2 {
+  font-size: 1.22rem;
+  letter-spacing: -0.025em;
+}
+
+.eyebrow {
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+  color: #a08bff;
+}
+
+/* Toasts sit above the sidebar, not behind it. */
+.toasts {
+  z-index: 600;
+}
+
+/* Footer: compact, aligned to the content column. */
+.footer {
+  margin-top: var(--gap-6);
+  padding-block: 1.4rem;
+  font-size: var(--t-sm);
+  color: var(--ink-3);
+  border-top-color: var(--hair);
+}
+
+/* ==========================================================================
+   Home hero — calmer, more editorial
+   ========================================================================== */
+
+.hero {
+  padding-block: 0.5rem var(--gap-5);
+}
+
+.hero-copy h1 {
+  font-size: var(--t-2xl);
+  line-height: 1.06;
+}
+
+.hero-sub {
+  font-size: var(--t-md);
+  color: var(--ink-2);
+}
+
+.hero-search {
+  border-radius: 12px;
+  padding: 0.3rem;
+  margin-top: var(--gap-4);
+}
+
+.hero-search .search .input {
+  padding: 0.65rem 0.8rem 0.65rem 2.3rem;
+}
+
+.hero-search .btn {
+  border-radius: 9px;
+}
+
+.hero-stats {
+  margin-top: var(--gap-4);
+  padding-top: var(--gap-3);
+  border-top: 1px solid var(--hair);
+}
+
+.hero-stats strong {
+  font-size: 1.15rem;
+}
+
+.hero-stats span {
+  font-size: var(--t-xs);
+  color: var(--ink-3);
+}
+
+.hero-card,
+.chip-1,
+.chip-2,
+.chip-3,
+.orb {
+  display: none;
+}
+
+/* With the hero art gone the copy takes the full width and reads as a
+   masthead rather than a marketing split. */
+.hero-grid {
+  grid-template-columns: 1fr;
+}
+
+/* ==========================================================================
+   Player — keep it a tool, not a showpiece
+   ========================================================================== */
+
+.player-wrap {
+  border-radius: 14px;
+  box-shadow: 0 26px 60px -44px #000;
+}
+
+.player-stage {
+  border-radius: 13px 13px 0 0;
+}
+
+.player-bar {
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem 0.45rem;
+}
+
+.player-bar .icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.player-bar .icon-primary {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+
+.scrubber {
+  padding: 0.45rem 0.75rem 0;
+}
+
+.lecture-grid {
+  gap: var(--gap-4);
+}
+
+.lecture-head {
+  margin: 0.4rem 0 var(--gap-3);
+}
+
+.queue-bar {
+  margin-top: var(--gap-3);
+}
+
+.lecture-about {
+  border-radius: 12px;
+}
+
+/* ==========================================================================
+   Responsive: the sidebar becomes a drawer
+   ========================================================================== */
+
+@media (max-width: 1080px) {
+  .side {
+    transform: translateX(-100%);
+    transition: transform 0.22s var(--ease);
+    box-shadow: 40px 0 80px -40px #000;
+    width: 264px;
+  }
+
+  body.nav-open .side {
+    transform: none;
+  }
+
+  body.nav-open .side-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: rgba(4, 5, 10, 0.6);
+    backdrop-filter: blur(2px);
+  }
+
+  .topbar {
+    left: 0;
+  }
+
+  .topbar .nav-toggle {
+    display: grid;
+  }
+
+  .brand-compact {
+    display: flex;
+  }
+
+  body.has-shell main,
+  body.has-shell .footer {
+    margin-left: 0;
+  }
+
+  body.has-shell .shell {
+    width: min(1180px, 100% - 2rem);
+  }
+}
+
+@media (max-width: 720px) {
+  .topbar-search {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .topbar-search span {
+    display: none;
+  }
+
+  .topbar-search kbd {
+    display: none;
+  }
+
+  .page-head {
+    align-items: flex-start;
+  }
+
+  body.has-shell .shell {
+    width: min(1180px, 100% - 1.4rem);
+  }
+
+  .hero-stats {
+    gap: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side {
+    transition: none;
+  }
+}
+
+/* -------------------------- chrome-less pages ---------------------------- */
+
+/* Sign-in and 404 keep their own centred layout, aligned to the viewport
+   rather than to a content column that has no sidebar beside it. */
+body.bare {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+body.bare .login-wrap {
+  width: min(430px, 100% - 2rem);
+  margin: 3rem auto;
+}
+
+body.bare .login-card {
+  border-radius: 18px;
+}
+
+/* ==========================================================================
+   Page furniture
+   ========================================================================== */
+
+/* One toolbar shape for every filter row on the site. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  flex-wrap: wrap;
+  padding: 0.55rem;
+  margin-bottom: var(--gap-4);
+  border-radius: 12px;
+  border: 1px solid var(--hair);
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.toolbar .search {
+  flex: 1 1 260px;
+}
+
+.toolbar .select {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 160px;
+}
+
+.grid-batches {
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+  gap: 0.85rem;
+}
+
+/* Batch detail: a compact cover, aligned meta, no blurred halo. */
+.detail-hero {
+  border-bottom-color: var(--hair);
+}
+
+.detail-bg {
+  display: none;
+}
+
+.detail-grid {
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: clamp(1rem, 2.4vw, 1.8rem);
+  padding-block: 0 1.6rem;
+}
+
+.detail-cover {
+  border-radius: 13px;
+  aspect-ratio: 3 / 4;
+}
+
+.detail-head h1 {
+  font-size: clamp(1.35rem, 2.6vw, 1.9rem);
+  letter-spacing: -0.03em;
+}
+
+/* Dashboard stats: quieter numbers, tighter labels. */
+.stat-grid {
+  gap: 0.6rem;
+}
+
+.stat {
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.032);
+  border-color: var(--hair);
+}
+
+.stat strong {
+  font-size: 1.25rem;
+  font-weight: 750;
+}
+
+.stat span {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+
+/* Pager: an app control, not a row of buttons. */
+.pager button {
+  min-width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  font-size: var(--t-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--hair);
+}
+
+.pager button.active {
+  background: linear-gradient(135deg, #8b7bff, #5b8cff);
+  box-shadow: 0 8px 18px -12px rgba(139, 123, 255, 0.9);
+}
+
+/* Empty states: a sentence, not a poster. */
+.empty {
+  padding: 2.2rem 1.2rem;
+  border-radius: 12px;
+  border-style: dashed;
+  border-color: var(--hair);
+  background: transparent;
+}
+
+.empty .icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+}
+
+/* Section spacing on inner pages. */
+main.section {
+  padding-block: 0 var(--gap-5);
+}
+
+/* Keep the top bar above page content but below overlays. */
+.topbar {
+  z-index: 75;
+}
+
+.cmdk-backdrop {
+  z-index: 500;
+}
+
+.sheet-backdrop {
+  z-index: 500;
+}
