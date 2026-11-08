@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { cors, json, query } from "../lib/http.mjs";
-import { resolveStream, parseFolder } from "../lib/api-data.mjs";
+import { resolveStream, parseFolder, fetchSchedule } from "../lib/api-data.mjs";
 import { upstreamJson } from "../lib/upstream.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
 
@@ -47,24 +47,37 @@ async function grab(url) {
 
 /** Pull just the bits of `Schedule` that decide whether anything can play. */
 async function scheduleInfo(batch, subject, id) {
-  const res = await upstreamJson(
-    `/Schedule?BatchId=${encodeURIComponent(batch)}&SubjectId=${encodeURIComponent(
-      subject
-    )}&ContentId=${encodeURIComponent(id)}`,
-    { timeout: 25000 }
-  );
-  const d = (res.ok && res.data && res.data.data) || {};
-  const vd = d.videoDetails || {};
+  // Deliberately the same reader the lecture page uses (`fetchSchedule`), so
+  // this route verifies the real path instead of a near-copy of it. It had its
+  // own legacy-only `/Schedule` call, which is how it kept reporting "PW has not
+  // published a video" for a lecture the API happily served.
+  const res = await fetchSchedule(batch, subject, id);
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status || 0,
+      error: res.error || "schedule unavailable",
+      videoUrl: "",
+      drm: false,
+      title: "",
+      lectureType: "",
+      videoStatus: "",
+      isVideoLecture: true,
+      hasNotes: false,
+    };
+  }
+  const l = res.lecture;
   return {
-    ok: res.ok,
-    status: res.status || 0,
-    videoUrl: vd.videoUrl || d.url || "",
-    drm: Boolean(vd.drmProtected || d.isDrmEnabled),
-    title: vd.name || d.topic || "",
-    lectureType: d.lectureType || "",
-    videoStatus: vd.status || d.status || "",
-    isVideoLecture: d.isVideoLecture !== false,
-    hasNotes: Array.isArray(d.homeworkIds) && d.homeworkIds.length > 0,
+    ok: true,
+    status: 200,
+    error: "",
+    videoUrl: l.videoUrl,
+    drm: l.drm,
+    title: l.title,
+    lectureType: l.urlType,
+    videoStatus: l.videoStatus,
+    isVideoLecture: l.isVideoLecture,
+    hasNotes: res.docs.length > 0,
   };
 }
 
@@ -89,6 +102,8 @@ async function checkLecture({ batch, subject, id, url, base }) {
         report.ok = false;
         report.result = "no_video_url";
         report.explain = explainNoVideo({
+          ok: sched.ok,
+          error: sched.error,
           lectureType: sched.lectureType,
           status: sched.videoStatus,
           isVideoLecture: sched.isVideoLecture,
