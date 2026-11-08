@@ -439,6 +439,16 @@ test("hls relay rewrites playlists through the gateway", async () => {
   assert.equal(body.success, false);
 });
 
+test("no page still shows the old brand mark", async () => {
+  // The login page kept a literal "PW" badge and "Welcome to PW" heading through
+  // the rebrand because the mark was hard-coded in its own markup.
+  for (const page of ["/login", "/", "/batches", "/dashboard", "/library"]) {
+    const html = await (await nativeFetch(`${BASE}${page}`)).text();
+    assert.equal(/<div class="logo">PW<\/div>/.test(html), false, `${page} still shows the PW logo`);
+    assert.equal(/Welcome to PW/.test(html), false, `${page} still says "Welcome to PW"`);
+  }
+});
+
 test("the site is branded ArsVibe and still points at the real upstream host", async () => {
   const home = await (await nativeFetch(`${BASE}/`)).text();
 

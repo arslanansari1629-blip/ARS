@@ -241,6 +241,9 @@ sentence the player shows. The chapter page links this sweep next to the lecture
 
 **https://arsvibe-pw-sepia.vercel.app**
 
+The project is named `arsvibe-pw` on Vercel. `eduvibe-pw-sepia.vercel.app` still serves the
+same deployment, so existing links keep working; the `arsvibe-pw-…` URL is the one to share.
+
 Every page and API route below is running against the live PW catalogue — no fixtures, no
 placeholders. Verified end to end from the deployment itself: catalogue (14,201 batches),
 batch detail with 12 subjects, chapter lists, lecture lists, class-note PDFs, DPPs, the PDF
