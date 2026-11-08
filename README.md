@@ -1,6 +1,6 @@
 # EduVibe PW — Physics Wallah batches, notes, DPPs & lectures
 
-A complete, deployable clone of **[pw.eduvibe.cc.cd](https://pw.eduvibe.cc.cd/)** — the EduVibe
+A complete, deployed clone of **[pw.eduvibe.cc.cd](https://pw.eduvibe.cc.cd/)** — the EduVibe
 "Physics Wallah" learning portal.
 
 Every batch name, subject, chapter list, lecture, class-note PDF, DPP and announcement shown by
@@ -100,18 +100,41 @@ In production no such override is set: `PW_UPSTREAM_BASE` is unset, so requests 
 PW API. If a deployment's region is blocked upstream, the API answers `{ needsProxy: true }` and
 the browser transparently falls back to the public CORS relay — the UI keeps showing live data.
 
-## Deploy
+## Live deployment
+
+**https://eduvibe-pw-sepia.vercel.app**
+
+Every page and API route below is running against the live PW catalogue — no fixtures, no
+placeholders. Verified end to end from the deployment itself: catalogue (13,631 batches),
+batch detail with 12 subjects, chapter lists, lecture lists, class-note PDFs, DPPs, the PDF
+relay, and a signed HLS manifest plus its AES key and encrypted segments.
+
+### Deploy your own
 
 The repository is Vercel-ready:
 
-* framework: **Other** (no build step), output directory `public/`
+* framework: **Other**, output directory `public/`
+* build command: `npm run build` — runs `scripts/build.mjs`, which validates the page/function
+  tree and runs `scripts/check-modules.mjs` (catches imports a page module forgot to add)
 * functions: `api/*.mjs`, Node runtime, 60 s max duration
 * `cleanUrls` enabled so `/batches.html` is served as `/batches`
+* `.vercelignore` drops `legacy/` and `tests/` but **keeps `scripts/`** (the build needs it)
 
 ```bash
 npm i -g vercel
 vercel --prod
 ```
+
+## Tests
+
+```bash
+npm test        # node --test tests/*.test.mjs
+```
+
+19 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
+each page module is executed in jsdom and asserted. Coverage includes page rendering, the
+API contracts, stream planning, the `GetPdf` note resolution path, the `/api/sign` relay
+(token auth, playlist rewriting, key-path recovery) and the lecture stream bootstrap.
 
 ## Notes
 
