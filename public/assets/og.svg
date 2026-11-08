@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="ogPlate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f6bff"/>
+      <stop offset="0.55" stop-color="#1c55c8"/>
+      <stop offset="1" stop-color="#123f96"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0v40" fill="none" stroke="#c9d3de" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <!-- Drawing sheet: paper, a ruled grid, and the mark as the title block. -->
+  <rect width="1200" height="630" fill="#eef1f5"/>
+  <rect width="1200" height="630" fill="url(#grid)" opacity="0.55"/>
+  <rect x="0" y="0" width="1200" height="8" fill="url(#ogPlate)"/>
+  <rect x="56.5" y="56.5" width="1087" height="517" fill="none" stroke="#aebbc9" stroke-width="1"/>
+
+  <g transform="translate(104 132) scale(1.9)">
+    <path d="M8 0h40l16 16v40a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V8a8 8 0 0 1 8-8Z" fill="url(#ogPlate)"/>
+    <path d="M48 0v14a2 2 0 0 0 2 2h14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.2"/>
+    <path d="M15.5 48 27.4 18.6a3.4 3.4 0 0 1 6.3 0L45.6 48" fill="none" stroke="#ffffff" stroke-width="5.2"
+          stroke-linecap="square" stroke-linejoin="miter"/>
+    <path d="M25.9 43.4h13.4L32.6 36z" fill="#ffffff"/>
+  </g>
+
+  <text x="104" y="352" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="76"
+        font-weight="750" letter-spacing="-2.4" fill="#0d1a2b">ArsVibe</text>
+  <text x="106" y="392" font-family="ui-monospace, 'SF Mono', 'Roboto Mono', monospace"
+        font-size="20" letter-spacing="6.4" fill="#5f7288">PHYSICS WALLAH</text>
+
+  <text x="104" y="482" font-family="Inter, 'Helvetica Neue', Arial, sans-serif" font-size="34"
+        font-weight="500" fill="#35485f">Every batch, notes, DPPs and lectures — one clean player.</text>
+
+  <text x="106" y="548" font-family="ui-monospace, 'SF Mono', 'Roboto Mono', monospace"
+        font-size="19" letter-spacing="1.6" fill="#8595a8">14,201 BATCHES · 13,000+ LECTURES · HD PLAYER</text>
+</svg>

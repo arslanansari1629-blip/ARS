@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ArsVibe">
+  <title>ArsVibe</title>
+  <defs>
+    <linearGradient id="dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a3f8f"/>
+      <stop offset="0.5" stop-color="#0f2a63"/>
+      <stop offset="1" stop-color="#0a1c44"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f6bff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#1c55c8" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+  <!-- The favicon is the plate at night: same geometry, inverted ground, so it
+       holds up against a dark browser tab strip as well as a light one. -->
+  <path d="M8 0h40l16 16v40a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V8a8 8 0 0 1 8-8Z" fill="url(#dark)"/>
+  <path d="M8 .6h39.7L63.4 15.9V56a7.4 7.4 0 0 1-7.4 7.4H8A7.4 7.4 0 0 1 .6 56V8A7.4 7.4 0 0 1 8 .6Z"
+        fill="none" stroke="url(#edge)" stroke-width="1.2"/>
+  <path d="M48 0v14a2 2 0 0 0 2 2h14" fill="none" stroke="#7fa8ff" stroke-opacity="0.55" stroke-width="1.2"/>
+  <path d="M15.5 48 27.4 18.6a3.4 3.4 0 0 1 6.3 0L45.6 48" fill="none" stroke="#eaf1ff" stroke-width="5.2"
+        stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M25.9 43.4h13.4L32.6 36z" fill="#4f8bff"/>
+</svg>

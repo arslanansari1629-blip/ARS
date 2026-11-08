@@ -120,7 +120,7 @@ function buildSidebar() {
   aside.innerHTML = `
     <div class="side-head">
       <a class="side-brand" href="/">
-        <span class="brand-mark">AV</span>
+        <img class="brand-img" src="/assets/logo.svg" alt="" width="30" height="30" />
         <span class="side-brand-text">ArsVibe<small>Physics Wallah</small></span>
       </a>
       <button class="side-collapse" type="button" data-side-collapse title="Collapse navigation" aria-label="Collapse navigation">

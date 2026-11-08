@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ArsVibe">
+  <title>ArsVibe</title>
+  <defs>
+    <!-- Ink plate: drafting-sheet blue, deepening towards the cut corner. -->
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f6bff"/>
+      <stop offset="0.55" stop-color="#1c55c8"/>
+      <stop offset="1" stop-color="#123f96"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.26"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.02"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- The plate: a tile with its top-right corner cut away, so the mark reads
+       as a technical stamp rather than a generic rounded app icon. -->
+  <path d="M8 0h40l16 16v40a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V8a8 8 0 0 1 8-8Z" fill="url(#plate)"/>
+  <path d="M8 0h40l16 16v40a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V8a8 8 0 0 1 8-8Z" fill="url(#sheen)"/>
+  <path d="M48 0v14a2 2 0 0 0 2 2h14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.2"/>
+
+  <!-- The A is a set-square; its crossbar is a play triangle, clipped to the
+       square. One glyph, two readings: the initial and the play button. -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M15.5 48 27.4 18.6a3.4 3.4 0 0 1 6.3 0L45.6 48" stroke-width="5.2"/>
+  </g>
+  <path d="M25.9 43.4h13.4L32.6 36z" fill="#ffffff"/>
+</svg>

@@ -89,6 +89,14 @@ async function main() {
   // One stylesheet carries the design; the earlier layers are gone.
   if (!assets.includes("arsvibe.css")) problems.push("missing assets/arsvibe.css");
 
+  // The identity is four files that must ship together: the mark every header
+  // uses, the tab icon, its PNG touch icon, and the share card.
+  for (const brand of ["logo.svg", "icon.svg", "icon.png", "og.png"]) {
+    if (!(await exists(path.join(PUBLIC, "assets", brand)))) {
+      problems.push(`missing assets/${brand}`);
+    }
+  }
+
   // The player libraries ship with the site so playback never depends on a
   // third-party CDN being reachable from the user's network.
   for (const vendor of ["hls.min.js", "dash.all.min.js"]) {

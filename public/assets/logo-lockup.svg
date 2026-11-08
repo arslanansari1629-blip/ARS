@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" width="420" height="96" role="img" aria-label="ArsVibe — Physics Wallah">
+  <title>ArsVibe — Physics Wallah</title>
+  <defs>
+    <linearGradient id="plateL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f6bff"/>
+      <stop offset="0.55" stop-color="#1c55c8"/>
+      <stop offset="1" stop-color="#123f96"/>
+    </linearGradient>
+    <linearGradient id="sheenL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.26"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.02"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- The mark, at the same geometry as logo.svg. -->
+  <g>
+    <path d="M12 4h40l16 16v40a8 8 0 0 1-8 8H12a8 8 0 0 1-8-8V12a8 8 0 0 1 8-8Z" fill="url(#plateL)"/>
+    <path d="M12 4h40l16 16v40a8 8 0 0 1-8 8H12a8 8 0 0 1-8-8V12a8 8 0 0 1 8-8Z" fill="url(#sheenL)"/>
+    <path d="M52 4v14a2 2 0 0 0 2 2h14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.2"/>
+    <path d="M19.5 52 31.4 22.6a3.4 3.4 0 0 1 6.3 0L49.6 52" fill="none" stroke="#ffffff" stroke-width="5.2" stroke-linecap="square" stroke-linejoin="miter"/>
+    <path d="M29.9 47.4h13.4L36.6 40z" fill="#ffffff"/>
+  </g>
+
+  <!-- Wordmark: a drawn, wide-letterspaced lockup rather than a webfont, so the
+       header renders identically before any font loads. -->
+  <text x="78" y="48" font-family="Inter, 'Helvetica Neue', Arial, sans-serif"
+        font-size="27" font-weight="750" letter-spacing="-0.6" fill="#0d1a2b">ArsVibe</text>
+  <text x="79" y="70" font-family="ui-monospace, 'SF Mono', 'Roboto Mono', monospace"
+        font-size="10.5" letter-spacing="3.4" fill="#5f7288">PHYSICS WALLAH</text>
+
+</svg>
