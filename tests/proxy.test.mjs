@@ -436,3 +436,21 @@ test("pwFetch retries with another credential instead of returning the 401", asy
   assert.equal(result.status, 200);
   assert.equal((await result.json()).data.title, "Lecture");
 });
+
+test("bare /api/pw documents the reachable surface, a bad path stays an error", async () => {
+  const { default: handler } = await import("../lib/pw-proxy.mjs");
+
+  const docs = mockRes();
+  await handler(req("/api/pw"), docs);
+  assert.equal(docs.statusCode, 200);
+  const body = docs.json();
+  assert.ok(Array.isArray(body.endpoints) && body.endpoints.length > 5, "endpoint list is empty");
+  assert.ok(body.endpoints.some((e) => /get-hls-key/.test(e.path)), "the signer is not documented");
+  assert.equal(body.credentialed, true, "discovery must say credentials are attached server-side");
+
+  // A path that fails validation is a rejection, not the docs page.
+  const bad = mockRes();
+  await handler(req("/api/pw/nope/whatever"), bad);
+  assert.equal(bad.statusCode, 400);
+  assert.match(bad.json().error, /not a PW API path/i);
+});

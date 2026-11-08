@@ -51,6 +51,10 @@ browser ──► /api/batches | /api/batch | /api/contents | /api/lecture | /ap
   search it in-process, so every batch that exists can be found. Batch *details* still come from
   the live API; if that call rate-limits, the page says so with a retry instead of showing an
   empty subject list.
+* **Bare `/api/pw` is the discovery answer**, not an error: it lists every upstream path the
+  proxy forwards (catalogue, batch, chapters, lectures, signer, OTP, PDFs, DPP tests), the
+  switches (`?upstream=`, `?fresh=1`, `?bin=1`), and the allowlisted hosts. A path that fails
+  validation still returns 400 — a caller must be able to tell "rejected" from "here are docs".
 * **PDFs and thumbnails** are relayed through `/api/media` (PW hosts send no CORS headers),
   with HTTP `Range` forwarding so large notes stream progressively.
 * **Lecture streams** are resolved by `/api/stream`. PW publishes signed CloudFront
