@@ -5,8 +5,9 @@ import { upstreamJson } from "../lib/upstream.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
 
 /**
- * GET /api/check?batch=&subject=&id=   → verify one lecture plays, end to end
- * GET /api/check?url=<video url>       → verify a known stream URL
+ * GET /api/check?batch=&subject=&id=          → verify one lecture plays, end to end
+ * GET /api/check?url=<video url>              → verify a known stream URL
+ * GET /api/check?batch=&subject=&chapter=     → verify a whole chapter, lecture by lecture
  *
  * Playback can fail at four distinct points, and a generic "video didn't play"
  * is useless for diagnosis. This route walks the same path a browser walks and
@@ -23,6 +24,10 @@ import { explainNoVideo } from "../lib/playback.mjs";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+/** Verifying a chapter is bounded — a function has a wall-clock limit. */
+const SWEEP_LIMIT = 6;
+const SWEEP_CONCURRENCY = 3;
 
 function selfBase(req) {
   const proto = (req.headers["x-forwarded-proto"] || "https").toString().split(",")[0];
@@ -63,24 +68,20 @@ async function scheduleInfo(batch, subject, id) {
   };
 }
 
-export default async function handler(req, res) {
-  cors(res);
-  if (req.method === "OPTIONS") return res.end();
-
-  const { batch, subject, id, url } = query(req);
+/**
+ * Walk the whole playback path for one lecture.
+ * @returns {Promise<object>} always a report — never a thrown error
+ */
+async function checkLecture({ batch, subject, id, url, base }) {
   const report = { success: true, checkedAt: new Date().toISOString(), steps: {} };
 
   try {
     /* 1 ── resolve a stream plan ------------------------------------------ */
     let rawUrl = url || "";
     if (!rawUrl) {
-      if (!batch || !subject || !id) {
-        return json(res, 400, {
-          success: false,
-          error: "Provide url, or batch + subject + id",
-        });
-      }
       const sched = await scheduleInfo(batch, subject, id);
+      report.id = id;
+      report.title = sched.title;
       report.steps.schedule = sched;
       rawUrl = sched.videoUrl;
       report.drm = sched.drm;
@@ -93,7 +94,7 @@ export default async function handler(req, res) {
           isVideoLecture: sched.isVideoLecture,
           hasNotes: sched.hasNotes,
         });
-        return json(res, 200, report);
+        return report;
       }
     }
 
@@ -106,11 +107,10 @@ export default async function handler(req, res) {
       report.ok = false;
       report.result = "no_playable_plan";
       report.explain = plan.reason || "The resolver could not build a playable plan.";
-      return json(res, 200, report);
+      return report;
     }
 
     /* 2 ── playlist -------------------------------------------------------- */
-    const base = selfBase(req);
     const playlistUrl = plan.url.startsWith("http") ? plan.url : base + plan.url;
     const pl = await grab(playlistUrl);
     const plText = pl.buf.toString("utf8");
@@ -127,7 +127,7 @@ export default async function handler(req, res) {
       report.explain =
         "The signing relay did not return a media playlist. PW only signs lectures whose video has finished processing.";
       report.steps.playlist.bodyStart = plText.slice(0, 300);
-      return json(res, 200, report);
+      return report;
     }
 
     // if this is a master playlist, follow the first variant
@@ -168,7 +168,7 @@ export default async function handler(req, res) {
         report.ok = false;
         report.result = "key_failed";
         report.explain = "The AES key for this lecture could not be fetched; playback would stall.";
-        return json(res, 200, report);
+        return report;
       }
     }
 
@@ -176,7 +176,7 @@ export default async function handler(req, res) {
       report.ok = false;
       report.result = "no_segments";
       report.explain = "The playlist lists no media segments.";
-      return json(res, 200, report);
+      return report;
     }
 
     /* 4 ── a real segment -------------------------------------------------- */
@@ -191,7 +191,7 @@ export default async function handler(req, res) {
       report.result = "segment_failed";
       report.explain = "The first media segment did not download.";
       report.steps.segment.bodyStart = seg.buf.slice(0, 200).toString("utf8");
-      return json(res, 200, report);
+      return report;
     }
 
     let data = seg.buf;
@@ -214,20 +214,115 @@ export default async function handler(req, res) {
       report.result = "decrypt_mismatch";
       report.explain =
         "The segment downloaded but does not decrypt to MPEG-TS — the key does not match this video.";
-      return json(res, 200, report);
+      return report;
     }
 
     report.ok = true;
     report.result = "plays";
     report.explain = "Manifest, AES key and media segments all resolve. This lecture plays.";
-    return json(res, 200, report);
+    return report;
   } catch (err) {
-    return json(res, 200, {
+    return {
       success: false,
       ok: false,
       result: "error",
       error: err?.message || "Check failed",
+      id,
       steps: report.steps,
+    };
+  }
+}
+
+/** Lecture ids of a chapter, newest first, plus their titles. */
+async function chapterLectures(batch, subject, chapter) {
+  const res = await upstreamJson(
+    `/TopicInfo?BatchId=${encodeURIComponent(batch)}&SubjectId=${encodeURIComponent(
+      subject
+    )}&TopicId=${encodeURIComponent(chapter)}&ContentType=videos&page=1`
+  );
+  const body = (res.ok && res.data) || {};
+  const list = body.data || body.items || [];
+  return list
+    .map((item) => ({
+      id: item._id,
+      title: (item.topic || (item.videoDetails && item.videoDetails.name) || "").trim(),
+      status: (item.videoDetails && item.videoDetails.status) || item.status || "",
+    }))
+    .filter((l) => l.id);
+}
+
+/**
+ * Check up to `SWEEP_LIMIT` lectures of a chapter, `SWEEP_CONCURRENCY` at a
+ * time. A full sweep of 13 lectures would exceed the function timeout, so the
+ * caller is told what was covered.
+ */
+async function sweepChapter({ batch, subject, chapter, base, limit }) {
+  const lectures = await chapterLectures(batch, subject, chapter);
+  const take = lectures.slice(0, limit);
+  const results = [];
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < take.length) {
+      const item = take[cursor++];
+      const r = await checkLecture({ batch, subject, id: item.id, base });
+      results.push({
+        id: item.id,
+        title: item.title || r.title || "",
+        result: r.result,
+        ok: Boolean(r.ok),
+        quality: (r.steps.plan && r.steps.plan.quality) || "",
+        explain: r.explain || r.error || "",
+      });
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(SWEEP_CONCURRENCY, take.length) }, worker));
+
+  // keep catalogue order so the answer reads like the chapter list
+  const order = new Map(take.map((l, i) => [l.id, i]));
+  results.sort((a, b) => order.get(a.id) - order.get(b.id));
+
+  const playing = results.filter((r) => r.result === "plays").length;
+  return {
+    success: true,
+    scope: "chapter",
+    chapter,
+    checkedAt: new Date().toISOString(),
+    verified: results.length,
+    totalLectures: lectures.length,
+    playing,
+    notPlaying: results.length - playing,
+    note:
+      lectures.length > take.length
+        ? `Checked the first ${take.length} of ${lectures.length} lectures to stay within the request limit. Re-run with &limit= and one &id= to check others.`
+        : "All lectures in this chapter were checked.",
+    lectures: results,
+  };
+}
+
+export default async function handler(req, res) {
+  cors(res);
+  if (req.method === "OPTIONS") return res.end();
+  if (req.method !== "GET") return json(res, 405, { success: false, error: "GET only" });
+
+  const { batch, subject, id, url, chapter, limit } = query(req);
+  const base = selfBase(req);
+
+  if (chapter) {
+    if (!batch || !subject) {
+      return json(res, 400, { success: false, error: "chapter needs batch + subject" });
+    }
+    const asked = Number.parseInt(limit, 10);
+    const capped = Number.isFinite(asked) && asked > 0 ? Math.min(asked, 12) : SWEEP_LIMIT;
+    return json(res, 200, await sweepChapter({ batch, subject, chapter, base, limit: capped }));
+  }
+
+  if (!url && (!batch || !subject || !id)) {
+    return json(res, 400, {
+      success: false,
+      error: "Provide url, or batch + subject + id, or batch + subject + chapter",
     });
   }
+
+  return json(res, 200, await checkLecture({ batch, subject, id, url, base }));
 }
