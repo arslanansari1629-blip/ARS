@@ -4687,15 +4687,6 @@ body.side-rail .side-link {
   padding: 0 1.4rem;
 }
 
-/* A soft floor under the controls, so white text survives a bright frame. */
-.player-wrap:fullscreen .scrubber::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 -6px 0;
-  height: 3px;
-  background: none;
-}
-
 .player-wrap:fullscreen .player-bar {
   position: relative;
   z-index: 9;
