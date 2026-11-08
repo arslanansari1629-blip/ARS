@@ -1,5 +1,5 @@
 import { cors } from "../lib/http.mjs";
-import { signerHeaders } from "../lib/api-data.mjs";
+import { signerHeaders, probeRenditions, masterPlaylist } from "../lib/api-data.mjs";
 import { resolveToken } from "../lib/pw-auth.mjs";
 
 /**
@@ -25,6 +25,13 @@ import { resolveToken } from "../lib/pw-auth.mjs";
  */
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+/** This deployment's own origin, as seen by the client that called us. */
+function selfBase(req) {
+  const proto = (req.headers["x-forwarded-proto"] || "https").toString().split(",")[0];
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  return `${proto}://${host}`;
+}
 
 const FALLBACK_SIGNERS = [
   "https://vidcloud.eu.org/api/v1/videos/get-hls-key",
@@ -86,6 +93,34 @@ export default async function handler(req, res) {
   const signers = hostParam
     ? [hostParam, ...FALLBACK_SIGNERS.filter((s) => s !== hostParam)]
     : FALLBACK_SIGNERS;
+
+  // `key=master.m3u8` is the one thing the signer does not store, and it is the
+  // one thing a player needs: the quality picker only has levels to choose from
+  // if it receives a master playlist. Build it from the renditions that answer.
+  if (/^master\.m3u8$/i.test(key)) {
+    const { renditions } = await probeRenditions({ folder: videoKey });
+    if (!renditions.length) {
+      res.statusCode = 502;
+      res.setHeader("Content-Type", "application/json");
+      return res.end(
+        JSON.stringify({
+          success: false,
+          error:
+            "No signing service accepted this lecture right now. PW publishes some lectures without a stream; try another lecture or use the source player.",
+          reason: "no rendition answered for this folder",
+        })
+      );
+    }
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
+    res.setHeader("Cache-Control", "no-store");
+    // `main` paths come back as `/api/sign?...`; make them absolute for players
+    // that resolve playlist URIs against the manifest's origin.
+    const body = masterPlaylist(
+      renditions.map((r) => ({ quality: r.quality, main: `${selfBase(req)}${r.main}` }))
+    );
+    return res.end(body);
+  }
 
   // Resolve the rendition master playlist when the caller does not pin one.
   const keys = key ? [key] : QUALITIES.map((q) => `${q}/main.m3u8`);

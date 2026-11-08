@@ -67,7 +67,12 @@ test("falls back to a lower rendition when 720p is missing", async () => {
   assert.equal(plan.playable, true);
   assert.equal(plan.kind, "hls");
   assert.equal(plan.quality, "480");
-  assert.match(plan.url, /key=480\/main\.m3u8/);
+  // Only 480p exists, so only 480p may be advertised — offering a 720p level that
+  // the signer does not store would give the player a quality that cannot play.
+  assert.deepEqual(plan.renditions, ["480"]);
+  // The player gets a master playlist, not the rendition's own media playlist:
+  // that is what gives hls.js levels for the quality picker to switch between.
+  assert.match(plan.url, /key=master\.m3u8/);
   assert.ok(asked.some((u) => /720/.test(u)), "720p should have been tried first");
 });
 
@@ -308,3 +313,37 @@ function jsonResponseSafe(body, status = 200) {
     headers: { "content-type": "application/json" },
   });
 }
+
+test("advertises every rendition that answered, lowest first", async () => {
+  const { resolveStream, masterPlaylist } = await import("../lib/api-data.mjs");
+
+  const plan = await withFetch(
+    async (url) => {
+      if (String(url).includes("generate_token")) {
+        return new Response("guest-token-value-123456", { status: 200 });
+      }
+      if (String(url).includes("get-hls-key")) {
+        // 720 and 360 exist; 1080 and 480 do not.
+        if (/key=(720|360)\/main\.m3u8/.test(String(url))) return playlistResponse();
+        return new Response(JSON.stringify({ success: false }), { status: 404 });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () => resolveStream({ rawUrl: mpd("dddddddd-4444-4444-8444-444444444444") })
+  );
+
+  assert.deepEqual(plan.renditions, ["720", "360"], "best answer first");
+
+  const text = masterPlaylist([
+    { quality: "720", main: "https://x/api/sign?key=720%2Fmain.m3u8" },
+    { quality: "360", main: "https://x/api/sign?key=360%2Fmain.m3u8" },
+  ]);
+  const variants = text.split("\n").filter((l) => l && !l.startsWith("#"));
+  assert.equal(variants.length, 2);
+  assert.match(text, /^#EXTM3U/);
+  // hls.js treats the last variant as the highest quality, so order matters.
+  assert.match(variants[0], /360/, "lowest rendition must come first");
+  assert.match(variants[1], /720/);
+  assert.match(text, /RESOLUTION=1280x720/);
+  assert.match(text, /RESOLUTION=640x360/);
+});

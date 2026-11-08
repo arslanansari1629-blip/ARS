@@ -163,19 +163,43 @@ async function checkLecture({ batch, subject, id, url, base }) {
       return report;
     }
 
-    // if this is a master playlist, follow the first variant
+    // If this is a master playlist, follow its *best* variant — following the
+    // first one would verify whichever rendition happened to be listed first
+    // (our own master lists them lowest first), so a lecture whose 720p is the
+    // one people actually watch could be reported as verified on 240p.
     let mediaText = plText;
     let mediaUrl = playlistUrl;
     if (/#EXT-X-STREAM-INF/i.test(plText)) {
-      const variant = plText
-        .split("\n")
-        .map((l) => l.trim())
-        .find((l) => l && !l.startsWith("#"));
+      const lines = plText.split("\n").map((l) => l.trim());
+      let best = null;
+      for (let i = 0; i < lines.length; i += 1) {
+        if (!/^#EXT-X-STREAM-INF/i.test(lines[i])) continue;
+        const uri = lines[i + 1];
+        if (!uri || uri.startsWith("#")) continue;
+        const res = (lines[i].match(/RESOLUTION=(\d+)x(\d+)/i) || [])[1 + 1];
+        const bw = (lines[i].match(/BANDWIDTH=(\d+)/i) || [])[1];
+        const height = Number(res || 0);
+        const bandwidth = Number(bw || 0);
+        if (!best || height > best.height || (height === best.height && bandwidth > best.bandwidth)) {
+          best = { uri, height, bandwidth };
+        }
+      }
+      if (!best) {
+        const only = lines.find((l) => l && !l.startsWith("#"));
+        if (only) best = { uri: only, height: 0, bandwidth: 0 };
+      }
+      const variant = best && best.uri;
       if (variant) {
         mediaUrl = variant.startsWith("http") ? variant : new URL(variant, playlistUrl).toString();
         const v = await grab(mediaUrl);
         mediaText = v.buf.toString("utf8");
-        report.steps.variant = { url: mediaUrl, status: v.status, bytes: v.buf.length };
+        report.steps.variant = {
+          url: mediaUrl,
+          status: v.status,
+          bytes: v.buf.length,
+          height: best.height || undefined,
+          of: (plText.match(/#EXT-X-STREAM-INF/g) || []).length,
+        };
       }
     }
 

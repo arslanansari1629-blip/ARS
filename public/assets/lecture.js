@@ -503,8 +503,22 @@ async function attachPlayer(plan) {
           }
         });
 
+        // Show the picker from the plan immediately, so a slow manifest does not
+        // leave the control hidden while the video is already playing.
+        showQuality((plan.renditions || []).map((height) => ({ height: Number(height) })));
+
         hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
-          showQuality((hls.levels || []).map((l) => ({ height: l.height || 0 })));
+          // hls.js knows the real levels (and their heights), so it wins once it
+          // has parsed the manifest.
+          const levels = (hls.levels || []).map((l) => ({ height: l.height || 0 }));
+          showQuality(levels);
+          // Re-apply the quality this user last picked; a refresh used to reset
+          // the picker to Auto without saying so.
+          const wanted = Number(getPrefs().quality);
+          if (wanted > 0 && levels.some((l) => l.height === wanted)) {
+            qualitySelect.value = String(wanted);
+            applyQuality(wanted);
+          }
         });
         hls.on(window.Hls.Events.LEVEL_SWITCHED, (_e, data) => {
           if (!hls || !qualitySelect || qualitySelect.value !== "-1") return;
@@ -576,6 +590,14 @@ function destroyPlayers() {
 
 qualitySelect?.addEventListener("change", () => {
   const height = Number(qualitySelect.value);
+  // Persist the choice so the next lecture opens at the quality this user picked
+  // instead of silently reverting to the server's default.
+  setPref("quality", height);
+  applyQuality(height);
+});
+
+/** Point hls.js / dash.js at one quality, or back to automatic switching. */
+function applyQuality(height) {
   if (hls && Array.isArray(hls.levels)) {
     // levels are ordered lowest → highest; pick the closest match
     if (height === -1) {
@@ -598,7 +620,7 @@ qualitySelect?.addEventListener("change", () => {
     dash.updateSettings({ streaming: { abr: { autoSwitchBitrate: { video: height === -1 } } } });
     if (target >= 0) dash.setQualityFor("video", target, true);
   }
-});
+}
 
 /* ------------------------------ position/speed --------------------------- */
 

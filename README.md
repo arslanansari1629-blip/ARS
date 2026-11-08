@@ -64,9 +64,15 @@ browser ──► /api/batches | /api/batch | /api/contents | /api/lecture | /ap
     renditions only, so a DASH-only lecture cannot be relayed: `/api/sign` answers that
     explicitly (with an `hlsHint`) rather than failing as a generic 404. HLS covers the
     lectures here, so this is a documented limit rather than the playback path.
-* Renditions differ per video, so `/api/stream` asks the signing relay for `720`, `480`, `360`
-  and then `240` and takes the first one that exists. A lecture published only at 480p used to
-  be reported as "no video"; it now plays.
+* Renditions differ per video, so the resolver asks the signing relay for `1080`, `720`, `480`,
+  `360` and `240` — every host/rendition pair at once — and keeps **all** that answer. A lecture
+  published only at 480p used to be reported as "no video"; it now plays.
+* The signer stores one rendition per video and has no `master.m3u8` (asking for one is a 404).
+  Feeding a player a single rendition's media playlist meant hls.js saw exactly one level, so
+  the player's quality picker was dead: the server had silently chosen the quality. `/api/sign`
+  now *builds* a real master playlist from the renditions that answered (`key=master.m3u8`),
+  listing them lowest-first, so hls.js exposes one level per rendition and the picker works.
+  The chosen quality is remembered and re-applied on the next lecture.
 * Some lectures are not on a PW CDN at all — the Skills batches publish recordings on YouTube.
   Those resolve to an embed plan (`kind: "youtube"`, `engine: "embed"`) and play in an `<iframe>`,
   with the quality/speed/resume controls hidden because they do not apply. A URL on a host we
