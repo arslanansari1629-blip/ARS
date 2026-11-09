@@ -29,6 +29,7 @@ const NAV = [
     title: "Study",
     items: [
       { id: "favourites", href: "/favourites.html", label: "Favourites", icon: "heart", badge: "fav" },
+      { id: "downloads", href: "/downloads.html", label: "Downloads", icon: "download" },
       { id: "library", href: "/library.html", label: "My Library", icon: "bookmark" },
       { id: "dashboard", href: "/dashboard.html", label: "Dashboard", icon: "chart" },
     ],
@@ -59,6 +60,7 @@ const ICONS = {
   grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.6-3.6"/>',
   bookmark: '<path d="M6 4h12v17l-6-4-6 4V4Z"/>',
+  download: '<path d="M12 4v10"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/>',
   chart: '<path d="M4 19V9M10 19V4M16 19v-6M22 19H2"/>',
   spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
   globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 2.4 14.4 0 17M12 3.5c-2.4 2.6-2.4 14.4 0 17"/>',

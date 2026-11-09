@@ -26,6 +26,7 @@ const REQUIRED_PAGES = [
   "dashboard.html",
   "library.html",
   "favourites.html",
+  "downloads.html",
   "admin.html",
   "404.html",
 ];
@@ -68,7 +69,7 @@ async function main() {
   const functions = (await readdir(API)).filter((f) => f.endsWith(".mjs"));
   // Routes mounted inside another function still need their library, or a
   // rewrite would point at nothing.
-  for (const mounted of ["hls.mjs", "sign.mjs"]) {
+  for (const mounted of ["hls.mjs", "sign.mjs", "download-route.mjs"]) {
     if (!(await exists(path.join(ROOT, "lib", mounted)))) {
       problems.push(`missing mounted route: lib/${mounted}`);
     }

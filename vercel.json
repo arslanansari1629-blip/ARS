@@ -78,6 +78,10 @@
     {
       "source": "/api/repair",
       "destination": "/api/admin?action=repair"
+    },
+    {
+      "source": "/api/download",
+      "destination": "/api/stream?action=download"
     }
   ]
 }

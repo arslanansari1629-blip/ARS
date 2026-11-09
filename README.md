@@ -301,6 +301,44 @@ The ledger is visible in exactly one place, the admin panel's *Self-healing*
 block: repairs made, signers quarantined with the resulting ladder, relay faults
 over the last ten minutes, and how much of the hourly budget is spent.
 
+## Downloading lectures for offline use
+
+`/downloads` turns a lecture into a file that keeps playing with the network off.
+It browses the live catalogue (batch → subject → chapter → lecture) and the
+player's own menu carries a **Save for offline** action, so the decision can be
+made where it is actually made — while watching.
+
+The hard part is not fetching bytes, it is arithmetic:
+
+- a signed URL dies within minutes, so a saved file that references one is
+  worthless by the next morning;
+- a two-hour lecture does not fit in one response, so it arrives in slices;
+- a slice is a valid playlist on its own, but three slices are not one file.
+
+So `/api/download` (rewritten onto `api/stream.mjs`, inside the twelve-function
+budget) assembles a **self-contained** slice: the AES key and every segment are
+written into the file as `data:` URIs, with `#EXT-X-ENDLIST`, so nothing in it
+points at this deployment and nothing expires. Two shapes are offered:
+
+| Format | What it is | Plays in |
+| --- | --- | --- |
+| `plain` | decrypted MPEG-TS (`.ts`) | any player — VLC, ffmpeg, this site |
+| `playlist` | self-contained `.m3u8`, key inline | this site and VLC |
+
+`plain` is the default when the source is AES-128, because a file that needs no
+key handling is the one that keeps working. Decryption uses the media sequence
+number as the IV, and a segment that will not come apart fails the slice rather
+than shipping noise.
+
+Client side (`public/assets/downloader.js`), a download is: fetch a slice → pull
+the inline media out → append it to what is already held → keep the running
+result in IndexedDB. Slices are stitched into one file when the download
+finishes, and an interrupted lecture stays playable up to where it stopped and
+resumes from the same place. Each slice retries four times before anything is
+reported, for the same reason the player does: a rate-limited signer is the
+normal case, not a fault. The library lives on the device — nothing is uploaded
+and no lecture is re-hosted.
+
 ## The admin panel
 
 `/admin` is a separate, noindex plate — it is not part of the student shell and
@@ -373,7 +411,7 @@ vercel --prod
 npm test        # node --test tests/*.test.mjs
 ```
 
-117 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
+141 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
 each page module is executed in jsdom and asserted. Coverage includes page rendering, the
 API contracts, catalogue completeness (the last page is reachable and a batch the upstream search
 cannot see is findable), stream planning (rendition fallback, signer failover and YouTube embeds
@@ -381,7 +419,9 @@ included), the `GetPdf` note resolution
 path, the `/api/sign` relay (token auth, playlist rewriting, key-path recovery), the no-video
 explanations, the lecture stream bootstrap, and the self-healer itself: signer demotion and
 quarantine, the demotion surviving a bad minute, cache eviction per failure class, the repair
-beacon's payload, the backoff ladder and the hourly repair budget.
+beacon's payload, the backoff ladder and the hourly repair budget, and the offline saver
+(twenty tests over playlist parsing, slice completeness, AES decryption, filenames and the
+byte ceiling).
 
 ## Notes
 

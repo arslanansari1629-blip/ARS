@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Download lectures — ArsVibe PW</title>
+<meta name="description" content="Save Physics Wallah lectures to this device and watch them offline — no signal, no buffering, no expiry." />
+<meta name="theme-color" content="#eef1f5" />
+<meta name="robots" content="index,follow" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ArsVibe" />
+<meta property="og:title" content="Download lectures — ArsVibe PW" />
+<meta property="og:description" content="Save Physics Wallah lectures to this device and watch them offline." />
+<meta property="og:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="stylesheet" href="/assets/downloads.css" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icon.png" />
+</head>
+<body data-page="downloads">
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="/">
+      <img class="brand-img" src="/assets/logo.svg" alt="ArsVibe" width="30" height="30" />
+      <span>ArsVibe<small>Physics Wallah</small></span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <nav class="nav-links" id="navLinks">
+      <a href="/" data-page="home">Home</a>
+      <a href="/batches.html" data-page="batches">Batches</a>
+      <a href="/downloads.html" data-page="downloads">Downloads</a>
+      <a href="/library.html" data-page="library">My Library</a>
+      <a href="/dashboard.html" data-page="dashboard">Dashboard</a>
+    </nav>
+    <div class="nav-actions" id="sessionChip"></div>
+  </div>
+</header>
+
+<main class="section">
+  <div class="shell">
+
+    <div class="page-head">
+      <div>
+        <span class="eyebrow">Watch without a connection</span>
+        <h1>Download lectures</h1>
+        <p>Save a class to this device and it plays anywhere — on a train, in a hostel, with the data off.</p>
+      </div>
+      <a class="btn btn-ghost btn-sm" href="/batches.html">Browse batches</a>
+    </div>
+
+    <!-- pick a lecture -->
+    <section class="card pad-md dl-block">
+      <div class="dl-block-head">
+        <h2>Choose a lecture</h2>
+        <p class="tiny dim" id="pickMeta">Search a batch, then pick a subject, chapter and class.</p>
+      </div>
+
+      <label class="dl-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="batchSearch" type="search" placeholder="Search a batch — “Arjuna JEE 2027”, “Lakshya”, …" autocomplete="off" />
+      </label>
+      <div class="dl-list" id="batchResults"></div>
+
+      <div class="dl-steps">
+        <section class="dl-step" id="stepSubject" hidden>
+          <h3>1 · Subject</h3>
+          <div class="dl-list" id="subjectList"></div>
+        </section>
+
+        <section class="dl-step" id="stepChapter" hidden>
+          <h3>2 · Chapter</h3>
+          <div class="dl-list" id="chapterList"></div>
+        </section>
+
+        <section class="dl-step" id="stepLecture" hidden>
+          <h3>3 · Lecture</h3>
+          <div class="dl-list" id="lectureList"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- progress -->
+    <div class="dl-queue" id="queueBar" hidden>
+      <span class="dl-spin"></span>
+      <span id="queueText">Downloading…</span>
+    </div>
+
+    <!-- what is already saved -->
+    <section class="card pad-md dl-block">
+      <div class="dl-block-head">
+        <h2>On this device</h2>
+        <p class="tiny dim" id="persistNote">Downloads stay in this browser.</p>
+      </div>
+
+      <div class="dl-space">
+        <div class="dl-space-bar" id="spaceBar"><span></span></div>
+        <p class="tiny dim" id="spaceText">Checking free space…</p>
+      </div>
+
+      <div class="dl-saved-tools">
+        <input id="onlyOffline" type="search" placeholder="Filter saved lectures…" autocomplete="off" />
+        <button class="btn btn-ghost btn-sm" id="clearSaved">Clear all</button>
+      </div>
+
+      <div class="dl-saved-list" id="savedList"></div>
+      <div id="savedEmpty" hidden>
+        <div class="empty">
+          <div class="icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v10"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>
+          </div>
+          <strong>Nothing saved yet</strong>
+          <span class="tiny">Pick a lecture above and press Save. It stays here until you remove it.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card pad-md dl-block dl-help">
+      <h2>How offline playback works</h2>
+      <ul class="tiny">
+        <li><strong>Saved on this device only.</strong> Nothing is uploaded, and the lecture is not re-hosted anywhere — the same bytes the player streams are written into your browser's own storage.</li>
+        <li><strong>No expiry.</strong> A signed stream link dies in minutes; a saved lecture carries its own key and media, so it does not care what the signer is doing tomorrow.</li>
+        <li><strong>Two formats.</strong> Most downloads are plain MPEG-TS (<code>.ts</code>), which plays in any player. If the source only offers a keyed playlist, the file is a self-contained <code>.m3u8</code> — the key travels inside it.</li>
+        <li><strong>Interrupted is not lost.</strong> A lecture that stops halfway stays playable up to that point and resumes from the same place.</li>
+        <li><strong>Long lectures arrive in parts.</strong> A two-hour class is downloaded in slices and stitched into one file once it finishes.</li>
+      </ul>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="shell footer-inner">
+    <div><strong>ArsVibe PW</strong> · downloads are yours, on your device</div>
+    <div class="row">
+      <a href="/batches.html">All batches</a>
+      <a href="/library.html">Library</a>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="/assets/downloads-page.js"></script>
+<script type="module" src="/assets/shell.mjs"></script>
+<script type="module" src="/assets/ui.js"></script>
+</body>
+</html>

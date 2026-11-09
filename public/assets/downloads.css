@@ -1,0 +1,368 @@
+/* ==========================================================================
+   Downloads page.
+
+   Its own stylesheet, for one reason: the list rows here are interactive in a
+   way nothing else on the site is — a batch row becomes a subject row becomes a
+   lecture row, and each level is a *choice*, not a link. Keeping the rules here
+   means the rest of the site's stylesheet does not grow a second set of row
+   semantics that only one page understands.
+   ========================================================================== */
+
+.dl-block + .dl-block {
+  margin-top: var(--s-4);
+}
+
+.dl-block-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin-bottom: var(--s-3);
+}
+
+.dl-block-head h2 {
+  font-size: 1rem;
+  letter-spacing: -0.01em;
+}
+
+.dl-block-head p {
+  margin: 0;
+}
+
+/* ---------------------------------- search -------------------------------- */
+
+.dl-search {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card-2);
+  color: var(--ink-3);
+}
+
+.dl-search:focus-within {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.dl-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.86rem;
+  color: var(--ink);
+}
+
+/* ----------------------------------- rows --------------------------------- */
+
+.dl-list {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: var(--s-3);
+}
+
+.dl-row,
+.dl-lecture {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card-2);
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dl-row:hover,
+.dl-lecture:hover {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.dl-row:focus-visible,
+.dl-lecture:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.dl-thumb {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--paper-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.dl-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dl-thumb-sm {
+  width: 30px;
+  height: 30px;
+  font-size: 0.7rem;
+}
+
+.dl-row .grow,
+.dl-lecture .grow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.dl-row .title,
+.dl-lecture .title {
+  font-size: 0.84rem;
+  font-weight: 560;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-row .meta,
+.dl-lecture .meta {
+  font-size: 0.72rem;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-row .chev {
+  color: var(--ink-4);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* ---------------------------------- steps --------------------------------- */
+
+.dl-steps {
+  display: grid;
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+}
+
+.dl-step h3 {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+
+/* -------------------------------- progress -------------------------------- */
+
+.dl-queue {
+  position: sticky;
+  bottom: var(--s-3);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--blue);
+  border-radius: var(--r);
+  background: var(--card-2);
+  box-shadow: var(--lift-2);
+  font-size: 0.8rem;
+  z-index: 5;
+}
+
+.dl-spin {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--rule-2);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: dl-spin 0.7s linear infinite;
+}
+
+@keyframes dl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dl-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0.6rem 0;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dl-spin {
+    animation-duration: 2.4s;
+  }
+}
+
+/* --------------------------------- space ---------------------------------- */
+
+.dl-space {
+  margin-bottom: var(--s-3);
+}
+
+.dl-space-bar,
+.dl-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+
+.dl-space-bar span,
+.dl-progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--blue);
+  transition: width 0.3s ease;
+}
+
+.dl-space p {
+  margin: 0.35rem 0 0;
+}
+
+.dl-saved-tools {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  margin-bottom: var(--s-3);
+}
+
+.dl-saved-tools input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card-2);
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+
+/* --------------------------------- saved ---------------------------------- */
+
+.dl-saved-list {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.dl-saved {
+  padding: 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card-2);
+}
+
+.dl-saved-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.dl-saved-head .grow {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.dl-saved-head .title {
+  font-size: 0.84rem;
+  font-weight: 560;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-saved-head .meta {
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+.dl-badge {
+  flex: 0 0 auto;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dl-badge.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.dl-badge.part {
+  background: rgba(169, 112, 12, 0.12);
+  color: var(--amber);
+}
+
+.dl-saved .dl-progress {
+  margin: 0.5rem 0;
+}
+
+.dl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+/* ---------------------------------- help ---------------------------------- */
+
+.dl-help ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: var(--s-2) 0 0;
+  padding-left: 1.05rem;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.dl-help code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.05rem 0.25rem;
+  border-radius: 2px;
+  background: var(--blue-soft);
+  color: var(--blue-ink);
+}
+
+@media (max-width: 560px) {
+  .dl-thumb {
+    width: 38px;
+    height: 38px;
+  }
+
+  .dl-actions .btn {
+    flex: 1;
+  }
+}

@@ -713,6 +713,100 @@ test("the lecture player ships quality control and recovery", async () => {
   );
 });
 
+test("the downloads page browses live lectures and explains offline playback", async () => {
+  const { doc, window, dom } = await render("/downloads.html", {
+    waitForSelector: "#subjectList",
+    settle: 600,
+  });
+
+  // The page is useless without the catalogue search box and the saved list.
+  assert.ok(doc.getElementById("batchSearch"), "no batch search on the downloads page");
+  assert.ok(doc.getElementById("savedList"), "no saved-downloads list");
+  assert.ok(doc.getElementById("savedEmpty"), "the empty state is missing");
+
+  // It has to say how offline playback actually works, because a saved file that
+  // silently expires is the thing people would otherwise not discover.
+  const text = doc.body.textContent;
+  assert.match(text, /Download lectures/i);
+  assert.match(text, /No expiry|offline/i);
+  assert.match(text, /MPEG-TS/, "the page never mentions the portable format");
+  assert.match(text, /this device only|this browser/i);
+
+  // Nothing is saved yet, so the empty state is showing.
+  assert.equal(doc.getElementById("savedEmpty").hidden, false);
+
+  // The page must not offer a download it cannot honour: with an empty search it
+  // shows no rows rather than a spinner forever.
+  assert.equal(doc.getElementById("batchResults").children.length, 0);
+
+  window.close();
+  void dom;
+});
+
+test("the downloads page is in the site's own navigation", async () => {
+  const html = await (await nativeFetch(`${BASE}/downloads.html`)).text();
+  assert.match(html, /href="\/downloads.html"[^>]*data-page="downloads"/);
+  // The shell renders its own sidebar entry too, so the page is reachable from
+  // every other page and not just from the address bar.
+  const shell = await (await nativeFetch(`${BASE}/assets/shell.mjs`)).text();
+  assert.match(shell, /id: "downloads", href: "\/downloads\.html"/);
+  assert.match(shell, /download: '<path/);
+});
+
+test("the player offers to save the lecture it is playing", async () => {
+  const lecture = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
+  assert.match(lecture, /menuSave/, "the player has no save-for-offline control");
+  assert.match(lecture, /downloadLecture/, "the save control is not wired to the downloader");
+  assert.match(lecture, /\/api\/download\?mode=list/, "the save control never checks the lecture is downloadable");
+});
+
+test("the downloader stitches slices instead of trusting one response", async () => {
+  const mod = await import("../public/assets/downloader.js");
+  // A slice is a fragment, so the reader has to find the inline key and media.
+  const slice = mod.readSlice(
+    [
+      "#EXTM3U",
+      "#EXT-X-VERSION:3",
+      '#EXT-X-KEY:METHOD=AES-128,URI="data:application/octet-stream;base64,MDEyMzQ1Njc4OWFiY2RlZg=="',
+      "#EXTINF:4.000,",
+      "data:video/MP2T;base64,AQIDBA==",
+      "#EXT-X-ENDLIST",
+    ].join("\n")
+  );
+  assert.equal(slice.media.length, 1);
+  assert.match(slice.keyLine, /base64,/);
+  assert.equal(slice.media[0].duration, 4);
+
+  // A slice that points at a URL is not self-contained and must be skipped, or
+  // the saved lecture would expire with the signature.
+  const notInline = mod.readSlice(
+    ["#EXTM3U", "#EXTINF:4.000,", "https://example.com/000.ts"].join("\n")
+  );
+  assert.equal(notInline.media.length, 0);
+
+  // The stitched file carries one key and every part, in order.
+  const out = mod.buildOfflinePlaylist({
+    key: slice.keyLine,
+    parts: [
+      { data: "AQIDBA==", seconds: 4 },
+      { data: "BQYHCA==", seconds: 6 },
+    ],
+  });
+  assert.match(out, /#EXT-X-KEY/);
+  // The parts are concatenated inside one segment, in the order they arrived.
+  assert.match(out, /#EXTINF:10\.000,\nAQIDBA==BQYHCA==\n/);
+  assert.match(out, /#EXTINF:10\.000,/);
+  assert.match(out, /#EXT-X-ENDLIST/);
+
+  // And a raw slice is recognised as media, not mistaken for a playlist.
+  const ts = new Uint8Array(400);
+  for (let i = 0; i < 400; i += 188) ts[i] = 0x47;
+  assert.equal(mod.looksLikeTransportStream(ts), true);
+  assert.equal(mod.looksLikeTransportStream(new Uint8Array(400)), false);
+  assert.equal(mod.isPlaylistText("#EXTM3U\n"), true);
+  assert.equal(mod.isPlaylistText("G@\u0011\u0010"), false);
+});
+
 test("pdf viewer builds a same-origin media relay URL", async () => {
   const target = "https://static.pw.live/5eb393ee95fab7468a79d189/ADMIN/73d6.pdf";
   const res = await nativeFetch(

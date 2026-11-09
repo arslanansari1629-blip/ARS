@@ -1,5 +1,6 @@
 import { cors, json, query, badRequest, methodNotAllowed, modeOf, relayUrl } from "../lib/http.mjs";
 import hlsHandler from "../lib/hls.mjs";
+import downloadHandler from "../lib/download-route.mjs";
 import { resolveStream, parseFolder, fetchSchedule } from "../lib/api-data.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
 
@@ -49,7 +50,13 @@ export default async function handler(req, res) {
   // allows twelve serverless functions per deployment and this project needs
   // thirteen routes. The HLS gateway keeps its own CORS and caching rules, so it
   // is mounted before this route's headers are written.
-  if (query(req).action === "hls") return hlsHandler(req, res);
+  const action = query(req).action;
+  if (action === "hls") return hlsHandler(req, res);
+  // `/api/download` is rewritten onto this function for the same reason: it is
+  // one more route, and the plan allows twelve functions. It keeps its own CORS,
+  // its own headers and its own attachment behaviour, so it is dispatched before
+  // this route writes anything.
+  if (action === "download") return downloadHandler(req, res);
 
   cors(res, req);
   if (req.method === "OPTIONS") return res.end();

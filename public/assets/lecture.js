@@ -13,7 +13,7 @@ import {
 import { trackLecture } from "./library.js";
 import { loadLecture, loadContents } from "./data.js";
 import { upstream as upstreamJson } from "./client-api.js";
-import { ProPlayer, fmtTime } from "./player.js";
+import { ProPlayer, fmtTime, folderOf } from "./player.js";
 
 mountChrome("batches");
 
@@ -986,6 +986,68 @@ playerMenu?.addEventListener("click", (e) => {
 $("menuStats")?.addEventListener("click", () => {
   setMenu(false);
   toggleStats();
+});
+
+/**
+ * "Save for offline" from the player.
+ *
+ * The downloads page is the place to *browse* a batch, but the moment someone
+ * decides to keep a lecture is while watching it — sending them to another page
+ * to re-find the same class would be the whole feature failing at its easiest
+ * step. The plan is already resolved here, so the folder, quality and title all
+ * come from what is on screen.
+ */
+$("menuSave")?.addEventListener("click", async () => {
+  setMenu(false);
+  if (!currentPlan || !currentPlan.playable) {
+    toast("This lecture has no stream to save yet", "bad");
+    return;
+  }
+  const folder = folderOf(currentPlan.url);
+  if (!folder) {
+    toast("This lecture cannot be saved for offline playback", "bad");
+    return;
+  }
+  const label = $("menuSave");
+  const title = (currentPlan.title || titleParam || nowTitle?.textContent || "Lecture").trim();
+  label.textContent = "Preparing…";
+  try {
+    const info = await api(
+      `/api/download?mode=list&folder=${encodeURIComponent(folder)}&quality=${encodeURIComponent(
+        (currentPlan.renditions && currentPlan.renditions[0]) || currentPlan.quality || "720"
+      )}`
+    );
+    if (!info.playable) {
+      toast(info.error || "This lecture cannot be downloaded right now", "bad");
+      label.textContent = "Save for offline";
+      return;
+    }
+    const { downloadLecture } = await import("./downloader.js");
+    toast(`Saving “${title}” — ${info.segments} parts. Keep this page open.`);
+    label.textContent = "Saving…";
+    const result = await downloadLecture({
+      id: lectureId,
+      folder,
+      quality: info.quality,
+      title,
+      format: info.encrypted ? "plain" : "playlist",
+      onProgress: (p) => {
+        const pct = p.total ? Math.round((p.segments / p.total) * 100) : 0;
+        label.textContent = `Saving ${pct}%`;
+      },
+    });
+    label.textContent = result.ok ? "Saved for offline" : "Save for offline";
+    toast(
+      result.ok
+        ? `“${title}” is saved — find it on the Downloads page`
+        : "Saved part of this lecture — finish it on the Downloads page",
+      result.ok ? "" : "bad"
+    );
+    if (result.ok) setTimeout(() => (label.textContent = "Save for offline"), 4000);
+  } catch (err) {
+    label.textContent = "Save for offline";
+    toast(err.message || "The download failed", "bad");
+  }
 });
 
 loopBtn?.addEventListener("click", () => {
