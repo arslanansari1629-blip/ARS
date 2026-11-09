@@ -345,7 +345,12 @@ the media playlist **from the signer directly**, not through this deployment's o
 first version fetched them from inside the function — which works locally and
 answers 500 on a serverless deployment, because a function cannot rely on calling
 its own deployment origin. `tests/download-route.test.mjs` now asserts that no
-handler request ever names the deployment's host.
+handler request ever names the deployment's host. The same investigation found
+that the AES key is named `enc.key` with no rendition in front of it — segments
+carry `720/000.ts`, the key does not — and that asking for `720/enc.key` is a 403.
+`mode=file&probe=1` reports the shape of an assembled slice (size, `0x47` sync
+byte, next offset) without shipping the bytes, which is how a binary response is
+checked from a place that cannot save files.
 
 ## The admin panel
 
@@ -419,7 +424,7 @@ vercel --prod
 npm test        # node --test tests/*.test.mjs
 ```
 
-151 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
+152 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
 each page module is executed in jsdom and asserted. Coverage includes page rendering, the
 API contracts, catalogue completeness (the last page is reachable and a batch the upstream search
 cannot see is findable), stream planning (rendition fallback, signer failover and YouTube embeds
