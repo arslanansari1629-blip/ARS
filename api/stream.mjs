@@ -44,7 +44,13 @@ async function readSchedule(batch, subject, id) {
 }
 
 export default async function handler(req, res) {
-  cors(res);
+  // `/api/hls` is rewritten onto this function (see vercel.json): the Hobby plan
+  // allows twelve serverless functions per deployment and this project needs
+  // thirteen routes. The HLS gateway keeps its own CORS and caching rules, so it
+  // is mounted before this route's headers are written.
+  if (query(req).action === "hls") return hlsHandler(req, res);
+
+  cors(res, req);
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "GET") return methodNotAllowed(res);
 

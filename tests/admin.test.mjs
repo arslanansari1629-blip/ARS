@@ -1,0 +1,341 @@
+/**
+ * Admin panel — behaviour tests.
+ *
+ * These run against the dev server (fixture upstream) and assert the things that
+ * would be dangerous if they broke: the credentials never appear in anything a
+ * browser can download, a wrong password cannot get in, and the stats route
+ * refuses anonymous callers.
+ */
+
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const PUBLIC = path.join(ROOT, "public");
+const PORT = 4284;
+const FIXPORT = 4285;
+const BASE = `http://127.0.0.1:${PORT}`;
+
+const children = [];
+
+function start(args, env = {}) {
+  const child = spawn(process.execPath, args, {
+    cwd: ROOT,
+    env: { ...process.env, ...env },
+    stdio: "ignore",
+  });
+  children.push(child);
+  return child;
+}
+
+async function waitFor(url, ms = 25000) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return true;
+    } catch {
+      /* retry */
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`timed out waiting for ${url}`);
+}
+
+before(async () => {
+  start(["scripts/fixture-upstream.mjs"], { FIXTURE_PORT: String(FIXPORT) });
+  await waitFor(`http://127.0.0.1:${FIXPORT}/AllBatches?page=1`);
+  start(["scripts/dev.mjs"], {
+    PORT: String(PORT),
+    HOST: "127.0.0.1",
+    PW_UPSTREAM_BASE: `http://127.0.0.1:${FIXPORT}`,
+  });
+  await waitFor(`${BASE}/admin.html`);
+});
+
+after(() => {
+  for (const c of children) c.kill("SIGKILL");
+});
+
+const signIn = async (username = "editz", password = "editz900s") => {
+  const res = await fetch(`${BASE}/api/admin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  return { status: res.status, body: await res.json() };
+};
+
+test("the admin page is a standalone, noindex sign-in gate", async () => {
+  const html = await (await fetch(`${BASE}/admin.html`)).text();
+
+  // It must not be reachable from the public chrome, and must not be indexed.
+  assert.match(html, /name="robots" content="noindex, nofollow"/i);
+  assert.match(html, /id="loginForm"/);
+  assert.match(html, /id="adminPass"[^>]*type="password"/);
+  assert.match(html, /id="adminUser"/);
+  // Deliberately not the site shell: no nav, no sidebar, no session chip.
+  assert.equal(/id="navLinks"/.test(html), false, "the admin page inherited the site nav");
+  assert.equal(/shell\.mjs/.test(html), false, "the admin page loads the site shell");
+
+  const robots = await (await fetch(`${BASE}/robots.txt`)).text();
+  assert.match(robots, /Disallow: \/admin/);
+});
+
+test("the credentials are not shipped to the browser", async () => {
+  // Walk everything a visitor can download and make sure neither the username
+  // nor the password text appears anywhere.
+  const secrets = ["editz900s"];
+
+  async function walk(dir) {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "vendor") continue;
+        await walk(full);
+        continue;
+      }
+      if (!/\.(html|js|mjs|css|json|txt|svg)$/.test(entry.name)) continue;
+      const text = await readFile(full, "utf8");
+      for (const secret of secrets) {
+        assert.equal(
+          text.includes(secret),
+          false,
+          `${path.relative(ROOT, full)} contains the admin password`
+        );
+      }
+    }
+  }
+  await walk(PUBLIC);
+
+  // The admin page itself, as served, must not contain them either.
+  const page = await (await fetch(`${BASE}/admin.html`)).text();
+  for (const secret of secrets) assert.equal(page.includes(secret), false);
+
+  // The username is only allowed to exist server-side, as a digest.
+  const client = await (await fetch(`${BASE}/assets/admin.js`)).text();
+  assert.equal(/editz/.test(client), false, "the admin username leaked into the client");
+  assert.equal(
+    /PASSWORD|password\s*=\s*["']/.test(client),
+    false,
+    "the client appears to hold a credential"
+  );
+
+  // And the API must never echo a secret back, even on a failed sign-in.
+  const { body } = await signIn("nobody", "nothing");
+  assert.equal(JSON.stringify(body).includes("editz900s"), false);
+});
+
+test("a wrong password is refused and rate limited, the right one gets a session", async () => {
+  const wrong = await signIn("editz", "not-the-password");
+  assert.equal(wrong.status, 401);
+  assert.equal(wrong.body.success, false);
+  // One message for both fields: never confirm which half was right.
+  assert.match(wrong.body.error, /Invalid username or password/i);
+
+  const wrongUser = await signIn("someone-else", "editz900s");
+  assert.equal(wrongUser.status, 401);
+  assert.equal(wrongUser.body.error, wrong.body.error, "the error revealed which field was wrong");
+
+  const ok = await signIn();
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.success, true);
+  assert.ok(ok.body.token && ok.body.token.length > 20, "no session token was issued");
+  assert.ok(ok.body.idleMinutes >= 5, "the session has no idle timeout");
+});
+
+test("stats require a session and describe the site's real state", async () => {
+  const anon = await fetch(`${BASE}/api/admin?action=stats`);
+  assert.equal(anon.status, 401, "live stats answered without a session");
+
+  const { body: auth } = await signIn();
+  const res = await fetch(`${BASE}/api/admin?action=stats`, {
+    headers: { "x-admin-token": auth.token },
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+
+  assert.equal(data.success, true);
+  assert.ok(Array.isArray(data.health) && data.health.length >= 3, "no health checks ran");
+
+  // The catalogue check must be real: it reported 14,201 batches before this
+  // route existed, so it is comparable.
+  const index = data.health.find((h) => h.name === "catalogue-index");
+  assert.ok(index && index.ok, "the catalogue probe is not passing");
+  assert.ok(index.count > 1000, `catalogue probe saw only ${index.count} batches`);
+
+  // Traffic is counted from real requests, not invented.
+  assert.ok(data.traffic.requests > 0, "traffic was not counted");
+  assert.ok(Array.isArray(data.traffic.series) && data.traffic.series.length > 1);
+  assert.ok(data.release && typeof data.release.node === "string");
+  assert.ok(data.runtime && data.runtime.memoryMb > 0);
+
+  // The token is summarised, never dumped.
+  assert.ok(data.token && typeof data.token.usable === "boolean");
+  const dump = JSON.stringify(data);
+  assert.equal(/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.e30\.t-IDcSemACt8x4iTMCda8Yhe3iZaWbvV5XKSTbuAn0M/.test(dump), false,
+    "the upstream token was echoed in full");
+
+  // Signing out invalidates it.
+  await fetch(`${BASE}/api/admin?action=logout`, {
+    method: "POST",
+    headers: { "x-admin-token": auth.token },
+  });
+  const after = await fetch(`${BASE}/api/admin?action=stats`, {
+    headers: { "x-admin-token": auth.token },
+  });
+  assert.equal(after.status, 401, "the session survived sign-out");
+});
+
+test("the panel renders its gate and its blocks from the shipped module", async () => {
+  const js = await (await fetch(`${BASE}/assets/admin.js`)).text();
+
+  // The sign-in flow talks to the same-origin route only.
+  assert.match(js, /fetch\("\/api\/admin"/);
+  assert.match(js, /x-admin-token/);
+  // It must not keep the password anywhere after signing in.
+  assert.equal(/localStorage\.setItem\([^)]*password/i.test(js), false);
+  assert.equal(/sessionStorage\.setItem\(TOKEN_KEY/.test(js), true);
+
+  const html = await (await fetch(`${BASE}/admin.html`)).text();
+  for (const hook of [
+    "healthList",
+    "spark",
+    "routeBars",
+    "logList",
+    "releaseKv",
+    "runtimeKv",
+    "heroStats",
+    "refreshBtn",
+    "signOutBtn",
+  ]) {
+    assert.ok(html.includes(`id="${hook}"`), `the panel is missing #${hook}`);
+  }
+});
+
+test("repeated bad passwords trip a cooldown", async () => {
+  // Runs last: the cooldown is per client address and outlives a single request.
+  let limited = false;
+  let lastStatus = 0;
+  for (let i = 0; i < 8; i += 1) {
+    const attempt = await signIn("editz", `wrong-${i}`);
+    lastStatus = attempt.status;
+    if (attempt.status === 429) {
+      limited = true;
+      assert.match(attempt.body.error, /Try again in \d+ minute/i);
+      break;
+    }
+  }
+  assert.ok(limited, `repeated bad passwords are not rate limited (last status ${lastStatus})`);
+
+  // Even the correct password is refused while the cooldown is active: the point
+  // of a cooldown is to stop guessing, not just to stop wrong guesses.
+  const correct = await signIn();
+  assert.equal(correct.status, 429, "the cooldown let a correct password through");
+});
+
+test("the panel paints live numbers once signed in", async () => {
+  const { register } = await import("node:module");
+  const { JSDOM } = await import("jsdom");
+  register("./loader.mjs", import.meta.url);
+
+  const html = await (await fetch(`${BASE}/admin.html`)).text();
+  const dom = new JSDOM(html, { url: `${BASE}/admin.html`, pretendToBeVisual: true });
+  const { window } = dom;
+
+  const sample = {
+    success: true,
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    uptimeSeconds: 4210,
+    health: [
+      { kind: "index", name: "catalogue-index", ok: true, ms: 140, count: 14201, detail: "" },
+      { kind: "api", name: "batch-api", ok: true, ms: 210, status: 200, detail: "" },
+      { kind: "http", name: "site-home", ok: false, ms: 9, soft: true, detail: "fetch failed — informational" },
+    ],
+    traffic: {
+      requests: 412,
+      apiRequests: 380,
+      pages: 32,
+      bytesOut: 5_400_000,
+      errors: 3,
+      errorRate: 0.73,
+      byStatus: { 200: 400, 500: 3, 404: 9 },
+      byRoute: { batches: 200, batch: 100, lecture: 40, admin: 6 },
+      byPage: { "site-home": 32 },
+      series: Array.from({ length: 30 }, (_, i) => (i % 5 === 0 ? i : 0)),
+      slowest: [{ route: "stream", ms: 3100, status: 200, at: new Date().toISOString() }],
+      lastErrors: [{ route: "hls", status: 500, ms: 120, at: new Date().toISOString() }],
+      liveSessions: 2,
+    },
+    token: { source: "vidcloud relay", cached: true, expiresIn: 540, expiresAt: new Date(Date.now() + 540000).toISOString(), expiryFrom: "token exp claim", prefix: "eyJhbG…(240)", usable: true },
+    credentials: [{ source: "vidcloud relay", prefix: "eyJhbG…" }],
+    release: { commit: "c86836a9674c41527f6dbaba179edf4bbd07dcc4", commitShort: "c86836a", ref: "main", env: "production", region: "iad1", node: "v22.0.0", deployment: "arsvibe-pw.vercel.app" },
+    runtime: { memoryMb: 180, heapMb: 64, pid: 1 },
+    catalogue: { batches: 14201, source: "https://example.test/batches.json" },
+    trafficNote: "Counts are per warm server instance.",
+    client: { ip: "127.0.0.1", ua: "node" },
+  };
+
+  const calls = [];
+  globalThis.window = window;
+  globalThis.document = window.document;
+  globalThis.sessionStorage = window.sessionStorage;
+  globalThis.CustomEvent = window.CustomEvent;
+  window.sessionStorage.setItem("arsvibe.admin.token", "test-token");
+
+  const nativeFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (url.includes("/api/admin")) {
+      // The boot path asks `whoami` first, then fetches stats.
+      const body = url.includes("action=whoami") ? { success: true, signedIn: true } : sample;
+      return { ok: true, status: 200, json: async () => body };
+    }
+    return nativeFetch(url.startsWith("http") ? url : `${BASE}${url}`, init);
+  };
+
+  await import(`/assets/admin.js?v=1`);
+  // The boot path verifies the stored session first, then renders.
+  await new Promise((r) => setTimeout(r, 300));
+
+  const doc = window.document;
+  assert.equal(doc.getElementById("gate").hidden, true, "the sign-in gate stayed up");
+  assert.equal(doc.getElementById("panel").hidden, false, "the panel did not appear");
+
+  // Real numbers, formatted, not placeholders.
+  assert.match(doc.getElementById("statusLine").textContent, /All systems operational/);
+  const stats = doc.getElementById("heroStats").textContent.replace(/\s+/g, " ");
+  assert.match(stats, /412/, "requests were not rendered");
+  assert.match(stats, /3/, "errors were not rendered");
+
+  // Health rows and their soft-failure handling.
+  const rows = doc.querySelectorAll("#healthList .health-row");
+  assert.equal(rows.length, 3, `expected 3 health rows, got ${rows.length}`);
+  assert.ok(rows[2].querySelector(".health-dot.warn"), "a soft failure should not read as an outage");
+  assert.match(doc.getElementById("healthSum").textContent, /3\/3/);
+
+  // The sparkline has a real path, not an empty element.
+  const d = doc.getElementById("sparkLine").getAttribute("d");
+  assert.ok(/^M0/.test(d || ""), "the sparkline path was not drawn");
+  assert.ok(d.split("L").length > 10, "the sparkline has too few points");
+
+  // Route bars, deployment facts, token state.
+  assert.ok(doc.querySelectorAll("#routeBars .route-bar").length >= 4);
+  assert.match(doc.getElementById("releaseKv").textContent, /c86836a/);
+  assert.match(doc.getElementById("tokenBox").textContent, /vidcloud relay/);
+  assert.match(doc.getElementById("runtimeKv").textContent, /14,201 batches/);
+
+  // Signing out must clear the token and go back to the gate.
+  doc.getElementById("signOutBtn").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(doc.getElementById("panel").hidden, true, "sign out left the panel up");
+  assert.equal(window.sessionStorage.getItem("arsvibe.admin.token"), null, "the token survived sign out");
+
+  dom.window.close();
+});

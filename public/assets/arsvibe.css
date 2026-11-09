@@ -5493,3 +5493,525 @@ body.side-rail .side-brand:hover .brand-img {
     flex: 1;
   }
 }
+
+/* ==========================================================================
+   35 — Admin panel
+   A plain, dense operator surface: same tokens as the site, none of the
+   decoration. Everything here is real numbers, so the type is small and the
+   colour is reserved for status.
+   ========================================================================== */
+
+.admin-body {
+  background: var(--paper-2);
+  min-height: 100vh;
+}
+
+/* ---- sign in ------------------------------------------------------------ */
+
+.admin-gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--s-5) var(--s-3);
+}
+
+.admin-card {
+  width: min(400px, 100%);
+  padding: var(--s-5);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: var(--lift-2);
+  display: grid;
+  gap: var(--s-3);
+}
+
+.admin-mark {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--rule);
+}
+
+.admin-mark strong {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field > span:first-child {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.field input {
+  height: 42px;
+  padding: 0 0.8rem;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--r);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: var(--focus);
+}
+
+.field-pass {
+  position: relative;
+  display: block;
+}
+
+.field-pass input {
+  padding-right: 2.6rem;
+}
+
+.pass-eye {
+  position: absolute;
+  top: 50%;
+  right: 0.4rem;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.pass-eye:hover,
+.pass-eye[aria-pressed="true"] {
+  background: var(--blue-soft);
+  color: var(--ink);
+}
+
+.admin-error {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--r-sm);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
+.admin-submit {
+  width: 100%;
+  justify-content: center;
+  height: 42px;
+}
+
+.admin-foot {
+  margin: 0;
+  text-align: center;
+}
+
+/* ---- panel shell -------------------------------------------------------- */
+
+.admin-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  padding: 0.6rem var(--s-4);
+  border-bottom: 1px solid var(--rule-2);
+  background: color-mix(in srgb, var(--paper-2) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.admin-id {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+}
+
+.admin-env {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.16rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule-2);
+  color: var(--ink-3);
+}
+
+.admin-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.admin-live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+
+.admin-live.on i {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
+  animation: adminPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes adminPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.admin-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--s-4) var(--s-4) var(--s-6);
+  display: grid;
+  gap: var(--s-4);
+}
+
+/* ---- hero --------------------------------------------------------------- */
+
+.admin-hero {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: center;
+  padding: var(--s-4);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--r);
+  background: var(--card);
+}
+
+.admin-hero h1 {
+  margin: 0.2rem 0 0.3rem;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  letter-spacing: -0.02em;
+}
+
+.admin-good { color: var(--ok); }
+.admin-bad { color: var(--danger); }
+
+.admin-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.hero-stat {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card-2);
+}
+
+.hero-stat strong {
+  display: block;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.hero-stat span {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.hero-stat em {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.66rem;
+  font-style: normal;
+  color: var(--ink-4);
+}
+
+/* ---- grid + blocks ------------------------------------------------------ */
+
+.admin-grid {
+  display: grid;
+  gap: var(--s-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-block h3 {
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+/* Blocks in a row share a height, but none of them may clip its content: the
+   health list grows with the number of probes. */
+.admin-grid > .admin-block {
+  align-self: start;
+}
+
+/* ---- health ------------------------------------------------------------- */
+
+.admin-health {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.health-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.15rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.health-row:last-child { border-bottom: 0; }
+
+.health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--ink-4);
+}
+
+.health-dot.good { background: var(--ok); }
+.health-dot.bad { background: var(--danger); }
+.health-dot.skip { background: var(--ink-4); }
+.health-dot.warn { background: var(--amber); }
+
+.health-name {
+  display: block;
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.health-ms {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.health-ms.warn { color: var(--amber); }
+
+.admin-token {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card-2);
+}
+
+.token-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.token-pill {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+}
+
+.token-pill.ok {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+.token-pill.bad {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+/* ---- sparkline ---------------------------------------------------------- */
+
+.admin-spark svg {
+  width: 100%;
+  height: 64px;
+  display: block;
+}
+
+.spark-line {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.spark-fill {
+  fill: color-mix(in srgb, var(--blue) 14%, transparent);
+  stroke: none;
+}
+
+.spark-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.2rem;
+}
+
+/* ---- key/value rows ----------------------------------------------------- */
+
+.admin-kv {
+  display: grid;
+  gap: 0.05rem;
+  margin-top: 0.5rem;
+}
+
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: 0.34rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.78rem;
+}
+
+.kv-row:last-child { border-bottom: 0; }
+
+.kv-row span { color: var(--ink-3); }
+
+.kv-row strong {
+  font-weight: 600;
+  text-align: right;
+  word-break: break-word;
+}
+
+/* ---- route bars --------------------------------------------------------- */
+
+.admin-bars { display: grid; gap: 0.3rem; }
+
+.route-bar {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+}
+
+.route-name {
+  font-family: var(--mono);
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-track {
+  height: 7px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  overflow: hidden;
+}
+
+.route-track span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--blue), color-mix(in srgb, var(--blue) 55%, #7cc4ff));
+}
+
+.route-n {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ink-2);
+}
+
+/* ---- logs --------------------------------------------------------------- */
+
+.tabs-mini {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+
+.admin-log {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.78rem;
+}
+
+.log-row:last-child { border-bottom: 0; }
+
+.log-row.bad .log-title { color: var(--danger); }
+
+.log-title {
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-when { text-align: right; }
+
+.admin-note {
+  margin: 0;
+  text-align: center;
+}
+
+/* ---- responsive --------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .admin-hero { grid-template-columns: minmax(0, 1fr); }
+  .admin-hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .admin-shell { padding: var(--s-3) var(--s-3) var(--s-5); }
+  .admin-bar { padding: 0.55rem var(--s-3); }
+  .admin-bar-right .tiny { display: none; }
+  .admin-card { padding: var(--s-4); }
+}
+
+.side-admin {
+  text-decoration: none;
+  transition: color 0.14s var(--ease);
+}
+
+.side-admin:hover,
+.side-admin:focus-visible {
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

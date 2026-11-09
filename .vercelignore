@@ -3,3 +3,7 @@
 legacy/
 tests/
 data/batches.json
+
+# Local render check for the admin panel (uses a dev dependency, not shipped).
+scripts/preview-admin.mjs
+design/

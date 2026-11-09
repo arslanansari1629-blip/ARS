@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — ArsVibe PW</title>
+<meta name="theme-color" content="#eef1f5" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="referrer" content="no-referrer" />
+<link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icon.png" />
+</head>
+<body class="admin-body" data-page="admin">
+
+<!-- Sign in ------------------------------------------------------------- -->
+<main class="admin-gate" id="gate">
+  <form class="admin-card" id="loginForm" autocomplete="on" novalidate>
+    <div class="admin-mark">
+      <img src="/assets/logo.svg" alt="" width="38" height="38" />
+      <div>
+        <strong>ArsVibe Admin</strong>
+        <span class="tiny dim">Operator access only</span>
+      </div>
+    </div>
+
+    <label class="field">
+      <span>Username</span>
+      <input id="adminUser" name="username" type="text" autocomplete="username"
+        spellcheck="false" autocapitalize="none" required />
+    </label>
+
+    <label class="field">
+      <span>Password</span>
+      <span class="field-pass">
+        <input id="adminPass" name="password" type="password" autocomplete="current-password" required />
+        <button type="button" class="pass-eye" id="passEye" aria-label="Show password" aria-pressed="false">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </span>
+    </label>
+
+    <p class="admin-error" id="loginError" role="alert" hidden></p>
+
+    <button class="btn btn-primary admin-submit" id="loginBtn" type="submit">Sign in</button>
+    <p class="tiny dim admin-foot">Session ends after 30 minutes idle. <a href="/">Back to the site</a></p>
+  </form>
+</main>
+
+<!-- Panel --------------------------------------------------------------- -->
+<main class="admin-wrap" id="panel" hidden>
+  <header class="admin-bar">
+    <div class="admin-id">
+      <img src="/assets/logo.svg" alt="" width="26" height="26" />
+      <strong>ArsVibe Admin</strong>
+      <span class="admin-env" id="envChip">production</span>
+    </div>
+    <div class="admin-bar-right">
+      <span class="admin-live" id="liveDot"><i></i> live</span>
+      <span class="tiny dim" id="refreshedAt">—</span>
+      <button class="btn btn-ghost btn-sm" id="refreshBtn">Refresh</button>
+      <button class="btn btn-ghost btn-sm" id="signOutBtn">Sign out</button>
+    </div>
+  </header>
+
+  <div class="admin-shell">
+    <!-- overall status -->
+    <section class="admin-hero" id="hero">
+      <div class="admin-hero-main">
+        <span class="eyebrow">Site status</span>
+        <h1 id="statusLine">Checking…</h1>
+        <p class="muted tiny" id="statusHint">Running live health checks against the API, the catalogue and the public site.</p>
+      </div>
+      <div class="admin-hero-stats" id="heroStats"></div>
+    </section>
+
+    <div class="admin-grid">
+      <!-- health -->
+      <section class="card pad-md admin-block">
+        <div class="row between mb-2">
+          <h3>API &amp; host health</h3>
+          <span class="tiny dim" id="healthSum">—</span>
+        </div>
+        <div class="admin-health" id="healthList"></div>
+        <div class="admin-token" id="tokenBox"></div>
+      </section>
+
+      <!-- traffic -->
+      <section class="card pad-md admin-block">
+        <div class="row between mb-2">
+          <h3>Traffic</h3>
+          <span class="tiny dim">this server instance</span>
+        </div>
+        <div class="admin-spark">
+          <svg id="spark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true">
+            <path id="sparkFill" d="" class="spark-fill"></path>
+            <path id="sparkLine" d="" class="spark-line"></path>
+          </svg>
+          <div class="spark-axis tiny dim"><span>30 min ago</span><span id="rpm">0 req/min</span><span>now</span></div>
+        </div>
+        <div class="admin-kv" id="trafficKv"></div>
+      </section>
+
+      <!-- routes -->
+      <section class="card pad-md admin-block">
+        <h3 class="mb-2">Requests by route</h3>
+        <div class="admin-bars" id="routeBars"></div>
+      </section>
+
+      <!-- slowest / errors -->
+      <section class="card pad-md admin-block">
+        <div class="tabs-mini" id="logTabs">
+          <button class="tab active" data-log="slow">Slowest</button>
+          <button class="tab" data-log="errors">Errors</button>
+        </div>
+        <div class="admin-log" id="logList"></div>
+      </section>
+
+      <!-- release -->
+      <section class="card pad-md admin-block">
+        <h3 class="mb-2">Deployment</h3>
+        <div class="admin-kv" id="releaseKv"></div>
+      </section>
+
+      <!-- runtime + catalogue -->
+      <section class="card pad-md admin-block">
+        <h3 class="mb-2">Runtime &amp; data</h3>
+        <div class="admin-kv" id="runtimeKv"></div>
+      </section>
+    </div>
+
+    <p class="admin-note tiny dim" id="adminNote"></p>
+  </div>
+</main>
+
+<script type="module" src="/assets/admin.js"></script>
+</body>
+</html>

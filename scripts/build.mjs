@@ -26,6 +26,7 @@ const REQUIRED_PAGES = [
   "dashboard.html",
   "library.html",
   "favourites.html",
+  "admin.html",
   "404.html",
 ];
 
@@ -35,12 +36,11 @@ const REQUIRED_API = [
   "contents.mjs",
   "lecture.mjs",
   "stream.mjs",
-  "hls.mjs",
-  "sign.mjs",
   "pdf.mjs",
   "media.mjs",
   "pw.mjs",
   "token.mjs",
+  "admin.mjs",
 ];
 
 async function exists(p) {
@@ -66,6 +66,13 @@ async function main() {
   // functions ("exceeded_serverless_functions_per_deployment"). Catch that here
   // rather than after a two-minute build.
   const functions = (await readdir(API)).filter((f) => f.endsWith(".mjs"));
+  // Routes mounted inside another function still need their library, or a
+  // rewrite would point at nothing.
+  for (const mounted of ["hls.mjs", "sign.mjs"]) {
+    if (!(await exists(path.join(ROOT, "lib", mounted)))) {
+      problems.push(`missing mounted route: lib/${mounted}`);
+    }
+  }
   if (functions.length > 12) {
     problems.push(
       `too many serverless functions: ${functions.length} (Hobby plan allows 12) — ` +

@@ -40,6 +40,22 @@
     {
       "source": "/api/pw/:path*",
       "destination": "/api/pw?path=:path*"
+    },
+    {
+      "source": "/api/sign/:path*",
+      "destination": "/api/admin?action=sign&path=:path*"
+    },
+    {
+      "source": "/api/sign",
+      "destination": "/api/admin?action=sign"
+    },
+    {
+      "source": "/api/hls/:path*",
+      "destination": "/api/stream?action=hls&path=:path*"
+    },
+    {
+      "source": "/api/hls",
+      "destination": "/api/stream?action=hls"
     }
   ]
 }

@@ -58,6 +58,19 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   let pathname = decodeURIComponent(url.pathname);
 
+  // --- rewrites ---------------------------------------------------------
+  // Mirrors vercel.json: the media routes are their own URLs on the outside and
+  // share one function on the inside (the Hobby plan's 12-function cap).
+  if (pathname === "/api/hls" || pathname === "/api/sign") {
+    // `/api/sign` is mounted on the admin function; `/api/hls` rides on stream,
+    // which is how both keep their own URL inside a 12-function budget.
+    const action = pathname.slice(5);
+    const target = action === "hls" ? "/api/stream" : "/api/admin";
+    url.searchParams.set("action", action);
+    pathname = target;
+    req.url = `${target}?${url.searchParams.toString()}`;
+  }
+
   // --- API routes -------------------------------------------------------
   if (pathname.startsWith("/api/")) {
     const name = pathname.slice(5).replace(/\/+$/, "");

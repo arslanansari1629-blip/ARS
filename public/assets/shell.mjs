@@ -116,6 +116,14 @@ function buildSidebar() {
     : "";
 
   const session = getSession();
+  // Same marker the admin page uses, so the door appears only after a visit.
+  const isAdmin = (() => {
+    try {
+      return Boolean(sessionStorage.getItem("arsvibe.admin.token"));
+    } catch {
+      return false;
+    }
+  })();
 
   aside.innerHTML = `
     <div class="side-head">
@@ -146,7 +154,13 @@ function buildSidebar() {
         ${icon("spark")}
         <span>Join the study circle</span>
       </a>
-      <span class="side-micro">DWG AV-01 · rev 2026</span>
+      ${
+        // A quiet door to the operator panel: no label in the nav, no page in the
+        // sitemap, just a small link for whoever already knows it is there.
+        isAdmin
+          ? `<a class="side-micro side-admin" href="/admin.html" title="Operator panel">DWG AV-01 · admin</a>`
+          : `<span class="side-micro">DWG AV-01 · rev 2026</span>`
+      }
     </div>`;
 
   return aside;
