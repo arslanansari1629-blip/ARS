@@ -73,6 +73,16 @@ test("falls back to a lower rendition when 720p is missing", async () => {
   // The player gets a master playlist, not the rendition's own media playlist:
   // that is what gives hls.js levels for the quality picker to switch between.
   assert.match(plan.url, /key=master\.m3u8/);
+  // ...and it must name the renditions it may offer. This assertion is the
+  // regression guard for the bug that made every lecture unplayable: the relay
+  // was asked for a `master.m3u8` no signer stores (403, dead player), because
+  // the plan never said which renditions existed.
+  assert.match(plan.url, /renditions=480/, "the plan does not tell the relay which renditions exist");
+  assert.equal(
+    new URL(`http://x${plan.url}`).searchParams.get("renditions"),
+    "480",
+    "only the renditions that answered may be advertised"
+  );
   assert.ok(asked.some((u) => /720/.test(u)), "720p should have been tried first");
 });
 
@@ -137,7 +147,119 @@ test("a signed URL is relayed through the media gateway, not the signer", async 
 
   assert.equal(plan.playable, true);
   assert.equal(plan.kind, "dash");
-  assert.match(plan.url, /^\/api\/stream\?folder=/);
+  // `/api/stream` answers with JSON, so pointing the player at it was a silent
+  // dead lecture. A signed plan must go to the media gateway.
+  assert.match(plan.url, /^\/api\/hls\?folder=/);
+  assert.match(plan.url, /asset=master\.mpd/);
+});
+
+test("the media gateway mints what the CDN refuses instead of dead-ending", async () => {
+  const { default: gateway } = await import("../lib/hls.mjs");
+
+  // A schedule URL with no signature: the CDN answers 403, and the player used
+  // to be told "media host answered 403" with nothing to do about it.
+  const call = async (query) => {
+    const headers = {};
+    const chunks = [];
+    let redirect = "";
+    const result = await new Promise((resolve) => {
+      const res = {
+        statusCode: 0,
+        write(b) {
+          chunks.push(Buffer.from(b));
+        },
+        setHeader(k, v) {
+          headers[k] = v;
+          if (k === "Location") redirect = v;
+        },
+        end(body) {
+          if (body) chunks.push(Buffer.from(body));
+          resolve({ status: this.statusCode, headers, redirect, body: Buffer.concat(chunks).toString() });
+        },
+      };
+      gateway({ method: "GET", url: `/api/hls?${query}`, headers: { host: "arsvibe.test" } }, res);
+    });
+    return result;
+  };
+
+  await withFetch(
+    async (url) => {
+      const s = String(url);
+      if (s.includes("cloudfront.net") && !s.includes("Signature=")) {
+        return new Response("denied", { status: 403 });
+      }
+      if (s.includes("generate_token")) return new Response("guest-token-value-123456");
+      if (s.includes("get-hls-key")) {
+        const key = new URL(s).searchParams.get("key");
+        // The signer has per-rendition playlists only — never a master.
+        if (/master\./.test(key)) return new Response("no", { status: 403 });
+        if (/\.m3u8$/.test(key)) {
+          return new Response("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\n000.ts\n", {
+            headers: { "content-type": "application/vnd.apple.mpegurl" },
+          });
+        }
+        return new Response("KEYBYTES", { status: 200 });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    async () => {
+      // A master: the gateway redirects to the plan's playable master, it does
+      // not try to fetch a master from a signer that has none.
+      const master = await call(
+        "folder=d780e1e3-f446-4218-97f8-5d3f4dd4ca05&asset=master.mpd&host=d1d34p8vz63oiq.cloudfront.net"
+      );
+      assert.equal(master.status, 302, "the gateway should hand over the playable master");
+      assert.match(master.redirect, /^\/api\/sign\?/);
+      assert.match(master.redirect, /key=master\.m3u8/);
+      assert.match(master.redirect, /renditions=/, "the master needs the rendition list");
+
+      // A single file: relayed through the signer, bytes and all.
+      const key = await call(
+        "folder=d780e1e3-f446-4218-97f8-5d3f4dd4ca05&asset=enc.key&host=d1d34p8vz63oiq.cloudfront.net"
+      );
+      assert.equal(key.status, 200, JSON.stringify(key.body));
+      assert.equal(key.body, "KEYBYTES");
+    }
+  );
+});
+
+test("the media gateway says something useful when nothing can open the file", async () => {
+  const { default: gateway } = await import("../lib/hls.mjs");
+  await withFetch(
+    async (url) => {
+      const s = String(url);
+      if (s.includes("cloudfront.net")) return new Response("denied", { status: 403 });
+      return new Response(JSON.stringify({ success: false }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    },
+    async () => {
+      const out = await new Promise((resolve) => {
+        const res = {
+          statusCode: 0,
+          headers: {},
+          write() {},
+          setHeader(k, v) {
+            this.headers[k] = v;
+          },
+          end(body) {
+            resolve({ status: this.statusCode, body: String(body || "") });
+          },
+        };
+        gateway(
+          {
+            method: "GET",
+            url: "/api/hls?folder=00000000-0000-4000-8000-000000000000&asset=master.mpd&host=d1d34p8vz63oiq.cloudfront.net",
+            headers: { host: "arsvibe.test" },
+          },
+          res
+        );
+      });
+      assert.equal(out.status, 403);
+      assert.match(out.body, /signature/i, "the failure does not say why or what to do");
+    }
+  );
 });
 
 test("non-video entries are explained instead of reported as broken", async () => {
@@ -346,4 +468,53 @@ test("advertises every rendition that answered, lowest first", async () => {
   assert.match(variants[1], /720/);
   assert.match(text, /RESOLUTION=1280x720/);
   assert.match(text, /RESOLUTION=640x360/);
+});
+
+test("the relay mints a playable master playlist instead of asking the signer", async () => {
+  const { default: relay } = await import("../lib/sign.mjs");
+
+  // No network is stubbed below: a correct implementation never calls a signer
+  // for the master, so any outbound request here would be a bug in itself.
+  const call = (query) =>
+    new Promise((resolve) => {
+      const headers = {};
+      const chunks = [];
+      const res = {
+        statusCode: 0,
+        setHeader(k, v) {
+          headers[k] = v;
+        },
+        end(body) {
+          if (body) chunks.push(Buffer.from(body));
+          resolve({
+            status: this.statusCode,
+            headers,
+            body: Buffer.concat(chunks).toString("utf8"),
+          });
+        },
+      };
+      relay(
+        { method: "GET", url: `/api/sign?${query}`, headers: { host: "arsvibe.test" } },
+        res
+      );
+    });
+
+  const master = await call("videoKey=abc-123&key=master.m3u8&renditions=720,360");
+  assert.equal(master.status, 200);
+  assert.match(master.headers["Content-Type"], /mpegurl/);
+  // hls.js is a cross-origin consumer of this URL; without CORS it cannot read it.
+  assert.equal(master.headers["Access-Control-Allow-Origin"], "*");
+  assert.match(master.body, /^#EXTM3U/);
+
+  const variants = master.body.split("\n").filter((l) => l && !l.startsWith("#"));
+  assert.equal(variants.length, 2, master.body);
+  assert.match(variants[0], /key=360%2Fmain\.m3u8/, "lowest rendition must come first");
+  assert.match(variants[1], /key=720%2Fmain\.m3u8/);
+  for (const v of variants) {
+    assert.match(v, /^https:\/\/arsvibe\.test\/api\/sign\?/, `variant is not same-origin: ${v}`);
+  }
+
+  const bad = await call("videoKey=abc-123&key=master.m3u8");
+  assert.equal(bad.status, 400, "a master with no renditions must not pretend to be a playlist");
+  assert.match(bad.body, /renditions/i);
 });

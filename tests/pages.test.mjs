@@ -785,7 +785,21 @@ test("stream route resolves a signed PW URL into a relayed plan", async () => {
   assert.equal(plan.success, true);
   assert.equal(plan.playable, true);
   assert.equal(plan.kind, "dash");
-  assert.match(plan.url, /^\/api\/stream\?folder=d780e1e3/);
+  // `/api/stream` answers with a JSON plan; handing that to a media element is a
+  // dead lecture. A signed plan must go to the gateway that serves the bytes.
+  assert.match(plan.url, /^\/api\/hls\?folder=d780e1e3/);
+  assert.match(plan.url, /asset=master\.mpd/);
+
+  // And the gateway really is mounted at that URL: `/api/hls` is rewritten onto
+  // api/stream.mjs, so a broken mount would only show up here.
+  const gateway = await nativeFetch(`${BASE}/api/hls?folder=x&asset=master.mpd`);
+  const body = await gateway.json();
+  assert.equal(body.success, false, "/api/hls is not answering as a route");
+  // Which refusal it is depends on the network: a missing folder, a host that is
+  // not a media host, or "fetch failed" when the sandbox has no egress. What
+  // matters is that this URL reached the gateway and it answered in JSON.
+  assert.equal(typeof body.error, "string");
+  assert.ok(body.error.length > 0);
 });
 
 test("stream route hands YouTube-hosted lectures to the embed player", async () => {
