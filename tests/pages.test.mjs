@@ -1364,3 +1364,89 @@ test("a batch still lists its subjects when the legacy detail route is gone", as
     globalThis.fetch = original;
   }
 });
+
+test("an upstream auth refusal is reported as access, not as an empty chapter", async () => {
+  /* PW answers the content listings only for a signed-in account. That used to
+     reach the student as "upstream 401; upstream 404" under a heading that
+     implied the chapter was empty, and the client burned a second round trip
+     through the browser relay with the same guest credential before saying so. */
+  const { fetchChapterContents } = await import("../lib/api-data.mjs");
+
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(typeof input === "string" ? input : input.url);
+    calls.push(url);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: "Unauthorised Access",
+        code: 401,
+        error: { status: 401, message: "Unauthorised Access" },
+      }),
+      { status: 401, headers: { "content-type": "application/json" } }
+    );
+  };
+
+  try {
+    const out = await fetchChapterContents(
+      "698ad3519549b300a5e1cc6a",
+      "physics-by-rajwant-singh-sir-964222",
+      "69b5698ee506a608ee297ed1",
+      "videos",
+      1
+    );
+
+    assert.equal(out.ok, false);
+    assert.equal(out.auth, true, "an auth refusal is not flagged as one");
+    assert.match(out.error, /guest sessions|signed-in/i);
+    // The raw status pair must not be what a student reads.
+    assert.equal(/upstream 401; upstream 404/.test(out.error), false);
+
+    // And the client must not retry it through a relay that presents the same
+    // credential. `fetchData` is internal, so this is asserted through the flag
+    // the route hands it.
+    const http = await readFile(new URL("../lib/http.mjs", import.meta.url), "utf8");
+    assert.match(http, /auth: Boolean\(reason && reason\.auth\)/);
+    assert.ok(calls.length >= 1);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("a migrated batch page is not reported as degraded", async () => {
+  /* `degraded` drives the "subject list unavailable" notice. A batch served by
+     the new endpoint has a real subject list, so it must not claim otherwise. */
+  const { fetchBatch } = await import("../lib/api-data.mjs");
+
+  const original = globalThis.fetch;
+  const realFetch = original;
+  globalThis.fetch = async (input, init) => {
+    const url = String(typeof input === "string" ? input : input.url);
+    if (url.includes("/BatchInfo")) {
+      return new Response(JSON.stringify({ success: false }), { status: 404 });
+    }
+    if (/\/v3\/batches\/[^/]+\/details/.test(url)) {
+      return new Response(
+        JSON.stringify({
+          data: {
+            _id: "x",
+            name: "Some Batch",
+            subjects: [{ _id: "s", subject: "Physics", slug: "physics-1", displayOrder: 1 }],
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    return realFetch(input, init);
+  };
+
+  try {
+    const out = await fetchBatch("x");
+    assert.equal(out.ok, true);
+    assert.equal(out.subjects.length, 1);
+    assert.notEqual(out.degraded, true, "a complete answer was marked degraded");
+  } finally {
+    globalThis.fetch = original;
+  }
+});

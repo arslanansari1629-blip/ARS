@@ -6282,3 +6282,11 @@ body.side-rail .side-brand:hover .brand-img {
 .player-shell :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline-color: #8fc0ff;
 }
+
+.toast.bad {
+  border-left-color: var(--danger);
+}
+
+.toast.info {
+  border-left-color: var(--cyan);
+}

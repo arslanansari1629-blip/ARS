@@ -28,6 +28,16 @@ async function fetchData(serverPath, upstreamPath, normalizer) {
   try {
     const data = await getJson(serverPath);
     if (!data.needsProxy) return data;
+
+    // An auth refusal is final. The browser relay presents the same guest
+    // credential the server just presented, so it will be refused in exactly the
+    // same way — retrying it wastes a round trip and, worse, turns a clear
+    // "PW will not serve this to guests" into a vague relay error.
+    if (data.auth) {
+      const err = new Error(data.reason || "Physics Wallah is not serving this to guests right now.");
+      err.auth = true;
+      throw err;
+    }
   } catch (err) {
     serverError = err;
   }

@@ -149,6 +149,19 @@ async function load(nextType) {
     cache.set(type, out.items || []);
     render(out.items || []);
   } catch (err) {
+    /* An upstream that refuses guest sessions is not a broken page: the chapter
+       exists, the lectures are there, and this deployment is simply not allowed
+       to list them. Say that, and stay quiet — a red toast for a fact nobody can
+       act on reads as "the site is broken", which it is not. */
+    if (err && err.auth) {
+      body.innerHTML = emptyState(
+        "This chapter needs a PW account",
+        err.message,
+        `<a class="btn btn-ghost btn-sm" href="/batches.html">Browse another batch</a>`
+      );
+      toast("Physics Wallah is not serving this chapter to guests right now", "info");
+      return;
+    }
     body.innerHTML = emptyState("Could not load this section", err.message);
     toast(err.message, "error");
   }
