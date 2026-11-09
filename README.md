@@ -275,6 +275,26 @@ Three invariants worth keeping:
 `/api/token?fresh=1` proves the whole chain (plan → master → rendition →
 segment) by fetching real bytes, and reports the first step that failed.
 
+### When the signer refuses (the current production state)
+
+PW does not sign content for the guest session this site holds: every signer
+answers 401/403, so `/api/sign` returns 403 and no playlist can be minted. That is
+an upstream access limit, not a bug in this repo, and retrying, relaying or
+re-minting the guest token does not change it. Fixing it needs an operator
+`PW_TOKEN` that can sign content.
+
+What the code must do in that state — and now does — is refuse to lie about it.
+The rendition probe records *which* failure happened (a 401/403 refusal, a signer
+that could not be reached, or a genuine no-such-rendition), and `resolveStream`
+picks its sentence from that evidence. "PW has not published a playable stream"
+is only said when every signer answered 404. A refusal says the recording exists,
+names the reason, and points at the notes and DPPs that do still work. Keep that
+distinction: a student told "not published" goes looking for a video that is
+already there.
+
+The catalogue, batch pages, chapter lists, lecture lists, notes and DPPs are all
+unaffected by this and remain live.
+
 ### The site repairs itself (`lib/selfheal.mjs`)
 
 Nothing on a student-facing page mentions this. It exists so a dead link becomes
