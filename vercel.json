@@ -82,6 +82,10 @@
     {
       "source": "/api/download",
       "destination": "/api/stream?action=download"
+    },
+    {
+      "source": "/api/key",
+      "destination": "/api/check?action=key"
     }
   ]
 }

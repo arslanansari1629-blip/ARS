@@ -65,13 +65,19 @@ const server = http.createServer(async (req, res) => {
     pathname === "/api/hls" ||
     pathname === "/api/sign" ||
     pathname === "/api/repair" ||
-    pathname === "/api/download"
+    pathname === "/api/download" ||
+    pathname === "/api/key"
   ) {
     // `/api/sign` and `/api/repair` are mounted on the admin function; `/api/hls`
     // rides on stream, which is how all of them keep their own URL inside a
     // 12-function budget.
     const action = pathname.slice(5);
-    const target = action === "hls" || action === "download" ? "/api/stream" : "/api/admin";
+    const target =
+      action === "hls" || action === "download"
+        ? "/api/stream"
+        : action === "key"
+          ? "/api/check"
+          : "/api/admin";
     url.searchParams.set("action", action);
     pathname = target;
     req.url = `${target}?${url.searchParams.toString()}`;

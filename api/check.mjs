@@ -8,6 +8,7 @@ import {
 } from "../lib/api-data.mjs";
 import { upstreamJson } from "../lib/upstream.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
+import keyHandler from "../lib/key-route.mjs";
 
 /**
  * GET /api/check?batch=&subject=&id=          → verify one lecture plays, end to end
@@ -364,6 +365,12 @@ async function sweepChapter({ batch, subject, chapter, base, limit }) {
 }
 
 export default async function handler(req, res) {
+  // `/api/key` is rewritten onto this function: one more route, and the Hobby
+  // plan allows ten functions. The key service must answer before this route
+  // writes headers or CORS for its own shape, so it is dispatched first.
+  const action = String(query(req).action || "").toLowerCase();
+  if (action === "key" || action === "gate") return keyHandler(req, res);
+
   cors(res);
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "GET") return json(res, 405, { success: false, error: "GET only" });

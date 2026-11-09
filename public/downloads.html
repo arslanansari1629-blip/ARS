@@ -63,6 +63,27 @@
         <p class="tiny dim" id="pickMeta">Search a batch, then pick a subject, chapter and class.</p>
       </div>
 
+      <!-- The gate. Downloads need a key, so it comes first — before a batch is
+           even chosen — and the lecture picker below stays disabled until one is
+           held. `downloads-page.js` fills this in; the markup is static so the
+           page says something useful before any script runs. -->
+      <section class="dl-gate" id="keyGate" data-state="loading">
+        <div class="dl-gate-head">
+          <span class="dl-gate-icon" aria-hidden="true">🔑</span>
+          <span class="grow">
+            <span class="dl-gate-title" id="keyTitle">Checking your download key…</span>
+            <span class="dl-gate-sub" id="keySub">Keys are free and last a while.</span>
+          </span>
+          <span class="dl-gate-badge" id="keyBadge" hidden></span>
+        </div>
+        <div class="dl-gate-progress" id="keyProgress" hidden><span id="keyProgressBar" style="width:0%"></span></div>
+        <div class="dl-gate-actions">
+          <button class="btn btn-primary btn-sm" id="keyGenerate">Generate key</button>
+          <button class="btn btn-ghost btn-sm" id="keyPaste">I have a key</button>
+        </div>
+        <p class="dl-gate-note tiny" id="keyNote"></p>
+      </section>
+
       <label class="dl-search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input id="batchSearch" type="search" placeholder="Search a batch — “Arjuna JEE 2027”, “Lakshya”, …" autocomplete="off" />

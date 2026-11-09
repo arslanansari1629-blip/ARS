@@ -1056,6 +1056,94 @@ $("menuSave")?.addEventListener("click", async () => {
   }
 });
 
+
+/**
+ * Download this video, straight from the player.
+ *
+ * The player is where the decision is actually made, so the download lives there
+ * too — and it is behind the same key gate as the downloads page, because a
+ * button that skipped the gate would be the gate's first hole. The menu offers to
+ * generate the key inline, then saves the lecture it is already showing.
+ */
+$("menuDownload")?.addEventListener("click", async () => {
+  setMenu(false);
+  if (!currentPlan || !currentPlan.playable) {
+    toast("This lecture has no stream to download yet", "bad");
+    return;
+  }
+  const folder = folderOf(currentPlan.url);
+  if (!folder) {
+    toast("This lecture cannot be downloaded", "bad");
+    return;
+  }
+
+  const button = $("menuDownload");
+  const title = (currentPlan.title || titleParam || nowTitle?.textContent || "Lecture").trim();
+  const restore = () => {
+    if (button) button.textContent = "⬇ Download this video";
+  };
+
+  try {
+    const { readKey, verifyStoredKey, generateKey } = await import("./download-key.js");
+    let held = readKey();
+    if (held) {
+      const verdict = await verifyStoredKey();
+      if (!verdict.valid) held = null;
+    }
+
+    if (!held) {
+      // Inline gate: no trip to another page, no losing your place in the video.
+      const confirmed = window.confirm(
+        "Downloading needs a free key. Generate one now? It lasts 24 hours and covers every lecture."
+      );
+      if (!confirmed) return;
+      if (button) button.textContent = "Generating key…";
+      held = await generateKey({
+        onTick: ({ secondsLeft, phase }) => {
+          if (!button) return;
+          button.textContent =
+            phase === "claiming" ? "Issuing key…" : secondsLeft > 0 ? `Key ready in ${secondsLeft}s` : "Unlocking…";
+        },
+      });
+      toast("Key activated — starting your download");
+    }
+
+    if (button) button.textContent = "Preparing download…";
+    const info = await api(
+      `/api/download?mode=list&folder=${encodeURIComponent(folder)}&quality=${encodeURIComponent(
+        (currentPlan.renditions && currentPlan.renditions[0]) || currentPlan.quality || "720"
+      )}`
+    );
+    if (!info.playable) {
+      toast(info.error || "This lecture cannot be downloaded right now", "bad");
+      restore();
+      return;
+    }
+    const { downloadLecture } = await import("./downloader.js");
+    const result = await downloadLecture({
+      id: lectureId,
+      folder,
+      quality: info.quality,
+      title,
+      format: info.encrypted ? "plain" : "playlist",
+      onProgress: (p) => {
+        const pct = p.total ? Math.round((p.segments / p.total) * 100) : 0;
+        if (button) button.textContent = `Downloading ${pct}%`;
+      },
+    });
+    restore();
+    if (result.ok) {
+      toast(`“${title}” downloaded — play it offline any time`, "");
+      showSavedAction(title);
+    } else {
+      toast("Downloaded part of this lecture — finish it on the Downloads page", "bad");
+    }
+  } catch (err) {
+    restore();
+    toast(err.message || "The download failed", "bad");
+  }
+});
+
 /** A one-line offer to watch the copy that was just saved, next to the video. */
 function showSavedAction(title) {
   const host = document.getElementById("offlineOffer");

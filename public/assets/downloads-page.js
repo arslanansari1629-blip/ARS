@@ -19,6 +19,7 @@
 
 import { api, mountChrome, esc, toast, emptyState, getPrefs, setPref, fmtRelative } from "./app.js";
 import { playSaved } from "./offline-player.js";
+import { forgetKey, fmtLeft, generateKey, keyStatus, readKey, verifyStoredKey } from "./download-key.js";
 import {
   canStoreOffline,
   downloadLecture,
@@ -57,6 +58,22 @@ const queueText = $("queueText");
 const clearBtn = $("clearSaved");
 const persistNote = $("persistNote");
 const onlyOffline = $("onlyOffline");
+
+/* ---------------------------------- gate ---------------------------------- */
+
+const keyGate = $("keyGate");
+const keyTitle = $("keyTitle");
+const keySub = $("keySub");
+const keyBadge = $("keyBadge");
+const keyProgress = $("keyProgress");
+const keyProgressBar = $("keyProgressBar");
+const keyGenerate = $("keyGenerate");
+const keyPaste = $("keyPaste");
+const keyNote = $("keyNote");
+
+/** The gate's own state: `blocked` until a key is held. */
+let keyReady = false;
+let gateBusy = false;
 
 /** Where the current choice lives between visits. */
 const PICK_KEY = "downloadPick";
@@ -268,6 +285,146 @@ lectureList.addEventListener("click", (e) => {
   startDownload({ id: row.dataset.id, title: row.dataset.title });
 });
 
+
+/* ------------------------------- the key gate ------------------------------ */
+
+/** Paint the gate: `blocked`, `waiting`, or `ready`. */
+function renderGate(state, { title, sub, note, badge } = {}) {
+  keyGate.dataset.state = state;
+  if (title) keyTitle.textContent = title;
+  if (sub !== undefined) keySub.textContent = sub;
+  if (note !== undefined) keyNote.textContent = note || "";
+  keyBadge.hidden = !badge;
+  if (badge) keyBadge.textContent = badge;
+
+  keyReady = state === "ready";
+  keyGenerate.hidden = keyReady;
+  keyGenerate.disabled = gateBusy || state === "waiting";
+  keyGenerate.textContent = state === "waiting" ? "Please wait…" : "Generate key";
+  keyPaste.hidden = keyReady;
+  keyProgress.hidden = state !== "waiting";
+
+  // Nothing can be saved without a key, so the save buttons say so rather than
+  // failing after a lecture has been chosen.
+  for (const btn of lectureList.querySelectorAll("[data-save]")) {
+    if (!keyReady) {
+      btn.disabled = true;
+      btn.textContent = "Key needed";
+      btn.title = "Generate a download key first";
+    } else if (btn.textContent === "Key needed") {
+      btn.disabled = false;
+      btn.textContent = "Save";
+      btn.title = "";
+    }
+  }
+}
+
+/** A key turns the gate green and says how long it has left. */
+function paintHeld(record, mode = "wait", ttlHours = 24) {
+  renderGate("ready", {
+    title: "Download key active",
+    sub: `Every lecture on this page can be saved for the next ${fmtLeft(record)}.`,
+    badge: fmtLeft(record),
+    note:
+      mode === "reward"
+        ? "Thanks for supporting the site — this key came from the sponsor page."
+        : `Your key lasts ${ttlHours} hours and covers every lecture.`,
+  });
+}
+
+/** The wait, drawn honestly from the server's own countdown. */
+function paintWaiting({ secondsLeft, total }) {
+  const pct = total ? Math.min(100, Math.round(((total - secondsLeft) / total) * 100)) : 100;
+  keyProgressBar.style.width = `${pct}%`;
+  renderGate("waiting", {
+    title: secondsLeft > 0 ? `Getting your key ready — ${secondsLeft}s` : "Issuing your key…",
+    sub: "You can leave this tab open; nothing is lost.",
+    note: "",
+  });
+}
+
+/** Show the gate's first state: a held key, or an invitation to generate one. */
+async function bootGate() {
+  renderGate("blocked", {
+    title: "A download key is needed",
+    sub: "Loading the gate…",
+    note: "",
+  });
+
+  let status = { mode: "wait", waitSeconds: 30, ttlHours: 24, sponsorHost: "" };
+  try {
+    const remote = await keyStatus();
+    if (remote.ok) status = remote;
+  } catch {
+    keyNote.textContent = "The key service is not answering. Downloads are paused until it does.";
+    return;
+  }
+
+  const held = readKey();
+  if (held) {
+    const verdict = await verifyStoredKey();
+    if (verdict.valid) {
+      paintHeld(readKey() || held, status.mode, status.ttlHours);
+      return;
+    }
+  }
+
+  renderGate("blocked", {
+    title: "Generate a key to download",
+    sub: `One key covers every lecture for ${status.ttlHours} hours.`,
+    note:
+      status.mode === "reward"
+        ? `Generating opens ${status.sponsorHost || "a sponsor page"}; come back to this tab afterwards.`
+        : `Generating takes about ${status.waitSeconds} seconds. Nothing to install, no account.`,
+  });
+}
+
+keyGenerate.addEventListener("click", async () => {
+  if (gateBusy || keyReady) return;
+  gateBusy = true;
+  renderGate("waiting", { title: "Starting…", sub: "Asking for a key.", note: "" });
+  try {
+    const status = await keyStatus().catch(() => ({ mode: "wait", ttlHours: 24 }));
+    const record = await generateKey({ onTick: paintWaiting });
+    paintHeld(record, status.mode, record.ttlHours || status.ttlHours);
+    toast(status.mode === "reward" ? "Key activated — downloads unlocked" : "Key generated — downloads unlocked");
+  } catch (err) {
+    renderGate("blocked", {
+      title: "A download key is needed",
+      sub: "That did not work.",
+      note: err.message || "The key could not be generated. Try again.",
+    });
+    toast(err.message || "The key could not be generated", "bad");
+  } finally {
+    gateBusy = false;
+  }
+});
+
+keyPaste.addEventListener("click", async () => {
+  const pasted = window.prompt("Paste your download key");
+  if (!pasted) return;
+  storePasted(pasted.trim());
+  const verdict = await verifyStoredKey();
+  if (verdict.valid) {
+    paintHeld(readKey(), "wait", 24);
+    toast("Key accepted — downloads unlocked");
+  } else {
+    forgetKey();
+    toast("That key is not valid, or it has expired", "bad");
+  }
+});
+
+/** Kept tiny and local: the paste path is a fallback, not a second implementation. */
+function storePasted(text) {
+  try {
+    const parts = String(text).split(".");
+    const expiresAt = Number(parts[1]) || 0;
+    localStorage.setItem("downloadKey", JSON.stringify({ key: text, expiresAt, savedAt: Date.now() }));
+  } catch {
+    /* storage disabled */
+  }
+}
+
 /* -------------------------------- the save -------------------------------- */
 
 /**
@@ -283,6 +440,16 @@ async function startDownload({ id, title, batch, subject }) {
   const subjectRef = subject || pick.subject;
   if (!owner || !subjectRef) {
     toast("Pick a batch and subject first", "bad");
+    return;
+  }
+  if (!keyReady) {
+    // A key can expire in a long-open tab; re-check rather than trusting a flag.
+    renderGate("blocked", {
+      title: "Generate a key to download",
+      sub: "Your key expired or was removed.",
+      note: "Press Generate key, then save this lecture again.",
+    });
+    toast("A download key is needed first", "bad");
     return;
   }
   if (running.has(id)) {
@@ -523,6 +690,9 @@ async function boot() {
   }
 
   await refreshSaved();
+  // The key comes first: it is the one thing standing between a visitor and a
+  // download, so it is answered before they spend time picking a lecture.
+  await bootGate();
 
   try {
     const persisted = await requestPersistence();
