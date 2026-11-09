@@ -99,8 +99,7 @@ api/                 Vercel serverless functions (Node runtime, ESM)
   lecture.mjs        lecture detail, attachments, announcements
   stream.mjs         playable stream resolution
   check.mjs          playback self-test (one lecture, a URL, or a whole chapter)
-  hls.mjs            CORS-safe manifest/segment gateway
-  sign.mjs           signed-playlist relay
+  admin.mjs          operator API: sign-in, sessions, live stats (+ mounts /api/hls, /api/sign)
   pdf.mjs            PDF resolution + redirect
   media.mjs          asset (PDF/image) relay
   pw/[...path].mjs   authenticated pass-through to the whole PW API surface
@@ -110,9 +109,13 @@ lib/                 shared upstream client + normalisers (server side)
   pw-proxy.mjs       the /api/pw implementation (allowlist, failover, binary passthrough)
   catalog.mjs        the shipped batch catalogue (search + paging)
   playback.mjs       one explanation for "why has this lecture no video", shared by both routes
+  admin.mjs          credentials (digests), sessions, traffic counters, health probes
+  hls.mjs            CORS-safe manifest/segment gateway (mounted on api/stream.mjs)
+  sign.mjs           signed-playlist relay (mounted on api/admin.mjs)
 public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
   viewer.html login.html dashboard.html library.html favourites.html 404.html
+  admin.html         the operator panel (noindex, its own plate)
   assets/            arsvibe.css (the whole design system) · app.js · data.js · page modules
 data/batches.json.gz complete batch catalogue (13,631 upstream → 14,201 with the full list)
 scripts/dev.mjs      local dev server (same (req,res) contract as Vercel)
@@ -237,6 +240,42 @@ an `authorization` **query parameter**; data routes keep it in the header.
 `no_segments`, `segment_failed`, `decrypt_mismatch` or `error`, and `explain` is the same
 sentence the player shows. The chapter page links this sweep next to the lecture count, so a
 "videos don't play" report comes with evidence instead of a screenshot.
+
+## The admin panel
+
+`/admin` is a separate, noindex plate — it is not part of the student shell and
+nothing in the public nav links to it (a small `admin` link appears in the
+sidebar only after a panel session exists).
+
+**Credentials live on the server only.** `lib/admin.mjs` keeps the username and
+password as SHA-256 digests and compares them in constant time; neither string
+exists anywhere under `public/`, and no API response ever echoes them. Signing in
+issues a random session token (30 minutes idle, 8 hours absolute) which the
+browser keeps in `sessionStorage`. Six failed attempts within ten minutes trip a
+cooldown that also refuses the correct password.
+
+What the panel reports, refreshed every 20 seconds:
+
+| Block | Contents |
+| --- | --- |
+| Status | overall pass/fail with the failing probe named |
+| API & host health | catalogue index, live API, public site, catalogue mirrors — each with latency |
+| Upstream token | source, expiry and a redacted prefix; never the token |
+| Traffic | 30-minute sparkline, success rate, data requests, bytes served, errors |
+| Requests by route | which routes this instance actually served |
+| Slowest / Errors | the eight slowest samples and the last twenty 5xx |
+| CDN | what Vercel's cache did with the responses this instance produced |
+| Deployment | commit, environment, region, Node version |
+| Runtime & data | uptime, memory, catalogue size |
+
+Numbers are per warm server instance (Vercel functions are stateless between
+cold starts), which the panel states plainly rather than implying a global
+counter. Traffic is sampled inside `cors(res, req)` — the one call every API
+route already makes — so a new route is counted without being instrumented.
+
+Rendering note: `scripts/preview-admin.mjs` draws the panel to
+`design/admin-panel.png` from a live `/api/admin?action=stats` payload using the
+real stylesheet. It is a dev-only check (there is no browser in CI).
 
 ## Live deployment
 
