@@ -312,6 +312,18 @@ function renderTraffic(data) {
     ["Bytes served", bytes(data.traffic.bytesOut)],
     ["Server errors", serverErrors],
     ...(unreachable ? [["No answer", `${unreachable} (host unreachable)`]] : []),
+    ...cacheRows(data.traffic.byCache || {}),
+  ]);
+}
+
+/** How often Vercel's CDN answered a request this function also saw. */
+function cacheRows(byCache) {
+  const entries = Object.entries(byCache).filter(([, n]) => n > 0);
+  if (!entries.length) return [];
+  const total = entries.reduce((sum, [, n]) => sum + n, 0);
+  return entries.map(([state, n]) => [
+    `CDN ${state.toLowerCase()}`,
+    `${Math.round((n / total) * 100)}% of ${total}`,
   ]);
 }
 
