@@ -44,12 +44,37 @@ async function loadHandler(name, explicitFile = "") {
   return mod.default;
 }
 
-function sendStatic(res, filePath) {
+/**
+ * The headers `vercel.json` attaches to a path, applied in dev too.
+ *
+ * Without this, a rule that only exists in production (the worker must never be
+ * cached, the manifest is JSON with a specific type) is invisible until it is
+ * wrong on the live site — and a test cannot see it at all.
+ */
+const VERCEL = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+
+function headerRulesFor(pathname) {
+  const rules = [];
+  for (const rule of VERCEL.headers || []) {
+    const src = String(rule.source || "");
+    // Only the literal, single-path rules are mirrored: the regex and
+    // `has`-conditional ones are Vercel's business, not a dev server's.
+    if (!src.startsWith("/") || /[()*+]/.test(src)) continue;
+    if (rule.has) continue;
+    if (pathname === src) rules.push(rule);
+  }
+  return rules;
+}
+
+function sendStatic(res, filePath, pathname) {
   return readFile(filePath).then((buf) => {
     const ext = path.extname(filePath).toLowerCase();
     res.statusCode = 200;
     res.setHeader("Content-Type", TYPES[ext] || "application/octet-stream");
     res.setHeader("Cache-Control", "no-cache");
+    for (const rule of headerRulesFor(pathname)) {
+      for (const { key, value } of rule.headers || []) res.setHeader(key, value);
+    }
     res.end(buf);
   });
 }
@@ -144,14 +169,14 @@ const server = http.createServer(async (req, res) => {
   try {
     const info = await stat(filePath);
     if (info.isDirectory()) filePath = path.join(filePath, "index.html");
-    return await sendStatic(res, filePath);
+    return await sendStatic(res, filePath, pathname);
   } catch {
     // pretty URLs: /batch → /batch.html
     try {
-      return await sendStatic(res, `${filePath}.html`);
+      return await sendStatic(res, `${filePath}.html`, pathname);
     } catch {
       try {
-        return await sendStatic(res, path.join(PUBLIC, "404.html"));
+        return await sendStatic(res, path.join(PUBLIC, "404.html"), "/404.html");
       } catch {
         res.statusCode = 404;
         res.setHeader("Content-Type", "text/plain");

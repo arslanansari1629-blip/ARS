@@ -17,8 +17,11 @@
 <link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="robots" content="noindex, follow" />
 </head>
 <body data-page="login" class="bare">
+<a class="skip-link" href="#main">Skip to content</a>
 
 <header class="nav" id="nav">
   <div class="shell nav-inner">
@@ -30,7 +33,7 @@
   </div>
 </header>
 
-<main class="login-wrap">
+<main id="main" class="login-wrap">
   <div class="glass login-card">
     <div class="logo"><img src="/assets/logo.svg" alt="ArsVibe" width="52" height="52" /></div>
     <div>
@@ -66,7 +69,7 @@
     <div class="trust">
       <span>✓ Free forever</span>
       <span>✓ No ads</span>
-      <span>✓ 13,000+ batches</span>
+      <span>✓ 14,000+ batches</span>
     </div>
 
     <p class="tiny dim">ArsVibe • Free &amp; Open Learning for Everyone</p>
@@ -97,35 +100,7 @@
   </div>
 </div>
 
-<script type="module">
-  import { mountChrome, signInBypass, signInWithEmail, getSession } from "/assets/app.js";
-
-  mountChrome("login");
-
-  const params = new URLSearchParams(location.search);
-  const next = params.get("next") || "/dashboard.html";
-
-  if (getSession()) location.replace(next);
-
-  document.getElementById("bypassBtn").addEventListener("click", () => {
-    signInBypass();
-    location.replace(next);
-  });
-
-  const modal = document.getElementById("googleModal");
-  document.getElementById("googleBtn").addEventListener("click", () => {
-    modal.classList.remove("hide");
-    document.getElementById("gName").focus();
-  });
-  document.getElementById("closeModal").addEventListener("click", () => modal.classList.add("hide"));
-  document.getElementById("googleForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    signInWithEmail(
-      document.getElementById("gName").value.trim(),
-      document.getElementById("gEmail").value.trim()
-    );
-    location.replace(next);
-  });
-</script>
+<script type="module" src="/assets/login.js"></script>
+  <script type="module" src="/assets/offline-boot.js"></script>
 </body>
 </html>

@@ -9,6 +9,10 @@ import {
   fmtDate,
   getPrefs,
   setPref,
+  setPageMeta,
+  setStructuredData,
+  clamp,
+  ORIGIN,
 } from "./app.js";
 import { trackLecture } from "./library.js";
 import { loadLecture, loadContents } from "./data.js";
@@ -170,6 +174,30 @@ async function boot() {
     const l = detail.lecture;
     titleEl.textContent = l.title || titleParam || "Lecture";
     document.title = `${l.title} — ArsVibe PW`;
+    setPageMeta({
+      title: `${l.title} — ArsVibe PW`,
+      description: clamp(
+        l.description || l.topicInfo || `${l.title} — watch free on ArsVibe with the class notes and DPP alongside.`
+      ),
+      canonical: `${ORIGIN}/lecture?id=${encodeURIComponent(l.id || qs("id") || "")}`,
+      image: l.thumbnail || undefined,
+    });
+    setStructuredData({
+      "@context": "https://schema.org",
+      "@type": "VideoObject",
+      name: l.title,
+      description: clamp(
+        l.description || l.topicInfo || `${l.title} — a Physics Wallah lecture with its class notes and DPP.`,
+        300
+      ),
+      thumbnailUrl: l.thumbnail || undefined,
+      uploadDate: l.date || undefined,
+      duration: l.duration || undefined,
+      url: `${ORIGIN}/lecture?id=${encodeURIComponent(l.id || qs("id") || "")}`,
+      inLanguage: "en",
+      isAccessibleForFree: true,
+      publisher: { "@type": "Organization", name: "ArsVibe", url: ORIGIN },
+    });
     metaEl.textContent = [l.date ? fmtDate(l.date) : "", l.duration, l.topicInfo]
       .filter(Boolean)
       .join(" · ");

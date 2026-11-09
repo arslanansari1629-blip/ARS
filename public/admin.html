@@ -10,11 +10,13 @@
 <link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
 </head>
 <body class="admin-body" data-page="admin">
+<a class="skip-link" href="#main">Skip to content</a>
 
 <!-- Sign in ------------------------------------------------------------- -->
-<main class="admin-gate" id="gate">
+<main class="admin-gate" id="gate" tabindex="-1">
   <form class="admin-card" id="loginForm" autocomplete="on" novalidate>
     <div class="admin-mark">
       <img src="/assets/logo.svg" alt="" width="38" height="38" />
@@ -46,6 +48,7 @@
     <p class="tiny dim admin-foot">Session ends after 30 minutes idle. <a href="/">Back to the site</a></p>
   </form>
 </main>
+<span id="main" hidden></span>
 
 <!-- Panel --------------------------------------------------------------- -->
 <main class="admin-wrap" id="panel" hidden>
@@ -142,5 +145,6 @@
 </main>
 
 <script type="module" src="/assets/admin.js"></script>
+  <script type="module" src="/assets/offline-boot.js"></script>
 </body>
 </html>

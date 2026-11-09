@@ -1,0 +1,62 @@
+{
+  "name": "ArsVibe — Physics Wallah lectures, notes & DPPs",
+  "short_name": "ArsVibe",
+  "description": "Every Physics Wallah batch, chapter, lecture, class note and DPP in one fast, ad-free place. Works offline once a lecture is saved.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#eef1f5",
+  "theme_color": "#eef1f5",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "All batches",
+      "short_name": "Batches",
+      "url": "/batches.html",
+      "description": "Browse every Physics Wallah batch"
+    },
+    {
+      "name": "Downloads",
+      "short_name": "Offline",
+      "url": "/downloads.html",
+      "description": "Lectures saved on this device"
+    },
+    {
+      "name": "My Library",
+      "short_name": "Library",
+      "url": "/library.html",
+      "description": "Saved batches, notes and lectures"
+    }
+  ]
+}

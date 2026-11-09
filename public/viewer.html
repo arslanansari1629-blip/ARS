@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>PDF — ArsVibe PW</title>
+<meta name="description" content="Read class notes and DPPs inline, page by page, with no download step." />
 <meta name="theme-color" content="#eef1f5" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="ArsVibe" />
@@ -17,8 +18,12 @@
 <link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/viewer" />
+<meta property="og:url" content="https://arsvibe-pw-sepia.vercel.app/viewer" />
 </head>
 <body data-page="viewer" class="bare">
+<a class="skip-link" href="#main">Skip to content</a>
   <div class="pdf-head">
     <a class="icon-btn" href="javascript:history.length>1?history.back():location.assign('/batches.html')" title="Back">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
@@ -30,33 +35,13 @@
     <a class="btn btn-ghost btn-sm" id="downloadBtn" href="#" download>Download</a>
     <a class="btn btn-primary btn-sm" id="openBtn" href="#" target="_blank" rel="noopener">Open raw</a>
   </div>
-  <iframe class="pdf-frame" id="frame" title="Document"></iframe>
+  <main id="main">
+    <iframe class="pdf-frame" id="frame" title="Document"></iframe>
+  </main>
 
-<script type="module">
-  const params = new URLSearchParams(location.search);
-  const name = params.get("name") || "Document";
-  const raw = params.get("url") || "";
-  const id = params.get("id") || "";
-  const base = params.get("base") || "https://static.pw.live/";
-
-  const src = raw
-    ? `/api/media?url=${encodeURIComponent(raw)}`
-    : `/api/media?id=${encodeURIComponent(id)}&base=${encodeURIComponent(base)}`;
-
-  document.getElementById("docTitle").textContent = name;
-  document.getElementById("docMeta").textContent = "Rendered from the Physics Wallah PDF library";
-  document.title = `${name} — ArsVibe PW`;
-
-  const frame = document.getElementById("frame");
-  frame.src = src;
-
-  const download = document.getElementById("downloadBtn");
-  download.href = src;
-  download.download = name.endsWith(".pdf") ? name : `${name}.pdf`;
-
-  document.getElementById("openBtn").href = raw || (base + id);
-</script>
+<script type="module" src="/assets/viewer.js"></script>
 <script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
+  <script type="module" src="/assets/offline-boot.js"></script>
 </body>
 </html>

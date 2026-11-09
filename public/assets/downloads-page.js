@@ -521,9 +521,34 @@ async function renderSpace() {
   const used = saved.reduce((n, r) => n + (r.bytes || 0), 0);
   const pct = est.quota ? Math.min(100, Math.round((est.usage / est.quota) * 100)) : 0;
   spaceBar.querySelector("span").style.width = `${Math.max(2, pct)}%`;
-  spaceText.textContent = `${fmtBytes(used)} in lectures · ${fmtBytes(est.usage)} used of ${fmtBytes(
+
+  // Lectures are not the only thing this site keeps now: notes and DPPs read in
+  // the viewer are stored too. Say so, because "why is my quota bigger than my
+  // lectures" is otherwise a mystery, and so is the reverse.
+  const kept = await countKeptDocs();
+  const tail = kept ? ` · ${kept} note${kept === 1 ? "" : "s"} kept` : "";
+  spaceText.textContent = `${fmtBytes(used)} in lectures${tail} · ${fmtBytes(est.usage)} used of ${fmtBytes(
     est.quota
   )} available`;
+}
+
+/** How many notes/DPPs the worker is holding — read from the cache, not counted. */
+async function countKeptDocs() {
+  if (!("caches" in window)) return 0;
+  try {
+    const names = await caches.keys();
+    let n = 0;
+    for (const name of names) {
+      if (!name.includes("files")) continue;
+      const cache = await caches.open(name);
+      for (const request of await cache.keys()) {
+        if (request.url.includes("/api/media?")) n += 1;
+      }
+    }
+    return n;
+  } catch {
+    return 0;
+  }
 }
 
 /* --------------------------------- boot ---------------------------------- */

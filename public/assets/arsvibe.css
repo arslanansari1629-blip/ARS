@@ -5508,6 +5508,11 @@ body.side-rail .side-brand:hover .brand-img {
 
 /* ---- sign in ------------------------------------------------------------ */
 
+.admin-gate[hidden],
+.admin-wrap[hidden] {
+  display: none;
+}
+
 .admin-gate {
   min-height: 100vh;
   display: grid;
@@ -6014,4 +6019,266 @@ body.side-rail .side-brand:hover .brand-img {
   color: var(--blue);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* ==========================================================================
+   Offline posture, connection pip and the update row
+   --------------------------------------------------------------------------
+   Three pieces of furniture the service worker needs to be honest about itself:
+   a pip that says the connection is gone, a row that offers the new build, and
+   a skip link so a keyboard user is not walked through the whole sidebar on
+   every page. All three are quiet on purpose — the site's job is the studying.
+   ========================================================================== */
+
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 200;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--r-1, 3px);
+  background: var(--blue);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-decoration: none;
+  transform: translateY(-200%);
+  transition: transform 0.12s var(--ease, ease);
+}
+
+.skip-link:focus-visible,
+.skip-link:focus {
+  transform: translateY(0);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.net-pip {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  z-index: 150;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule-2);
+  background: var(--card-2);
+  color: var(--ink-2);
+  font-size: 0.76rem;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(13, 26, 43, 0.12);
+}
+
+.net-pip[hidden] {
+  display: none;
+}
+
+.net-pip::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.update-row {
+  position: fixed;
+  left: 50%;
+  top: 0.9rem;
+  z-index: 160;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.5rem 0.6rem 0.5rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--rule-2);
+  background: var(--card-2);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 550;
+  box-shadow: 0 10px 30px rgba(13, 26, 43, 0.16);
+}
+
+.update-row .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue-2);
+  box-shadow: 0 0 0 3px var(--blue-soft);
+  flex: none;
+}
+
+@media (max-width: 520px) {
+  .update-row {
+    left: 0.75rem;
+    right: 0.75rem;
+    top: auto;
+    bottom: 0.75rem;
+    transform: none;
+    max-width: none;
+  }
+
+  .net-pip {
+    bottom: auto;
+    top: 0.75rem;
+  }
+}
+
+/* A skeleton that matches the card it is standing in for, so a slow catalogue
+   reads as "arriving" rather than "broken". */
+.sk {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--paper-2);
+}
+
+.sk::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: sk-sweep 1.4s infinite;
+}
+
+@keyframes sk-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk::after {
+    animation: none;
+  }
+
+  .skip-link,
+  .net-pip,
+  .update-row {
+    transition: none;
+  }
+}
+
+/* ==========================================================================
+   Print — a study site is printed. Notes lists and lecture lists get a rule
+   instead of a shadow, the furniture goes away, and links keep their target.
+   ========================================================================== */
+
+@media print {
+  .nav,
+  .sidebar,
+  .side-rail,
+  .topbar,
+  .net-pip,
+  .update-row,
+  .skip-link,
+  .toast-host,
+  .fab,
+  .nav-toggle,
+  .modal,
+  .sheet {
+    display: none !important;
+  }
+
+  :root {
+    --paper: #fff;
+    --card: #fff;
+    --card-2: #fff;
+    --ink: #000;
+    --ink-2: #222;
+    --ink-3: #444;
+  }
+
+  body {
+    background: #fff;
+    font-size: 11pt;
+  }
+
+  main,
+  .shell {
+    max-width: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .card,
+  .panel {
+    border: 1px solid #bbb;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #555;
+  }
+
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+}
+
+/* ==========================================================================
+   Utilities the page code relies on but the sheet never defined
+   ========================================================================== */
+
+/* A label only a screen reader reads: the visual design does not need the word,
+   the accessible name does. Not the same as `display:none`, which removes it. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sr-only:focus-visible,
+.sr-only:focus {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  clip: auto;
+  clip-path: none;
+  background: var(--card-2);
+  border: 1px solid var(--blue);
+  border-radius: 3px;
+  z-index: 210;
+}
+
+/* Skip link and pip need to survive a `hidden` attribute set by script. */
+[hidden] {
+  display: none !important;
+}
+
+/* A focus ring that is visible on both paper and the dark player. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--blue-2);
+  outline-offset: 2px;
+}
+
+.player-shell :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline-color: #8fc0ff;
 }

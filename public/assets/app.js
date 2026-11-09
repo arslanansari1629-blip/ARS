@@ -240,14 +240,133 @@ export function debounce(fn, ms = 380) {
 
 /* ------------------------------- nav / chrome ----------------------------- */
 
+/**
+ * Give a dynamic page the metadata its URL deserves.
+ *
+ * `batch.html?id=…` is one of fourteen thousand pages that all shipped the
+ * generic site-wide og:title, which is what a link preview in a group chat
+ * actually shows. This makes the preview — and the canonical URL — name the
+ * batch, subject, chapter or lecture that is on screen.
+ *
+ * Everything is written through to the existing tags when present and created
+ * when missing, so a page that ships good static defaults keeps them intact if
+ * this never runs (a slow fetch, a blocked module).
+ */
+export function setPageMeta({ title, description, canonical, image } = {}) {
+  const head = document.head;
+  if (!head) return;
+
+  if (title) document.title = title;
+
+  const put = (selector, create, value) => {
+    if (!value) return;
+    let el = head.querySelector(selector);
+    if (!el) {
+      el = create();
+      head.appendChild(el);
+    }
+    el.setAttribute(selector.startsWith("link") ? "href" : "content", value);
+  };
+
+  const meta = (key, value, attr = "property") =>
+    put(`meta[${attr}="${key}"]`, () => {
+      const el = document.createElement("meta");
+      el.setAttribute(attr, key);
+      return el;
+    }, value);
+
+  const link = (rel, value) =>
+    put(`link[rel="${rel}"]`, () => {
+      const el = document.createElement("link");
+      el.setAttribute("rel", rel);
+      return el;
+    }, value);
+
+  // `<meta name="description">` and `<meta property="og:*">` are different
+  // attributes. Writing the description with `property=` leaves the real,
+  // search-engine-facing tag stale while adding one nobody reads.
+  if (description) {
+    meta("description", description, "name");
+    meta("og:description", description);
+  }
+  if (title) {
+    meta("og:title", title);
+    meta("twitter:title", title, "name");
+  }
+  if (image) {
+    meta("og:image", image);
+    meta("twitter:image", image, "name");
+  }
+  if (canonical) {
+    link("canonical", canonical);
+    meta("og:url", canonical);
+  }
+}
+
+/** Trim a description to something a preview card will actually show. */
+export function clamp(str, max = 160) {
+  const text = String(str || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1).replace(/[\s,;:—-]+\S*$/, "") + "…";
+}
+
+/**
+ * Publish a JSON-LD graph for the entity on screen.
+ *
+ * A batch page and a lecture page are the only two things here that a search
+ * engine can usefully show as a result, so they get one block each. It is
+ * rewritten in place rather than appended, so navigating between two batches
+ * does not leave the first one's graph behind.
+ */
+export function setStructuredData(data) {
+  const head = document.head;
+  if (!head || !data) return;
+  let el = head.querySelector('script[type="application/ld+json"][data-dynamic]');
+  if (!el) {
+    el = document.createElement("script");
+    el.type = "application/ld+json";
+    el.setAttribute("data-dynamic", "1");
+    head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(data);
+}
+
+export const ORIGIN = "https://arsvibe-pw-sepia.vercel.app";
+
 export function mountChrome(activePage) {
   const nav = $("#nav");
   if (nav) {
-    $("#navToggle")?.addEventListener("click", () => {
-      $("#navLinks")?.classList.toggle("open");
-    });
+    // The menu button is a disclosure, so it must say whether it is open and
+    // close when the choice is made — otherwise a screen-reader user is told
+    // "Menu" forever and a keyboard user walks into a panel that covers the page.
+    const toggle = $("#navToggle");
+    const links = $("#navLinks");
+    if (toggle && links) {
+      const setOpen = (open) => {
+        links.classList.toggle("open", open);
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+      };
+      setOpen(links.classList.contains("open"));
+      toggle.addEventListener("click", () => setOpen(!links.classList.contains("open")));
+      links.addEventListener("click", (event) => {
+        if (event.target.closest("a")) setOpen(false);
+      });
+      // Escape closes it, the same as every other disclosure on the web.
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && links.classList.contains("open")) {
+          setOpen(false);
+          toggle.focus();
+        }
+      });
+    }
     $$("#navLinks a").forEach((a) => {
-      if (a.dataset.page === activePage) a.classList.add("active");
+      if (a.dataset.page === activePage) {
+        a.classList.add("active");
+        // `aria-current` is what actually tells assistive tech "you are here";
+        // the class only tells the eye.
+        a.setAttribute("aria-current", "page");
+      }
     });
   }
   renderSessionChip();

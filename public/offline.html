@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Offline — ArsVibe</title>
+<meta name="theme-color" content="#eef1f5" />
+<meta name="description" content="ArsVibe is offline. Saved lectures, kept notes and your library still open without a connection." />
+<link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="robots" content="noindex, follow" />
+<style>
+  .off-wrap {
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: clamp(2.25rem, 8vh, 4.5rem) 1.25rem;
+    text-align: center;
+  }
+  .off-mark {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1.1rem;
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    background: var(--blue-soft, #e8efff);
+    color: var(--blue-ink, #1c55c8);
+  }
+  .off-wrap h1 {
+    font-size: clamp(1.35rem, 4vw, 1.75rem);
+    margin: 0 0 0.6rem;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+  .off-wrap p {
+    color: var(--ink-3, #5b6478);
+    line-height: 1.65;
+    margin: 0 auto 0.9rem;
+    max-width: 30rem;
+    font-size: 0.94rem;
+  }
+  .off-actions {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 1.5rem 0 2.25rem;
+  }
+  .off-list {
+    text-align: left;
+    border: 1px solid var(--rule, #c9d3de);
+    border-radius: 12px;
+    padding: 1rem 1.1rem 1.15rem;
+    background: var(--card, #f8fafc);
+  }
+  .off-list h2 {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--ink-3, #5b6478);
+    margin: 0 0 0.7rem;
+    font-weight: 700;
+  }
+  .off-list ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.15rem;
+  }
+  .off-list li a {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.9rem;
+    font-weight: 550;
+    color: var(--ink, #0d1a2b);
+    text-decoration: none;
+    padding: 0.5rem 0.55rem;
+    border-radius: 8px;
+  }
+  .off-list li a:hover,
+  .off-list li a:focus-visible {
+    background: var(--blue-soft, #e8efff);
+    color: var(--blue-ink, #123f96);
+  }
+  .off-list .off-why {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 400;
+    color: var(--ink-3, #5b6478);
+    margin-top: 0.1rem;
+  }
+  .off-tip {
+    font-size: 0.8rem;
+    color: var(--ink-3, #5b6478);
+    margin-top: 1.35rem;
+  }
+  .off-wrap[data-hint="no-network"] .off-tip {
+    display: block;
+  }
+</style>
+</head>
+<body data-page="offline">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="/">
+      <img class="brand-img" src="/assets/logo.svg" alt="ArsVibe" width="30" height="30" />
+      <span>ArsVibe<small>Physics Wallah</small></span>
+    </a>
+    <nav class="nav-links" id="navLinks" aria-label="Primary">
+      <a href="/" data-page="home">Home</a>
+      <a href="/downloads.html" data-page="downloads">Downloads</a>
+      <a href="/library.html" data-page="library">My Library</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="shell">
+  <div class="off-wrap">
+    <div class="off-mark" aria-hidden="true">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+        <path d="M2 8.8A16 16 0 0 1 22 8.8" />
+        <path d="M5 12.4a11 11 0 0 1 14 0" />
+        <path d="M8.2 16a6 6 0 0 1 7.6 0" />
+        <circle cx="12" cy="19.6" r="0.9" fill="currentColor" stroke="none" />
+        <path d="m3 3 18 18" stroke="var(--danger, #b0232b)" />
+      </svg>
+    </div>
+    <h1>No connection</h1>
+    <p>
+      This page needs the catalogue, and the catalogue needs to be fetched. Everything you have
+      already opened on this device still works — saved lectures play from storage, and notes you
+      have read are kept.
+    </p>
+
+    <div class="off-actions">
+      <button class="btn btn-primary" id="retry" type="button">Try again</button>
+      <a class="btn btn-ghost" href="/downloads.html">Saved lectures</a>
+    </div>
+
+    <div class="off-list">
+      <h2>Works without a connection</h2>
+      <ul>
+        <li>
+          <a href="/downloads.html">
+            <span aria-hidden="true">⬇</span>
+            <span>Saved lectures<span class="off-why">Plays straight from this device</span></span>
+          </a>
+        </li>
+        <li>
+          <a href="/library.html">
+            <span aria-hidden="true">▤</span>
+            <span>My Library<span class="off-why">Batches you saved, and what you finished</span></span>
+          </a>
+        </li>
+        <li>
+          <a href="/favourites.html">
+            <span aria-hidden="true">♥</span>
+            <span>Favourites<span class="off-why">The batches you starred</span></span>
+          </a>
+        </li>
+        <li>
+          <a href="/dashboard.html">
+            <span aria-hidden="true">▦</span>
+            <span>Dashboard<span class="off-why">Your progress, read from this device</span></span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <p class="off-tip">
+      Tip: open a batch's notes while you still have signal — they are kept automatically, so they
+      open again here.
+    </p>
+  </div>
+</main>
+
+<script type="module" src="/assets/offline-page.js"></script>
+<script type="module" src="/assets/offline-boot.js"></script>
+</body>
+</html>

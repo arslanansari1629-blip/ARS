@@ -67,7 +67,8 @@ function mountPalette() {
         <input id="cmdkField" type="text" placeholder="Search 14,000+ batches…" autocomplete="off" spellcheck="false" />
         <kbd>esc</kbd>
       </div>
-      <div class="cmdk-list" id="cmdkList"></div>
+      <div class="cmdk-list" id="cmdkList" role="listbox" aria-label="Matching batches"></div>
+      <p class="sr-only" id="cmdkStatus" role="status" aria-live="polite"></p>
       <div class="cmdk-foot">
         <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
         <span><kbd>↵</kbd> open</span>
@@ -78,31 +79,66 @@ function mountPalette() {
 
   const field = root.querySelector("#cmdkField");
   const list = root.querySelector("#cmdkList");
+  const status = root.querySelector("#cmdkStatus");
   let results = [];
   let active = 0;
 
+  /* `aria-modal` is a promise: focus must be trapped inside the dialog while it
+     is open, and handed back to whatever opened it when it closes. Without
+     this, tabbing from the search field walks the page behind the overlay —
+     visible to a keyboard user as a cursor moving over a blocked screen. */
+  let returnFocus = null;
+
   const open = () => {
+    returnFocus = document.activeElement;
     root.hidden = false;
     field.value = "";
     field.focus();
     paint([]);
   };
+
   const close = () => {
+    if (root.hidden) return;
     root.hidden = true;
+    const back = returnFocus;
+    returnFocus = null;
+    // Only return focus if the caller is still a real element on the page.
+    if (back && typeof back.focus === "function" && document.contains(back)) back.focus();
   };
+
+  // Keep Tab inside the dialog. The list is links, the foot is hints, so the
+  // only reliably focusable stops are the field and the items.
+  root.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab" || root.hidden) return;
+    const stops = [field, ...list.querySelectorAll(".cmdk-item")];
+    if (!stops.length) return;
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
 
   function paint(items) {
     results = items;
     active = 0;
     if (!items.length) {
       list.innerHTML = `<div class="cmdk-empty tiny dim">Keep typing to search the live catalogue…</div>`;
+      if (status) status.textContent = "";
       return;
+    }
+    if (status) {
+      status.textContent = `${items.length} batch${items.length === 1 ? "" : "es"} match`;
     }
     list.innerHTML = items
       .slice(0, 8)
       .map(
         (b, i) => `
-        <a class="cmdk-item${i === 0 ? " on" : ""}" href="/batch.html?id=${encodeURIComponent(b.id)}" data-i="${i}">
+        <a class="cmdk-item${i === 0 ? " on" : ""}" role="option" aria-selected="${i === 0}" href="/batch.html?id=${encodeURIComponent(b.id)}" data-i="${i}">
           ${b.image ? `<img src="${esc(b.image)}" alt="" loading="lazy" onerror="this.remove()" />` : `<span class="cmdk-ph"></span>`}
           <span class="grow truncate">${esc(b.name)}</span>
           <span class="pill">${esc(b.language || "PW")}</span>
@@ -114,7 +150,10 @@ function mountPalette() {
   function highlight(next) {
     if (!results.length) return;
     active = (next + results.length) % results.length;
-    list.querySelectorAll(".cmdk-item").forEach((el, i) => el.classList.toggle("on", i === active));
+    list.querySelectorAll(".cmdk-item").forEach((el, i) => {
+      el.classList.toggle("on", i === active);
+      el.setAttribute("aria-selected", String(i === active));
+    });
     list.querySelectorAll(".cmdk-item")[active]?.scrollIntoView({ block: "nearest" });
   }
 

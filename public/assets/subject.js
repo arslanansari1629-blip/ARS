@@ -1,6 +1,15 @@
 /* Subject → chapter list */
 
-import { mountChrome, esc, qs, toast, emptyState } from "./app.js";
+import {
+  mountChrome,
+  esc,
+  qs,
+  toast,
+  emptyState,
+  setPageMeta,
+  clamp,
+  ORIGIN,
+} from "./app.js";
 import { loadBatch, loadChapters } from "./data.js";
 
 mountChrome("batches");
@@ -117,6 +126,13 @@ async function load() {
           <a href="/batch.html?id=${encodeURIComponent(batchId)}" class="truncate">${esc(b.batch.name)}</a> <span>/</span>
           <span>${esc(subjectNameParam || "Subject")}</span>`;
         document.title = `${subjectNameParam || b.batch.name} — ArsVibe PW`;
+        setPageMeta({
+          title: `${subjectNameParam || b.batch.name} — ArsVibe PW`,
+          description: clamp(
+            `${subjectNameParam || "This subject"} in ${b.batch.name}: every chapter, lecture, class note and DPP.`
+          ),
+          canonical: `${ORIGIN}/subject?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(subjectSlug)}`,
+        });
       }
     } catch {
       /* breadcrumb is cosmetic */

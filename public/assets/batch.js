@@ -10,6 +10,10 @@ import {
   fmtRelative,
   rememberBatch,
   emptyState,
+  setPageMeta,
+  setStructuredData,
+  clamp,
+  ORIGIN,
 } from "./app.js";
 import { trackBatch } from "./library.js";
 import { isFavourite, toggleFavourite, wireFavourites } from "./favourites.js";
@@ -48,11 +52,40 @@ function initials(name) {
 
 function renderDetail() {
   document.title = `${batch.name} — ArsVibe PW`;
+  // The shareable identity of this page: a link to a batch should preview the
+  // batch, not the site.
+  setPageMeta({
+    title: `${batch.name} — ArsVibe PW`,
+    description: clamp(
+      `${batch.name}${batch.language ? ` (${batch.language})` : ""} — every subject, chapter, lecture, ` +
+        `class note and DPP in this batch, free to browse and watch on ArsVibe.`
+    ),
+    canonical: `${ORIGIN}/batch?id=${encodeURIComponent(batch.id || qs("id") || "")}`,
+    image: batch.image || undefined,
+  });
+  setStructuredData({
+    "@context": "https://schema.org",
+    "@type": "Course",
+    name: batch.name,
+    description: clamp(
+      `${batch.name} — every subject, chapter, lecture, class notes and DPP in this Physics Wallah batch.`,
+      300
+    ),
+    url: `${ORIGIN}/batch?id=${encodeURIComponent(batch.id || qs("id") || "")}`,
+    image: batch.image || undefined,
+    inLanguage: batch.language || "en",
+    isAccessibleForFree: true,
+    provider: {
+      "@type": "EducationalOrganization",
+      name: "Physics Wallah",
+      url: "https://www.pw.live/",
+    },
+  });
   crumbName.textContent = batch.name;
   if (batch.image) detailBg.style.backgroundImage = `url("${batch.image}")`;
 
   const cover = batch.image
-    ? `<img src="${esc(batch.image)}" alt="" onerror="this.remove()" />`
+    ? `<img src="${esc(batch.image)}" alt="" fetchpriority="high" decoding="async" width="1200" height="675" onerror="this.remove()" />`
     : `<div class="cover-initials">${esc(initials(batch.name))}</div>`;
 
   detailGrid.innerHTML = `

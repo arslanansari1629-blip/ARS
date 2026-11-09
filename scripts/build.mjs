@@ -16,6 +16,7 @@ const API = path.join(ROOT, "api");
 
 const REQUIRED_PAGES = [
   "index.html",
+  "offline.html",
   "batches.html",
   "batch.html",
   "subject.html",
@@ -128,6 +129,21 @@ async function main() {
     problems.push(`batch catalogue unavailable: ${err.message}`);
   }
 
+  /* Relative imports must point at a file that exists.
+     A browser reports a 404 module as "Failed to fetch dynamically imported
+     module" and nothing else, so a typo here is invisible until the feature
+     silently does nothing in production. The page-module check does not cover
+     this because it compares syntax, not paths. */
+  for (const file of assets.filter((f) => f.endsWith(".js") || f.endsWith(".mjs"))) {
+    const source = await readFile(path.join(PUBLIC, "assets", file), "utf8");
+    for (const [, spec] of source.matchAll(/import\s*(?:\(\s*)?["'](\.{1,2}\/[^"']+)["']/g)) {
+      const target = path.resolve(PUBLIC, "assets", spec);
+      if (!(await exists(target))) {
+        problems.push(`assets/${file} imports a missing module: ${spec}`);
+      }
+    }
+  }
+
   // page modules must not reference identifiers they never imported
   const { execFile } = await import("node:child_process");
   const moduleCheck = await new Promise((resolve) => {
@@ -136,6 +152,63 @@ async function main() {
     });
   });
   if (!moduleCheck.ok) problems.push(moduleCheck.output);
+
+  /* ---------------------------------------------------------------------
+     Site-wide contract of the "shell" upgrades. These are the things that are
+     invisible when wrong — a page without a canonical URL, a manifest pointing
+     at an icon that does not exist, a worker nobody registers — so they are
+     asserted at build time instead of noticed in production.
+     --------------------------------------------------------------------- */
+  const PWA_FILES = ["manifest.webmanifest", "sw.js"];
+  for (const file of PWA_FILES) {
+    if (!(await exists(path.join(PUBLIC, file)))) problems.push(`missing ${file}`);
+  }
+
+  // Every icon the manifest promises must exist, at the size it claims.
+  try {
+    const manifest = JSON.parse(await readFile(path.join(PUBLIC, "manifest.webmanifest"), "utf8"));
+    for (const icon of manifest.icons || []) {
+      const rel = String(icon.src || "").replace(/^\//, "");
+      if (!(await exists(path.join(PUBLIC, rel)))) {
+        problems.push(`manifest promises a missing icon: ${icon.src}`);
+      }
+    }
+    if (!manifest.start_url) problems.push("manifest has no start_url");
+    if (!manifest.icons || !manifest.icons.length) problems.push("manifest has no icons");
+  } catch (err) {
+    problems.push(`manifest.webmanifest is not valid JSON: ${err.message}`);
+  }
+
+  const NOINDEX_PAGES = new Set(["404.html", "admin.html", "login.html", "offline.html"]);
+  for (const page of pages) {
+    const html = await readFile(path.join(PUBLIC, page), "utf8");
+    if (!/rel="manifest"/.test(html)) problems.push(`${page} does not link the web manifest`);
+    if (!/offline-boot\.js/.test(html)) problems.push(`${page} does not load the offline boot module`);
+    if (!/class="skip-link"/.test(html)) problems.push(`${page} has no skip-to-content link`);
+
+    // `modulepreload` only saves a round trip if the browser sees it before the
+    // module graph is requested — i.e. in <head>, never at the bottom of <body>.
+    const head = html.slice(0, html.indexOf("</head>"));
+    const body = html.slice(html.indexOf("</head>"));
+    if (head.includes("modulepreload") === false && body.includes("modulepreload")) {
+      problems.push(`${page} preloads modules from <body>, too late to help`);
+    }
+    if (!/id="main"/.test(html)) problems.push(`${page} has no <main id="main"> landmark`);
+    if (NOINDEX_PAGES.has(page)) {
+      if (!/name="robots" content="noindex/.test(html)) problems.push(`${page} should be noindex`);
+    } else if (!/rel="canonical"/.test(html)) {
+      problems.push(`${page} has no canonical URL`);
+    }
+    if (!NOINDEX_PAGES.has(page) && !/name="description"/.test(html)) {
+      problems.push(`${page} has no meta description`);
+    }
+  }
+
+  // The worker is only useful if it stays small enough to fetch on a bad line.
+  const swSource = await readFile(path.join(PUBLIC, "sw.js"), "utf8");
+  if (Buffer.byteLength(swSource) > 24 * 1024) {
+    problems.push(`sw.js is ${Buffer.byteLength(swSource)} bytes — keep it under 24 KB`);
+  }
 
   if (problems.length) {
     console.error("Build validation failed:\n - " + problems.join("\n - "));

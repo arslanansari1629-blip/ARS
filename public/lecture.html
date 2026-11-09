@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Lecture — ArsVibe PW</title>
+<meta name="description" content="Watch this lecture in a clean, ad-free player, read the class notes and open the DPP — or save it to this device for offline study." />
 <meta name="theme-color" content="#eef1f5" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="ArsVibe" />
@@ -14,12 +15,21 @@
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<link rel="modulepreload" href="/assets/app.js" />
+<link rel="modulepreload" href="/assets/data.js" />
+<link rel="modulepreload" href="/assets/client-api.js" />
+<link rel="preconnect" href="https://static.pw.live" crossorigin />
+<link rel="dns-prefetch" href="https://static.pw.live" />
 <link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="stylesheet" href="/assets/offline.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/lecture" />
+<meta property="og:url" content="https://arsvibe-pw-sepia.vercel.app/lecture" />
 </head>
 <body data-page="lecture" class="page-lecture">
+<a class="skip-link" href="#main">Skip to content</a>
 
 <header class="nav" id="nav">
   <div class="shell nav-inner">
@@ -42,7 +52,7 @@
   </div>
 </header>
 
-<main class="section">
+<main id="main" class="section">
   <div class="shell">
     <div class="crumbs" id="crumbs"><a href="/">Home</a> <span>/</span></div>
 
@@ -321,5 +331,6 @@
 <script type="module" src="/assets/lecture.js"></script>
 <script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
+  <script type="module" src="/assets/offline-boot.js"></script>
 </body>
 </html>

@@ -534,6 +534,18 @@ test("lecture page bootstraps a stream plan instead of erroring", async () => {
           )
         );
       }
+      // The player probes the manifest before attaching an engine. Left to the
+      // real route the probe answers with whatever the environment can reach,
+      // so the page would take the retry path on some runs and the playback path
+      // on others — the same plan, two different tests. Answer it deterministically.
+      if (String(target).includes("/api/sign")) {
+        return Promise.resolve(
+          new Response("#EXTM3U\n#EXT-X-VERSION:3\n", {
+            status: 200,
+            headers: { "content-type": "application/vnd.apple.mpegurl" },
+          })
+        );
+      }
       return null;
     },
   });
@@ -855,8 +867,17 @@ test("pdf viewer builds a same-origin media relay URL", async () => {
     url: `${BASE}/viewer.html?url=${encodeURIComponent(target)}&name=${encodeURIComponent("Class Notes.pdf")}`,
     runScripts: "outside-only",
   });
-  const inline = [...dom.window.document.querySelectorAll("script")].map((s) => s.textContent).join("\n");
-  dom.window.eval(inline);
+
+  // The reader's logic lives in a module file (so it is cached and auditable like
+  // every other page), not in an inline block: run it the same way the browser
+  // would, through the loader shim, with the jsdom document installed as global.
+  const { window } = dom;
+  globalThis.window = window;
+  globalThis.document = window.document;
+  globalThis.location = window.location;
+  globalThis.CustomEvent = window.CustomEvent;
+  version += 1;
+  await import(`/assets/viewer.js?v=${version}`);
 
   const src = dom.window.document.getElementById("frame").getAttribute("src");
   assert.match(src, /^\/api\/media\?url=https%3A%2F%2Fstatic\.pw\.live/);
@@ -1138,4 +1159,120 @@ test("the site is branded ArsVibe and keeps the upstream data path intact", asyn
   const pw = await readFile(new URL("../api/pw.mjs", import.meta.url), "utf8");
   const app = await readFile(new URL("../lib/api-data.mjs", import.meta.url), "utf8");
   assert.match(pw + app, /eduvibe\.cc\.cd|static\.pw\.live/, "the upstream API host disappeared");
+});
+
+/* -------------------------------------------------------------------------
+   The shell contract: the things that are invisible when wrong.
+   ------------------------------------------------------------------------- */
+
+const PWA_PAGES = [
+  "/",
+  "/batches.html",
+  "/downloads.html",
+  "/library.html",
+  "/viewer.html",
+];
+
+test("every page ships the offline/PWA shell", async () => {
+  const pages = [
+    "index.html", "batches.html", "batch.html", "subject.html", "chapter.html",
+    "lecture.html", "downloads.html", "library.html", "dashboard.html",
+    "favourites.html", "viewer.html", "admin.html", "login.html", "404.html",
+    "offline.html",
+  ];
+  for (const page of pages) {
+    const html = await (await nativeFetch(`${BASE}/${page}`)).text();
+    assert.match(html, /rel="manifest" href="\/manifest\.webmanifest"/, `${page} links no manifest`);
+    assert.match(html, /src="\/assets\/offline-boot\.js"/, `${page} never registers the worker`);
+    assert.match(html, /class="skip-link" href="#main"/, `${page} has no skip link`);
+    assert.match(html, /id="main"/, `${page} has no main landmark to skip to`);
+  }
+});
+
+test("the manifest describes an installable app and its icons exist", async () => {
+  const res = await nativeFetch(`${BASE}/manifest.webmanifest`);
+  assert.equal(res.ok, true, "the manifest is not served");
+  const manifest = await res.json();
+
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.start_url, "/");
+  assert.ok(manifest.name && manifest.short_name);
+  assert.ok(Array.isArray(manifest.icons) && manifest.icons.length >= 3);
+  assert.ok(
+    manifest.icons.some((i) => String(i.purpose || "").includes("maskable")),
+    "no maskable icon — Android will crop the mark"
+  );
+
+  for (const icon of manifest.icons) {
+    const asset = await nativeFetch(`${BASE}${icon.src}`);
+    assert.equal(asset.ok, true, `manifest icon ${icon.src} is missing`);
+  }
+});
+
+test("the service worker keeps documents and refuses to keep video", async () => {
+  const res = await nativeFetch(`${BASE}/sw.js`);
+  assert.equal(res.ok, true);
+  const source = await res.text();
+
+  // Notes and DPPs are kept, through the same-origin relay the reader uses.
+  assert.match(source, /isDocRelay/, "the document relay is no longer cacheable");
+  assert.match(source, /\/api\/media/, "the media relay is not named");
+
+  // Video must never be stored: a lecture is hundreds of megabytes.
+  assert.match(source, /\\.\(ts\|m4s\|mp4\|m3u8\|mpd\)/, "segment types are no longer excluded");
+  assert.match(source, /download\|sign\|hls/, "the video routes are no longer excluded");
+
+  // The worker itself is versioned, or an old cache outlives its code.
+  assert.match(source, /CACHE|arsvibe-v\d/, "the cache is unversioned");
+
+  // The fallback page must be installed, not merely cached if visited: the first
+  // offline navigation is the one that needs it, with no network left to fetch it.
+  assert.match(source, /"\/offline\.html"/, "offline.html is not pre-cached on install");
+
+  // A loose query match would serve /batch?id=A when /batch?id=B was asked for.
+  assert.match(source, /ignoreSearch: true/, "the exact-then-loose fallback is gone");
+});
+
+test("the offline fallback offers a way back", async () => {
+  const html = await (await nativeFetch(`${BASE}/offline.html`)).text();
+  assert.match(html, /id="retry"/, "no retry control");
+  assert.match(html, /\/assets\/offline-page\.js/, "the recovery script is missing");
+  // It is a dead end if it does not link anywhere that works offline.
+  assert.match(html, /\/downloads\.html/, "it does not point at the offline-ready lectures");
+});
+
+test("entity pages name themselves in the link preview and the canonical URL", async () => {
+  for (const page of ["batch.html", "lecture.html", "chapter.html", "subject.html"]) {
+    const source = await readFile(new URL(`../public/assets/${page.replace(".html", ".js")}`, import.meta.url), "utf8");
+    assert.match(source, /setPageMeta\(/, `${page} still ships the site-wide share card`);
+    assert.match(source, /canonical:/, `${page} has no canonical URL`);
+  }
+
+  // And the helper actually writes the tags it is given.
+  const app = await readFile(new URL("../public/assets/app.js", import.meta.url), "utf8");
+  assert.match(app, /export function setPageMeta/);
+  assert.match(app, /og:title/);
+  assert.match(app, /rel="\$\{rel\}"/);
+});
+
+test("static pages carry a canonical URL and a description", async () => {
+  for (const path of PWA_PAGES) {
+    const html = await (await nativeFetch(`${BASE}${path}`)).text();
+    assert.match(html, /rel="canonical"/, `${path} has no canonical URL`);
+    assert.match(html, /name="description"/, `${path} has no meta description`);
+    assert.match(html, /property="og:url"/, `${path} has no og:url`);
+  }
+});
+
+test("pages that must not be indexed say so", async () => {
+  for (const path of ["/admin.html", "/login.html", "/404.html", "/offline.html"]) {
+    const html = await (await nativeFetch(`${BASE}${path}`)).text();
+    assert.match(html, /name="robots" content="noindex/, `${path} is indexable`);
+  }
+});
+
+test("the worker is served uncached so a deploy is never pinned", async () => {
+  const res = await nativeFetch(`${BASE}/sw.js`);
+  const cache = res.headers.get("cache-control") || "";
+  assert.match(cache, /max-age=0/, `sw.js is cacheable (${cache}) — a bad build would stick`);
 });

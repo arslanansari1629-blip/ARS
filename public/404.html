@@ -17,9 +17,12 @@
 <link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="robots" content="noindex, follow" />
 </head>
 <body class="bare">
-<main class="login-wrap">
+<a class="skip-link" href="#main">Skip to content</a>
+<main id="main" class="login-wrap">
   <div class="glass login-card">
     <div class="logo"><img src="/assets/logo.svg" alt="ArsVibe" width="52" height="52" /></div>
     <h1>This page went off-syllabus</h1>
@@ -30,5 +33,6 @@
 </main>
 <script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
+  <script type="module" src="/assets/offline-boot.js"></script>
 </body>
 </html>

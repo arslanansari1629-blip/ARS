@@ -1,6 +1,16 @@
 /* Chapter contents: lectures, notes (PDF), DPPs */
 
-import { mountChrome, esc, qs, toast, emptyState, fmtDate } from "./app.js";
+import {
+  mountChrome,
+  esc,
+  qs,
+  toast,
+  emptyState,
+  fmtDate,
+  setPageMeta,
+  clamp,
+  ORIGIN,
+} from "./app.js";
 import { loadContents } from "./data.js";
 
 mountChrome("batches");
@@ -22,6 +32,13 @@ const cache = new Map();
 if (chapterName) {
   chapterNameEl.textContent = chapterName;
   document.title = `${chapterName} — ArsVibe PW`;
+  setPageMeta({
+    title: `${chapterName} — ArsVibe PW`,
+    description: clamp(
+      `${chapterName}: lectures, class notes and daily practice problems, in order and free to watch.`
+    ),
+    canonical: `${ORIGIN}/chapter?batch=${encodeURIComponent(batchId)}&chapter=${encodeURIComponent(chapterId)}`,
+  });
 }
 
 if (!batchId || !subjectSlug || !chapterId) {
@@ -87,6 +104,9 @@ function videoRow(item, index) {
 
 function docRow(doc) {
   const viewer = `/viewer.html?url=${encodeURIComponent(doc.url)}&name=${encodeURIComponent(doc.name)}`;
+  // `data-keep` names the relay URL the worker should store — the same bytes the
+  // reader shows, so the copy that is kept is the copy that will open.
+  const keep = `/api/media?url=${encodeURIComponent(doc.url)}`;
   return `
     <div class="doc-row fade-up">
       <span class="pdf">PDF</span>
@@ -94,6 +114,7 @@ function docRow(doc) {
         <span class="name">${esc(doc.name)}</span>
         <span class="meta">${esc(doc.topic || doc.note || "Document")}</span>
       </span>
+      <button class="btn btn-ghost btn-sm keep-btn" type="button" data-keep="${esc(keep)}" title="Keep this file on this device" aria-label="Keep ${esc(doc.name)} on this device">Keep</button>
       <a class="btn btn-ghost btn-sm" href="${viewer}" target="_blank" rel="noopener">Open</a>
       <a class="btn btn-ghost btn-sm" href="/api/media?url=${encodeURIComponent(doc.url)}" download>Download</a>
     </div>`;
@@ -165,3 +186,68 @@ tabs.addEventListener("click", (e) => {
   if (!btn) return;
   load(btn.dataset.type);
 });
+
+/**
+ * Keep a notes or DPP file on this device.
+ *
+ * Delegated from the list, because the rows are re-rendered on every tab change
+ * and per-row listeners would be added and thrown away with them. The button
+ * reports what the worker actually did — "Kept" only after the cache holds the
+ * file, never on the strength of having asked.
+ */
+body.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-keep]");
+  if (!btn) return;
+  event.preventDefault();
+  if (btn.dataset.busy === "1" || btn.dataset.kept === "1") return;
+
+  const url = btn.dataset.keep;
+  // `busy` guards the whole operation, including the wait: a second click while
+  // the first is polling would start a second poll against the same file.
+  btn.dataset.busy = "1";
+  const restore = (label) => {
+    btn.textContent = label;
+    btn.dataset.busy = "0";
+  };
+
+  try {
+    const { cacheForOffline, offlineReady } = await import("./sw-register.js");
+    if (!offlineReady()) {
+      restore("Keep");
+      toast("Offline keeping is not available in this browser", "bad");
+      return;
+    }
+    btn.textContent = "Keeping…";
+    cacheForOffline(url);
+
+    // Ask the cache, not the worker: the only proof that counts is a stored
+    // copy. Six seconds is generous for a few-hundred-KB PDF and short enough
+    // that a blocked download is reported rather than left spinning.
+    const stored = await waitForCache(url, 6000);
+    if (stored) {
+      btn.textContent = "Kept";
+      btn.dataset.kept = "1";
+      btn.disabled = true;
+      btn.title = "Saved on this device — opens without a connection";
+      toast("Kept on this device — it will open without a connection");
+    } else {
+      restore("Keep");
+      toast("That file could not be kept — it may be too large for this device", "bad");
+    }
+  } catch {
+    restore("Keep");
+    toast("That file could not be kept", "bad");
+  }
+});
+
+/** Poll the Cache API until `url` is stored, or the deadline passes. */
+async function waitForCache(url, timeout) {
+  if (!("caches" in window)) return false;
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const hit = await caches.match(url).catch(() => null);
+    if (hit) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
