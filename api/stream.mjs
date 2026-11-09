@@ -1,4 +1,5 @@
 import { cors, json, query, badRequest, methodNotAllowed, modeOf, relayUrl } from "../lib/http.mjs";
+import hlsHandler from "../lib/hls.mjs";
 import { resolveStream, parseFolder, fetchSchedule } from "../lib/api-data.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
 

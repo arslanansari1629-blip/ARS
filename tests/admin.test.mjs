@@ -339,3 +339,32 @@ test("the panel paints live numbers once signed in", async () => {
 
   dom.window.close();
 });
+
+test("the mounted media routes answer instead of crashing", async () => {
+  // /api/sign and /api/hls are mounted inside api/admin.mjs and api/stream.mjs to
+  // stay inside the plan's 12-function budget. That makes an undefined import a
+  // runtime crash rather than a build error — which shipped once. A smoke check
+  // that the routes answer at all is the cheap guard.
+  const sign = await fetch(`${BASE}/api/sign`);
+  assert.equal(sign.status, 400, "/api/sign should reject a missing videoKey");
+  assert.match(JSON.parse(await sign.text()).error, /videoKey is required/);
+
+  const hls = await fetch(`${BASE}/api/hls?folder=does-not-exist&asset=master.mpd`);
+  assert.notEqual(hls.status, 500, "/api/hls crashed");
+  assert.match(hls.headers.get("content-type") || "", /application\/json/);
+  const body = await hls.json();
+  assert.equal(body.success, false, "/api/hls should report an honest failure");
+
+  // The host whitelist still holds for both media routes.
+  const badHost = await fetch(
+    `${BASE}/api/hls?folder=x&asset=master.mpd&host=${encodeURIComponent("evil.example.com")}`
+  );
+  const badBody = await badHost.json();
+  assert.equal(badBody.success, false);
+  assert.match(badBody.error, /not a media host/);
+
+  // And the route they ride on still does its own job.
+  const stream = await fetch(`${BASE}/api/stream`);
+  assert.notEqual(stream.status, 500, "/api/stream crashed after mounting the HLS gateway");
+  assert.match(stream.headers.get("content-type") || "", /application\/json/);
+});
