@@ -325,6 +325,31 @@ test("the header route answers from the catalogue and defers the subject list", 
   assert.ok(body.batch.startDate, "the header carries no start date");
 });
 
+test("a paid batch is never labelled free", async () => {
+  // `/BatchInfo` omits `feeTotal`, and `isFree: !d.feeTotal` therefore stamped
+  // "Free" on every batch in the catalogue, including ₹1,999 ones. The shipped
+  // catalogue carries the fee, so the detail route must fall back to it.
+  const { doc, dom } = await render("/batch.html?id=698ad3519549b300a5e1cc6a", {
+    waitForSelector: "#favBatchBtn",
+  });
+  const pills = [...doc.querySelectorAll(".detail-head .pill")].map((p) => p.textContent.trim());
+  assert.equal(pills.includes("Free"), false, `a paid batch shows a Free pill: ${pills.join(" | ")}`);
+  assert.match(doc.body.textContent, /₹[13],\d{3}/, "the price is missing from the hero");
+
+  const res = await nativeFetch(`${BASE}/api/batch?id=698ad3519549b300a5e1cc6a`);
+  const body = await res.json();
+  assert.equal(body.batch.isFree, false);
+  assert.equal(typeof body.batch.price, "number");
+  assert.ok(body.batch.price > 0, "the route reported a zero price for a paid batch");
+
+  // The same batch through the header route (shipped catalogue, no upstream)
+  // must agree: the panel-level bug was that only the catalogue knew the fee.
+  const header = await (await nativeFetch(`${BASE}/api/batch?header=1&id=698ad3519549b300a5e1cc6a`)).json();
+  assert.equal(header.batch.isFree, false);
+  assert.ok(header.batch.price > 0);
+  dom.window.close();
+});
+
 test("subject page renders chapters with counts", async () => {
   const { doc, dom } = await render(
     "/subject.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&name=Physics",
