@@ -339,6 +339,14 @@ reported, for the same reason the player does: a rate-limited signer is the
 normal case, not a fault. The library lives on the device — nothing is uploaded
 and no lecture is re-hosted.
 
+One detail is worth stating because it cost a production outage: the route reads
+the media playlist **from the signer directly**, not through this deployment's own
+`/api/sign`. A signed playlist carries absolute URLs back to this origin, so the
+first version fetched them from inside the function — which works locally and
+answers 500 on a serverless deployment, because a function cannot rely on calling
+its own deployment origin. `tests/download-route.test.mjs` now asserts that no
+handler request ever names the deployment's host.
+
 ## The admin panel
 
 `/admin` is a separate, noindex plate — it is not part of the student shell and
@@ -411,7 +419,7 @@ vercel --prod
 npm test        # node --test tests/*.test.mjs
 ```
 
-141 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
+151 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
 each page module is executed in jsdom and asserted. Coverage includes page rendering, the
 API contracts, catalogue completeness (the last page is reachable and a batch the upstream search
 cannot see is findable), stream planning (rendition fallback, signer failover and YouTube embeds
