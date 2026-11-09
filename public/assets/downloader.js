@@ -323,6 +323,8 @@ export async function downloadLecture({
   let keyLine = "";
   let mapLine = "";
   let attempts = 0;
+  // Segments the server kept going without. Reported, never silently dropped.
+  let skipped = 0;
   let plain = format === "plain";
   let label = quality ? `${quality}p` : "";
   let encKey = "";
@@ -352,6 +354,7 @@ export async function downloadLecture({
         parts: saved,
         seconds,
         total,
+        skipped,
         done: Boolean(done),
         encrypted: Boolean(key),
         format: plain ? "plain" : "playlist",
@@ -388,9 +391,18 @@ export async function downloadLecture({
     const contentType = res.headers.get("content-type") || "";
     if (/json/i.test(contentType)) {
       const body = await res.json().catch(() => ({}));
-      // "No stream yet" is not a transient fault; retrying it forever would hide
-      // the real answer from the person waiting.
-      throw new Error(body.error || "This lecture could not be downloaded.");
+      const reason = body.error || "This lecture could not be downloaded.";
+      // A refusal that names a signer status is the bursty kind and clears on
+      // its own; anything else ("no stream yet", "not published") is the real
+      // answer and is reported straight away. Retrying a permanent error forever
+      // would hide it from the person waiting, which is why the two differ.
+      if (isTransient(reason) && attempts < 3) {
+        attempts += 1;
+        onProgress({ phase: "retry", attempt: attempts, segments: parts.length, total, seconds });
+        await sleep(900 * attempts);
+        continue;
+      }
+      throw new Error(reason);
     }
 
     const sliceFormat = res.headers.get("x-download-format") || "playlist";
@@ -420,6 +432,7 @@ export async function downloadLecture({
         size: buf.length,
       });
       seconds += Number(res.headers.get("x-download-seconds")) || 0;
+      skipped += Number(res.headers.get("x-download-skipped")) || 0;
       total = Number(res.headers.get("x-download-total")) || total;
       label = res.headers.get("x-download-quality") ? `${res.headers.get("x-download-quality")}p` : label;
       const nextPlain = Number(res.headers.get("x-download-next")) || start + 1;
@@ -434,7 +447,7 @@ export async function downloadLecture({
         bytes: parts.reduce((n, p) => n + p.size, 0),
         done: donePlain,
       });
-      if (donePlain) return { ok: true, segments: parts.length, total, seconds, format: "plain" };
+      if (donePlain) return { ok: true, segments: parts.length, total, seconds, skipped, format: "plain" };
       start = nextPlain;
       continue;
     }
@@ -463,6 +476,7 @@ export async function downloadLecture({
     }
 
     total = Number(res.headers.get("x-download-total")) || total;
+    skipped += Number(res.headers.get("x-download-skipped")) || 0;
     label = res.headers.get("x-download-quality")
       ? `${res.headers.get("x-download-quality")}p`
       : label;
@@ -479,7 +493,7 @@ export async function downloadLecture({
       done: finished,
     });
 
-    if (finished) return { ok: true, segments: parts.length, total, seconds, format: "playlist" };
+    if (finished) return { ok: true, segments: parts.length, total, seconds, skipped, format: "playlist" };
     start = next;
   }
 
@@ -494,6 +508,13 @@ export async function downloadLecture({
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Does this failure message describe a signer hiccup rather than a real no? */
+function isTransient(message) {
+  return /answered\s+(?:401|403|408|425|429|5\d\d)|temporar|timed out|not answering/i.test(
+    String(message || "")
+  );
 }
 
 /** Human-readable size, for the saved list. */

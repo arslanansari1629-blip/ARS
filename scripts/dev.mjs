@@ -65,8 +65,7 @@ const server = http.createServer(async (req, res) => {
     pathname === "/api/hls" ||
     pathname === "/api/sign" ||
     pathname === "/api/repair" ||
-    pathname === "/api/download" ||
-    pathname === "/api/key"
+    pathname === "/api/download"
   ) {
     // `/api/sign` and `/api/repair` are mounted on the admin function; `/api/hls`
     // rides on stream, which is how all of them keep their own URL inside a

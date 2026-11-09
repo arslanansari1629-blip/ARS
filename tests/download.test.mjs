@@ -39,15 +39,35 @@ function mediaPlaylist({ segments = 3, key = true, withMap = false } = {}) {
 }
 
 /** A fake network: paths are normalised back to their `key=` value. */
-function fakeNet({ segments = 3, key = true, map = false, failOn = "", encrypted = false, keyBytes = KEY } = {}) {
+function fakeNet({
+  segments = 3,
+  key = true,
+  map = false,
+  failOn = "",
+  flakyOn = "",
+  fails = 0,
+  encrypted = false,
+  keyBytes = KEY,
+} = {}) {
   const playlist = mediaPlaylist({ segments, key, withMap: map });
   const requested = [];
+  const seen = new Map();
 
   const get = async (url) => {
     const full = new URL(url, "https://site.test");
-    requested.push(full.pathname + full.search);
-    if (failOn && (full.pathname + full.search).includes(failOn)) {
+    const at = full.pathname + full.search;
+    requested.push(at);
+    if (failOn && at.includes(failOn)) {
       return { ok: false, status: 403, arrayBuffer: async () => Buffer.alloc(0) };
+    }
+    // Answers 403 the first `fails` times, then serves — the burst pattern the
+    // real signer shows, and what the retry in `assembleSlice` exists for.
+    if (flakyOn && at.includes(flakyOn)) {
+      const hits = seen.get(at) || 0;
+      seen.set(at, hits + 1);
+      if (hits < fails) {
+        return { ok: false, status: 403, arrayBuffer: async () => Buffer.alloc(0) };
+      }
     }
     if (full.pathname === "/playlist") {
       return { ok: true, status: 200, arrayBuffer: async () => Buffer.from(playlist) };
@@ -161,11 +181,35 @@ test("a key of the wrong length is refused", async () => {
   assert.match(built.error, /not 16/);
 });
 
-test("an unreachable segment fails the slice, naming the status", async () => {
+test("one unreachable segment does not sink the whole slice", async () => {
+  // This used to fail the entire slice, which is why a two-hour download died
+  // on a single 403 out of five hundred segments. The slice keeps what came
+  // back, in order, and says how many were lost so the page can be honest.
   const net = fakeNet({ failOn: "000.ts" });
+  const built = await assembleSlice({ playlistUrl: PLAYLIST, get: net.get });
+  assert.equal(built.ok, true, "one bad segment should not discard the rest");
+  assert.equal(built.skipped, 1);
+  assert.ok(built.segments >= 1, "the segments that answered should be kept");
+});
+
+test("a slice whose media all fails still fails, naming the status", async () => {
+  const net = fakeNet({ failOn: ".ts" });
   const built = await assembleSlice({ playlistUrl: PLAYLIST, get: net.get });
   assert.equal(built.ok, false);
   assert.match(built.error, /segment answered 403/);
+});
+
+test("a transient refusal is retried before an asset is called missing", async () => {
+  // The signer answers 403 in bursts and clears on the next ask; a slice that
+  // gives up on the first one is the production bug this guards.
+  const net = fakeNet({ flakyOn: "000.ts", fails: 1 });
+  const built = await assembleSlice({
+    playlistUrl: PLAYLIST,
+    get: net.get,
+    retry: { attempts: 3 },
+  });
+  assert.equal(built.ok, true);
+  assert.equal(built.skipped || 0, 0, "the retry should have recovered the segment");
 });
 
 test("a byte ceiling stops the slice early but keeps what fit", async () => {

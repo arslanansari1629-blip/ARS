@@ -359,35 +359,29 @@ carry `720/000.ts`, the key does not — and that asking for `720/enc.key` is a 
 byte, next offset) without shipping the bytes, which is how a binary response is
 checked from a place that cannot save files.
 
-## Download keys
+## Why a download survives a bad minute
 
-Saving a lecture needs a key. The visitor presses **Generate key**, waits the
-published number of seconds (or clears a sponsor page, if one is configured), and
-the key they get back covers every lecture for the next 24 hours. The same gate
-sits on the in-player **Download this video** button, so it cannot be walked
-around by opening a lecture instead of the library.
+The signers refuse in bursts. The same request that answered a moment ago starts
+returning `401` or `403` for a few seconds — usually because a mirror is busy or
+its own guest-token minting is lagging — and then works again. A two-hour lecture
+is about 550 segments, so a download that treated the first refusal as final died
+somewhere in the middle and reported that the lecture "could not be downloaded"
+while almost all of it had already arrived.
 
-A key is **signed, not stored** — `d.<expiresAt>.<hmac>` — and a challenge is the
-same shape. Nothing is looked up, so nothing needs a database, and a key minted on
-one serverless instance verifies on another because only the secret is shared. The
-wait is enforced the same way: `claim` refuses a challenge that has not aged, so
-editing the countdown in the browser mints nothing.
+Three things keep that from happening:
 
-| Variable | Default | What it does |
-| --- | --- | --- |
-| `DOWNLOAD_KEY_SECRET` | a development constant | HMAC secret. **Set this in production** — the fallback is in this repository, so a deployment without it can be forged. |
-| `DOWNLOAD_KEY_TTL_HOURS` | `24` | How long one key is good for. |
-| `DOWNLOAD_KEY_WAIT_SECONDS` | `30` | The wait before a key can be collected. |
-| `DOWNLOAD_KEY_REWARD_URL` | unset | A sponsor/shortlink to send the visitor through, with `{challenge}` in the URL. Unset means the plain wait. |
-| `DOWNLOAD_KEY_PER_HOUR` / `_PER_DAY` | `6` / `12` | Keys one client may collect, per instance. |
+- **The relay retries.** `fetchSigned` makes up to three passes over the signer
+  ladder with a widening gap, and re-mints the guest token when the answer was
+  `401`. A `404` is *not* retried — that is a real answer.
+- **A slice keeps what answered.** `assembleSlice` skips a segment that stays
+  unavailable instead of discarding the slice, and reports how many it dropped.
+  The page says so once, in the toast, rather than leaving a silent gap.
+- **A rendition is not the only rendition.** If the quality the player picked
+  refuses, `mode=list` walks the rest before answering `playable:false`.
 
-**What a key is, honestly:** a speed bump and a reason to show a page — the same
-thing every key page is. It is not authentication. Anyone can wait once and share
-one key with a group chat, and a key cannot be revoked before it expires without a
-database. The gate is on the pages, not on `/api/download` itself, because the
-player streams through the same routes; the README says so rather than implying a
-lock that is not there.
-
+`X-Download-Skipped` carries the count and `mode=file&probe=1` shows it as
+`skipped`, so the behaviour is visible without opening the file. `probe=1` also
+keeps retries off, which keeps the diagnostic fast.
 
 ## The admin panel
 

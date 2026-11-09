@@ -1084,30 +1084,6 @@ $("menuDownload")?.addEventListener("click", async () => {
   };
 
   try {
-    const { readKey, verifyStoredKey, generateKey } = await import("./download-key.js");
-    let held = readKey();
-    if (held) {
-      const verdict = await verifyStoredKey();
-      if (!verdict.valid) held = null;
-    }
-
-    if (!held) {
-      // Inline gate: no trip to another page, no losing your place in the video.
-      const confirmed = window.confirm(
-        "Downloading needs a free key. Generate one now? It lasts 24 hours and covers every lecture."
-      );
-      if (!confirmed) return;
-      if (button) button.textContent = "Generating key…";
-      held = await generateKey({
-        onTick: ({ secondsLeft, phase }) => {
-          if (!button) return;
-          button.textContent =
-            phase === "claiming" ? "Issuing key…" : secondsLeft > 0 ? `Key ready in ${secondsLeft}s` : "Unlocking…";
-        },
-      });
-      toast("Key activated — starting your download");
-    }
-
     if (button) button.textContent = "Preparing download…";
     const info = await api(
       `/api/download?mode=list&folder=${encodeURIComponent(folder)}&quality=${encodeURIComponent(
@@ -1133,7 +1109,12 @@ $("menuDownload")?.addEventListener("click", async () => {
     });
     restore();
     if (result.ok) {
-      toast(`“${title}” downloaded — play it offline any time`, "");
+      toast(
+        result.skipped
+          ? `“${title}” downloaded — ${result.skipped} moment${result.skipped === 1 ? "" : "s"} could not be fetched`
+          : `“${title}” downloaded — play it offline any time`,
+        ""
+      );
       showSavedAction(title);
     } else {
       toast("Downloaded part of this lecture — finish it on the Downloads page", "bad");

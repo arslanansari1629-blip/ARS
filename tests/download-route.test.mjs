@@ -247,6 +247,66 @@ test("one file can be fetched on its own, as an attachment", async () => {
   assert.equal(res.body().equals(encryptSegment(0)), true);
 });
 
+test("a bursty signer is retried instead of failing the slice", async () => {
+  // The production bug: `mode=list` succeeded and the slice a second later
+  // reported "rendition answered 401", because the signer was throttling. One
+  // refusal must not be reported as "this lecture cannot be downloaded".
+  let refusals = 0;
+  const stub = async (input, opts) => {
+    const url = String(input);
+    if (url.includes("main.m3u8") && refusals < 2) {
+      refusals += 1;
+      return new Response(JSON.stringify({ success: false }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    return signerStub()(input, opts);
+  };
+
+  const res = await call(`mode=file&format=plain&limit=2&${base}`, { stub });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["x-download-format"], "plain");
+  assert.equal(res.body()[0], 0x47, "the retried slice should carry real media");
+  assert.ok(refusals >= 2, "the signer should have been asked again");
+});
+
+test("a rendition that refuses falls back to one that answers", async () => {
+  // `playable:false` for a lecture whose sibling rendition is fine is a lie the
+  // page acts on: it hides the Save button instead of downloading anything.
+  //
+  // A fresh folder keeps this out of the ten-minute plan cache, and 240 answers
+  // the first time (the probe) then refuses — which is exactly how it behaved
+  // in production: the probe succeeded and the download a moment later did not.
+  const OTHER = "99999999-8888-7777-6666-555555555555";
+  let asked240 = 0;
+  const base = signerStub();
+  const stub = async (input, opts) => {
+    const url = String(input);
+    const key = new URL(url, "https://x").searchParams.get("key") || "";
+    if (url.includes("get-hls-key") && /^240\/main\.m3u8$/.test(key)) {
+      asked240 += 1;
+      if (asked240 > 1) {
+        return new Response("{}", { status: 403, headers: { "content-type": "application/json" } });
+      }
+    }
+    const wanted = /^(\d+)\/main\.m3u8$/.exec(key);
+    if (url.includes("get-hls-key") && wanted && wanted[1] !== "240") {
+      return new Response(["#EXTM3U", "#EXT-X-TARGETDURATION:6", "#EXTINF:6.000,", "000.ts", "#EXT-X-ENDLIST"].join("\n"), {
+        status: 200,
+        headers: { "content-type": "application/vnd.apple.mpegurl" },
+      });
+    }
+    return base(input, opts);
+  };
+
+  const res = await call(`mode=list&folder=${OTHER}&quality=240&name=x`, { stub });
+  assert.equal(res.statusCode, 200);
+  const body = JSON.parse(res.text());
+  assert.equal(body.playable, true, "a working rendition should be reported");
+  assert.notEqual(body.quality, "240", "the failing rendition should not be advertised");
+});
+
 test("HEAD is accepted so a player can check before downloading", async () => {
   const original = globalThis.fetch;
   globalThis.fetch = signerStub();
