@@ -15,6 +15,7 @@
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
 <link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="stylesheet" href="/assets/offline.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
 </head>
@@ -220,6 +221,10 @@
             <div><span>Latency</span><strong id="statLatency">—</strong></div>
           </div>
         </div>
+
+        <!-- The offline copy, offered where it was made. Hidden until a save
+             completes; the player fills it in. -->
+        <div class="offline-offer" id="offlineOffer" hidden></div>
 
         <!-- queue: prev / next within the chapter -->
         <div class="queue-bar" id="queueBar">

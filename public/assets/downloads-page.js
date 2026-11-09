@@ -18,6 +18,7 @@
    ========================================================================= */
 
 import { api, mountChrome, esc, toast, emptyState, getPrefs, setPref, fmtRelative } from "./app.js";
+import { playSaved } from "./offline-player.js";
 import {
   canStoreOffline,
   downloadLecture,
@@ -27,7 +28,6 @@ import {
   clearLectures,
   storageEstimate,
   requestPersistence,
-  offlineFileUrl,
   offlineFile,
   looksLikeTransportStream,
   base64ToBytes,
@@ -429,8 +429,8 @@ function renderSaved() {
         </div>
         <div class="dl-progress"><span style="width:${complete ? 100 : pct}%"></span></div>
         <div class="dl-actions">
-          <button class="btn btn-ghost btn-sm" data-play ${complete ? "" : "disabled"}>Play offline</button>
-          <button class="btn btn-ghost btn-sm" data-export ${complete ? "" : "disabled"}>Save to device</button>
+          <button class="btn btn-primary btn-sm" data-play ${complete ? "" : "disabled"}>Play offline</button>
+          <button class="btn btn-ghost btn-sm" data-export ${complete ? "" : "disabled"} title="Put a copy in your Downloads folder">Save file</button>
           <button class="btn btn-ghost btn-sm" data-remove>Remove</button>
         </div>
       </div>`;
@@ -446,18 +446,11 @@ savedList.addEventListener("click", async (e) => {
   if (!record) return;
 
   if (e.target.closest("[data-play]")) {
-    const { url, revoke } = offlineFileUrl(record);
-    const win = window.open("", "_blank");
-    if (win) {
-      win.document.write(
-        `<title>${esc(record.title || "Lecture")} — offline</title>` +
-          `<body style="margin:0;background:#000">` +
-          `<video src="${url}" controls autoplay style="width:100%;height:100vh"></video>`
-      );
-      win.document.close();
-    }
-    // The blob URL stays alive for this tab; revoke when it is closed.
-    window.addEventListener("beforeunload", revoke, { once: true });
+    // Play it *here*. A saved lecture that opens in a blank tab, or only exists
+    // once it is written into Chrome's Downloads folder, does not look like
+    // something this site kept — which is exactly how it was being read.
+    const ok = await playSaved(id, { trigger: e.target.closest("[data-play]") });
+    if (!ok) toast("That lecture could not be opened from this device", "bad");
     return;
   }
 
@@ -471,7 +464,7 @@ savedList.addEventListener("click", async (e) => {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(href), 4000);
-    toast(`Saving ${name}`);
+    toast(`Copy saved to your device: ${name}`);
     return;
   }
 

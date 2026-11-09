@@ -1,0 +1,138 @@
+/* =========================================================================
+   Offline playback — the saved-lecture sheet, and the offer under the player.
+
+   Kept apart from `downloads.css` because two pages need it: the library that
+   lists saved lectures, and the lecture player that can offer the copy you just
+   saved. Loading a page's whole stylesheet for one dialog would have been the
+   easier mistake.
+   ========================================================================= */
+
+/* ---------------------------- offline player ----------------------------- */
+
+/* Playing a saved lecture happens here, in the site, on top of the page it was
+   saved from — the same relationship the lecture player has to a chapter. */
+body.op-open {
+  overflow: hidden;
+}
+
+.offline-player[hidden] {
+  display: none;
+}
+
+.offline-player {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.offline-player-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(6 10 20 / 78%);
+  backdrop-filter: blur(3px);
+}
+
+.offline-player-card {
+  position: relative;
+  width: min(980px, 100%);
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg, 14px);
+  background: var(--panel, #10131c);
+  border: 1px solid var(--line, #232838);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 55%);
+  overflow: hidden;
+}
+
+.offline-player-head,
+.offline-player-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+}
+
+.offline-player-head {
+  border-bottom: 1px solid var(--line, #232838);
+}
+
+.offline-player-foot {
+  border-top: 1px solid var(--line, #232838);
+  flex-wrap: wrap;
+}
+
+.offline-player-title {
+  display: block;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.offline-player-meta {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--dim, #9aa3b8);
+}
+
+.offline-player-stage {
+  position: relative;
+  background: #000;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 13rem);
+}
+
+.offline-player-stage video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000;
+}
+
+.offline-player-note {
+  position: absolute;
+  inset: auto 0 0;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #fff;
+  background: linear-gradient(180deg, transparent, rgb(0 0 0 / 82%));
+}
+
+@media (max-width: 560px) {
+  .offline-player {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .offline-player-card {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .offline-player-stage {
+    max-height: none;
+  }
+}
+
+/* The offer under the lecture player: "you have this on the device, watch it". */
+.offline-offer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 0.8rem;
+  margin: 0.5rem 0;
+  border-radius: 10px;
+  border: 1px solid var(--line, #232838);
+  background: var(--panel, #10131c);
+}
+
+.offline-offer[hidden] {
+  display: none;
+}

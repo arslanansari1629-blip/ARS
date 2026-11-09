@@ -760,6 +760,44 @@ test("the player offers to save the lecture it is playing", async () => {
   assert.match(lecture, /\/api\/download\?mode=list/, "the save control never checks the lecture is downloadable");
 });
 
+test("a saved lecture plays in the site, not in a blank tab or a Downloads folder", async () => {
+  const page = await (await nativeFetch(`${BASE}/assets/downloads-page.js`)).text();
+
+  // The regression: "Play offline" opened `window.open("", "_blank")` with a blob
+  // in it, so a saved lecture looked like it had left the site — and the only
+  // other button wrote a file into Chrome's Downloads folder.
+  assert.equal(/window\.open\(/.test(page), false, "the saved card still opens a blank tab");
+  assert.match(page, /playSaved/, "Play offline does not use the in-site player");
+
+  const player = await (await nativeFetch(`${BASE}/assets/offline-player.js`)).text();
+  // It builds media from the saved parts, on this origin, with no request.
+  assert.match(player, /offlineFile\(record\)/, "the offline player never reads the saved parts");
+  assert.match(player, /createObjectURL/, "no blob is created for playback");
+  assert.equal(
+    /fetch\(|XMLHttpRequest/.test(player),
+    false,
+    "the offline player makes network requests, so it is not offline"
+  );
+  // Both formats have a path: TS media directly, a keyed playlist through hls.js.
+  assert.match(player, /format === "plain"/);
+  assert.match(player, /hls\.min\.js/, "a keyed save has no playlist reader");
+  assert.match(player, /revokeObjectURL/, "blob URLs leak on close");
+
+  // The stylesheet ships with the pages that show the sheet.
+  for (const path of ["/downloads.html", "/lecture.html"]) {
+    const html = await (await nativeFetch(`${BASE}${path}`)).text();
+    assert.match(html, /href="\/assets\/offline\.css"/, `${path} does not style the offline player`);
+  }
+});
+
+test("the lecture player offers the copy it just saved without leaving", async () => {
+  const lecture = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
+  assert.match(lecture, /showSavedAction/, "no offer to play the saved copy");
+  assert.match(lecture, /offlineOffer/, "nothing to render the offer into");
+  const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  assert.match(html, /id="offlineOffer"/, "the lecture page has no slot for the offer");
+});
+
 test("the downloader stitches slices instead of trusting one response", async () => {
   const mod = await import("../public/assets/downloader.js");
   // A slice is a fragment, so the reader has to find the inline key and media.

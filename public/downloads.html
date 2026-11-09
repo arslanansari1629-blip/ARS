@@ -18,6 +18,7 @@
 <meta name="twitter:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
 <link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="stylesheet" href="/assets/downloads.css" />
+    <link rel="stylesheet" href="/assets/offline.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
 </head>
@@ -50,7 +51,7 @@
       <div>
         <span class="eyebrow">Watch without a connection</span>
         <h1>Download lectures</h1>
-        <p>Save a class to this device and it plays anywhere — on a train, in a hostel, with the data off.</p>
+        <p>Save a class to this device, then watch it right here — on a train, in a hostel, with the data off.</p>
       </div>
       <a class="btn btn-ghost btn-sm" href="/batches.html">Browse batches</a>
     </div>
@@ -116,7 +117,7 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v10"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>
           </div>
           <strong>Nothing saved yet</strong>
-          <span class="tiny">Pick a lecture above and press Save. It stays here until you remove it.</span>
+          <span class="tiny">Pick a lecture above and press Save. It stays in this browser, and plays here, until you remove it.</span>
         </div>
       </div>
     </section>
@@ -126,7 +127,8 @@
       <ul class="tiny">
         <li><strong>Saved on this device only.</strong> Nothing is uploaded, and the lecture is not re-hosted anywhere — the same bytes the player streams are written into your browser's own storage.</li>
         <li><strong>No expiry.</strong> A signed stream link dies in minutes; a saved lecture carries its own key and media, so it does not care what the signer is doing tomorrow.</li>
-        <li><strong>Two formats.</strong> Most downloads are plain MPEG-TS (<code>.ts</code>), which plays in any player. If the source only offers a keyed playlist, the file is a self-contained <code>.m3u8</code> — the key travels inside it.</li>
+        <li><strong>It plays here.</strong> <em>Play offline</em> opens the lecture in this site, out of this browser's storage — no server, no signed link, nothing to expire. <em>Save file</em> is there when you want a copy in your Downloads folder to carry to VLC or another phone.</li>
+        <li><strong>Two formats.</strong> Most downloads are plain MPEG-TS (<code>.ts</code>), which plays anywhere. If the source only offers a keyed playlist, the saved copy is a self-contained <code>.m3u8</code> — the key travels inside it.</li>
         <li><strong>Interrupted is not lost.</strong> A lecture that stops halfway stays playable up to that point and resumes from the same place.</li>
         <li><strong>Long lectures arrive in parts.</strong> A two-hour class is downloaded in slices and stitched into one file once it finishes.</li>
       </ul>

@@ -1039,16 +1039,38 @@ $("menuSave")?.addEventListener("click", async () => {
     label.textContent = result.ok ? "Saved for offline" : "Save for offline";
     toast(
       result.ok
-        ? `“${title}” is saved — find it on the Downloads page`
+        ? `“${title}” is saved — open it any time from Downloads`
         : "Saved part of this lecture — finish it on the Downloads page",
       result.ok ? "" : "bad"
     );
-    if (result.ok) setTimeout(() => (label.textContent = "Save for offline"), 4000);
+    // Offer the offline copy right where it was made. Sending someone to another
+    // page to watch something they just saved reads as "it left the site"; this
+    // shows it playing from the device instead.
+    if (result.ok) {
+      showSavedAction(title);
+      setTimeout(() => (label.textContent = "Save for offline"), 4000);
+    }
   } catch (err) {
     label.textContent = "Save for offline";
     toast(err.message || "The download failed", "bad");
   }
 });
+
+/** A one-line offer to watch the copy that was just saved, next to the video. */
+function showSavedAction(title) {
+  const host = document.getElementById("offlineOffer");
+  if (!host) return;
+  host.hidden = false;
+  host.innerHTML =
+    `<span class="tiny">Saved on this device.</span>` +
+    `<button class="btn btn-primary btn-sm" id="offlinePlay">Play offline copy</button>` +
+    `<a class="btn btn-ghost btn-sm" href="/downloads.html">Downloads</a>`;
+  document.getElementById("offlinePlay")?.addEventListener("click", async () => {
+    const { playSaved } = await import("./offline-player.js");
+    const ok = await playSaved(lectureId, { trigger: document.getElementById("offlinePlay") });
+    if (!ok) toast("That lecture could not be opened from this device", "bad");
+  });
+}
 
 loopBtn?.addEventListener("click", () => {
   video.loop = !video.loop;

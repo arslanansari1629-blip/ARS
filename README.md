@@ -330,6 +330,13 @@ key handling is the one that keeps working. Decryption uses the media sequence
 number as the IV, and a segment that will not come apart fails the slice rather
 than shipping noise.
 
+A saved lecture stays *on the site*: **Play offline** opens it in the site's own
+player sheet (`public/assets/offline-player.js`), built from a Blob of the parts
+already in IndexedDB — `video/mp2t` for a plain save, hls.js for a keyed one. There
+is no request in that path at all, which is what makes it offline. **Save file** is
+the separate, explicit action for putting a copy in the browser's Downloads folder
+to carry to VLC or another phone — it is a copy, not the library.
+
 Client side (`public/assets/downloader.js`), a download is: fetch a slice → pull
 the inline media out → append it to what is already held → keep the running
 result in IndexedDB. Slices are stitched into one file when the download
@@ -424,7 +431,7 @@ vercel --prod
 npm test        # node --test tests/*.test.mjs
 ```
 
-152 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
+158 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
 each page module is executed in jsdom and asserted. Coverage includes page rendering, the
 API contracts, catalogue completeness (the last page is reachable and a batch the upstream search
 cannot see is findable), stream planning (rendition fallback, signer failover and YouTube embeds
