@@ -518,3 +518,62 @@ test("the relay mints a playable master playlist instead of asking the signer", 
   assert.equal(bad.status, 400, "a master with no renditions must not pretend to be a playlist");
   assert.match(bad.body, /renditions/i);
 });
+
+test("the health probe walks plan → master → rendition → segment", async () => {
+  const { probePlayback } = await import("../api/token.mjs");
+
+  const out = await withFetch(
+    async (url) => {
+      const s = String(url);
+      if (s.includes("cloudfront.net") && !s.includes("Signature=")) {
+        return new Response("denied", { status: 403 });
+      }
+      if (s.includes("generate_token")) return new Response("guest-token-value-123456");
+      if (s.includes("get-hls-key")) {
+        const key = new URL(s).searchParams.get("key");
+        if (/master\.m3u8/.test(key)) return new Response("no", { status: 403 });
+        if (/\.m3u8$/.test(key)) return playlistResponse();
+        return new Response(Buffer.alloc(4096, 7), { status: 200 });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () => probePlayback(mpd("eeeeeeee-5555-4555-8555-555555555555"))
+  );
+
+  assert.equal(out.ok, true, JSON.stringify(out));
+  assert.deepEqual(
+    out.steps.map((s) => s.step),
+    ["plan", "master", "rendition", "segment"]
+  );
+  assert.ok(out.steps.every((s) => s.ok), JSON.stringify(out.steps));
+  // The point of the probe: a lecture is only "working" once real bytes arrived,
+  // not merely when the schedule named a URL.
+  assert.ok(out.steps.at(-1).bytes > 1000);
+});
+
+test("the health probe names the step that broke", async () => {
+  const { probePlayback } = await import("../api/token.mjs");
+
+  const out = await withFetch(
+    async (url) => {
+      const s = String(url);
+      if (s.includes("cloudfront.net")) return new Response("denied", { status: 403 });
+      if (s.includes("generate_token")) return new Response("guest-token-value-123456");
+      // Every rendition answers, but the segment itself never will.
+      if (s.includes("get-hls-key")) {
+        const key = new URL(s).searchParams.get("key");
+        if (/\.m3u8$/.test(key)) return playlistResponse();
+        return new Response("gone", { status: 404 });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () => probePlayback(mpd("ffffffff-6666-4666-8666-666666666666"))
+  );
+
+  assert.equal(out.ok, false);
+  assert.equal(out.step, "segment", `expected the segment step to be blamed, got ${JSON.stringify(out)}`);
+  // The reason is whatever the relay last saw (404 from the signer, or the 502
+  // it answers once every signer refused). What matters is that a reader is told
+  // *which* step failed instead of a generic "playback is broken".
+  assert.match(out.reason, /segment answered \d{3}/);
+});

@@ -7,7 +7,7 @@ import {
   FALLBACK_TOKEN,
 } from "../lib/pw-auth.mjs";
 import { pwFetch } from "../lib/pw-proxy.mjs";
-import { fetchSchedule } from "../lib/api-data.mjs";
+import { fetchSchedule, resolveStream, parseFolder } from "../lib/api-data.mjs";
 
 /**
  * GET /api/token         → token state + which hosts accept it
@@ -147,6 +147,76 @@ async function probeEntitlement(token) {
   }
 }
 
+/**
+ * Follow a lecture all the way to a playable byte.
+ *
+ * `lecturePlayback: "working"` used to mean only "the schedule named a stream
+ * URL" — which was true while every lecture was unplayable, because the master
+ * playlist the plan pointed at did not exist. A status page that cannot tell
+ * the difference is worse than none, so this walks the real chain: resolve the
+ * plan, read the master it hands the player, read one rendition playlist, and
+ * fetch one segment. The first step that fails is named.
+ */
+export async function probePlayback(videoUrl) {
+  if (!videoUrl) return { ok: false, step: "resolve", reason: "no stream URL to resolve" };
+  const steps = [];
+  try {
+    const plan = await resolveStream({ rawUrl: videoUrl, folder: parseFolder(videoUrl), fresh: true });
+    steps.push({ step: "plan", ok: Boolean(plan && plan.playable), detail: plan && plan.url ? plan.url : plan && plan.reason });
+    if (!plan || !plan.playable || !plan.url) {
+      return { ok: false, step: "plan", reason: (plan && plan.reason) || "no playable plan", steps };
+    }
+
+    // The plan URL is relative to this deployment; "this deployment" is an
+    // origin we cannot assume is reachable from inside the function, so build
+    // the same request against the same handlers directly.
+    const { default: signRelay } = await import("../lib/sign.mjs");
+    const grab = (path) =>
+      new Promise((resolve) => {
+        const chunks = [];
+        const res2 = {
+          statusCode: 0,
+          setHeader() {},
+          write(b) {
+            chunks.push(Buffer.from(b));
+          },
+          end(b) {
+            if (b) chunks.push(Buffer.from(b));
+            resolve({ status: this.statusCode, body: Buffer.concat(chunks).toString("utf8") });
+          },
+        };
+        signRelay({ method: "GET", url: path, headers: { host: "probe.local" } }, res2);
+      });
+
+    const master = await grab(plan.url);
+    const isRealMaster = master.status === 200 && /#EXTM3U/.test(master.body) && /EXT-X-STREAM-INF/.test(master.body);
+    steps.push({ step: "master", ok: isRealMaster, status: master.status });
+    if (!isRealMaster) return { ok: false, step: "master", reason: `master answered ${master.status}`, steps };
+
+    const variant = master.body.split("\n").find((l) => l && !l.startsWith("#")) || "";
+    const variantPath = variant
+      ? `${new URL(variant, "http://probe.local").pathname}${new URL(variant, "http://probe.local").search}`
+      : "";
+    const media = variantPath ? await grab(variantPath) : { status: 0, body: "" };
+    const isRealMedia = media.status === 200 && /#EXTINF/.test(media.body);
+    steps.push({ step: "rendition", ok: isRealMedia, status: media.status });
+    if (!isRealMedia) return { ok: false, step: "rendition", reason: `rendition answered ${media.status}`, steps };
+
+    const segment = media.body.split("\n").find((l) => l && !l.startsWith("#")) || "";
+    const segPath = segment
+      ? `${new URL(segment, "http://probe.local").pathname}${new URL(segment, "http://probe.local").search}`
+      : "";
+    const bytes = segPath ? await grab(segPath) : { status: 0, body: "" };
+    const hasBytes = bytes.status === 200 && bytes.body.length > 1000;
+    steps.push({ step: "segment", ok: hasBytes, status: bytes.status, bytes: bytes.body.length });
+    return hasBytes
+      ? { ok: true, step: "segment", steps, renditions: plan.renditions || [] }
+      : { ok: false, step: "segment", reason: `segment answered ${bytes.status}`, steps };
+  } catch (err) {
+    return { ok: false, step: "error", reason: err?.message || "probe failed", steps };
+  }
+}
+
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
@@ -169,6 +239,9 @@ export default async function handler(req, res) {
   // record only carries a `videoUrl` for tokens that hold the batch. So ask the
   // catalogue directly: do the lectures in a live batch carry a stream URL?
   const sample = await probeEntitlement(token);
+  // …and then, for real, can a lecture be played? This is the only question a
+  // viewer cares about, so the answer comes from actually fetching the bytes.
+  const playback = sample.withVideoUrl ? await probePlayback(sample.sampleVideoUrl) : { ok: false, step: "resolve", reason: "no stream URL" };
 
   return json(
     res,
@@ -191,9 +264,12 @@ export default async function handler(req, res) {
       // …and can it find out *which* file a lecture is?
       lecturePlayback:
         sample.withVideoUrl > 0 ? "working" : signingWorks ? "metadata-only" : "unavailable",
-      explain:
-        sample.withVideoUrl > 0
-          ? "The token sees lecture stream URLs, so lectures resolve and play."
+      // The end-to-end answer: master → rendition → segment, fetched for real.
+      playbackProbe: playback,
+      explain: playback.ok
+        ? "A lecture was played end to end just now: master playlist, rendition playlist and a segment all relayed, so playback works."
+        : sample.withVideoUrl > 0
+          ? `A stream URL is visible, but playback breaks at the ${playback.step} step: ${playback.reason || "unknown"}.`
           : signingWorks
             ? `The token can sign files, but the API returns no stream URL for these lectures (${sample.sampleTitle || "sample"}), so every lecture resolves as 'not published'. Set PW_TOKEN to a bearer that holds the batch to play them.`
             : "No signer accepted the token. Set PW_TOKEN to a valid PW bearer to restore lecture signing.",

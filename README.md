@@ -241,6 +241,40 @@ an `authorization` **query parameter**; data routes keep it in the header.
 sentence the player shows. The chapter page links this sweep next to the lecture count, so a
 "videos don't play" report comes with evidence instead of a screenshot.
 
+### How playback is wired (and how it broke)
+
+A lecture is played through one chain, and each link has been the reason lectures
+went black at least once:
+
+```
+schedule record ──▶ plan (/api/stream) ──▶ master playlist ──▶ rendition playlist
+                                                        └────▶ AES key, segments
+```
+
+- **`/api/stream`** resolves the plan. It hands the player a URL, never bytes.
+- **`/api/sign`** is the signing relay: it asks the partner signer for one file
+  (`720/main.m3u8`, `enc.key`, `720/000.ts`) and returns it, rewriting playlists
+  so children come back through us. Signers store *one playlist per rendition*
+  and answer 403 to `master.m3u8`, so the relay **builds the master itself** from
+  the renditions the resolver verified (`&renditions=720,480,…`). Asking a signer
+  for a master was the bug: the plan looked perfect and hls.js got a 403.
+- **`/api/hls`** is the media gateway for already-signed CDN URLs (DASH or HLS).
+  A URL with no signature — or a stale one — gets a 403 from CloudFront; the
+  gateway then mints that file through `/api/sign` instead of dead-ending, and a
+  master request is redirected to the plan's playable master.
+
+Three invariants worth keeping:
+
+1. A plan must point at `/api/hls` or `/api/sign` — never back at `/api/stream`,
+   which answers JSON and leaves a media element with nothing to play.
+2. Playlists are read as text and rewritten; segments are piped untouched. The
+   file extension decides which is which, not the CDN's `content-type`.
+3. Nothing calls its own origin over HTTP to reuse a handler — the gateway calls
+   `fetchSigned()` in process, because a function cannot always reach itself.
+
+`/api/token?fresh=1` proves the whole chain (plan → master → rendition →
+segment) by fetching real bytes, and reports the first step that failed.
+
 ## The admin panel
 
 `/admin` is a separate, noindex plate — it is not part of the student shell and
