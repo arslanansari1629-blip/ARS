@@ -342,7 +342,7 @@ async function startDownload({ id, title, batch, subject }) {
     setLabel("Saving 0%", true);
     renderQueue();
 
-    const result = await downloadLecture({
+    let result = await downloadLecture({
       id,
       folder,
       quality,
@@ -371,8 +371,27 @@ async function startDownload({ id, title, batch, subject }) {
       if (!parts.length) throw new Error("Nothing was saved — the stream returned no media");
       if (record.format === "plain") {
         const first = new Uint8Array(base64ToBytes(parts[0].data)).subarray(0, 376);
-        if (!looksLikeTransportStream(first)) {
-          throw new Error("The saved media did not decrypt — retrying a higher rendition may help");
+        if (!looksLikeTransportStream(first) && format === "plain") {
+          // The bytes arrived but did not come apart, which means this lecture's
+          // key is not the one the playlist advertised. The playlist shape
+          // carries the key inside the file, so it plays even when that is true —
+          // and re-downloading beats handing over a file that only looks saved.
+          await removeLecture(id);
+          toast("That copy did not decrypt — saving it in the playlist format instead");
+          result = await downloadLecture({
+            id,
+            folder,
+            quality,
+            title,
+            format: "playlist",
+            sliceSize: 48,
+            onProgress: (p) => {
+              const pct = p.total ? Math.round((p.segments / p.total) * 100) : 0;
+              setLabel(`Saving ${pct}%`, true);
+              queueText.textContent = `“${title}” — ${pct}%${p.phase === "retry" ? " · retrying" : ""}`;
+            },
+          });
+          await refreshSaved();
         }
       }
       // A slice that skipped a segment is still a download that plays; saying so

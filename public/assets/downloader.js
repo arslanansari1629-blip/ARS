@@ -329,6 +329,24 @@ export async function downloadLecture({
   let label = quality ? `${quality}p` : "";
   let encKey = "";
 
+  /**
+   * Fall back to a self-contained playlist when the decrypted (`.ts`) shape
+   * cannot be had.
+   *
+   * A plain slice is the better file — it plays anywhere — but it is only worth
+   * having if it arrives decrypted and intact. Rather than retrying the same
+   * shape until the attempts run out, switch to the playlist shape once, which
+   * carries the key inside the file. The stored record already knows how to
+   * describe both, so this is a flag plus a different extension at save time.
+   */
+  const usePlaylist = () => {
+    if (!plain) return false;
+    plain = false;
+    attempts = 0;
+    query.delete("format");
+    return true;
+  };
+
   const retain = {};
   const record = () => ({
     parts,
@@ -382,6 +400,10 @@ export async function downloadLecture({
     }
 
     if (!res.ok) {
+      // Nothing was stored yet and the plain shape is the one being refused:
+      // the playlist shape is a different assembly on the same route, so it is
+      // worth one try before this counts as a failed attempt.
+      if (usePlaylist()) continue;
       attempts += 1;
       onProgress({ phase: "retry", attempt: attempts, status: res.status, segments: parts.length, total, seconds });
       await sleep(600 * attempts);
@@ -392,6 +414,13 @@ export async function downloadLecture({
     if (/json/i.test(contentType)) {
       const body = await res.json().catch(() => ({}));
       const reason = body.error || "This lecture could not be downloaded.";
+      // A plain slice that cannot be assembled is not the end of the download:
+      // the playlist shape asks the same segments for the same media and carries
+      // its own key, so try that once before reporting a failure.
+      if (usePlaylist()) {
+        onProgress({ phase: "retry", attempt: 1, segments: parts.length, total, seconds });
+        continue;
+      }
       // A refusal that names a signer status is the bursty kind and clears on
       // its own; anything else ("no stream yet", "not published") is the real
       // answer and is reported straight away. Retrying a permanent error forever
