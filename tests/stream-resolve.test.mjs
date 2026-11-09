@@ -134,6 +134,49 @@ test("reports an actionable reason when no rendition exists", async () => {
   assert.match(plan.reason, /live class|notes-only|processing/i);
 });
 
+test("a signer refusal is not reported as 'not published'", async () => {
+  // This is the live production case: the schedule carries a real, non-DRM
+  // `master.mpd`, but every signer answers 401/403 because the site only holds a
+  // guest PW session. The old message said PW had not published a stream, which
+  // is false — the recording exists and its address is in the response.
+  const { resolveStream } = await import("../lib/api-data.mjs");
+
+  const plan = await withFetch(
+    async (url) => {
+      if (String(url).includes("generate_token")) {
+        return new Response("guest-token-value-123456", { status: 200 });
+      }
+      return new Response("Unauthorised Access", { status: 401 });
+    },
+    () => resolveStream({ rawUrl: mpd("eeeeeeee-5555-4555-8555-555555555555") })
+  );
+
+  assert.equal(plan.playable, false);
+  assert.doesNotMatch(plan.reason, /has not published/i);
+  assert.match(plan.reason, /recording exists/i);
+  assert.match(plan.reason, /401\/403|refuses|guest/i);
+  // The schedule address must stay visible so the failure is diagnosable.
+  assert.equal(plan.sourceUrl, mpd("eeeeeeee-5555-4555-8555-555555555555"));
+});
+
+test("an unreachable signer is reported as a transport problem", async () => {
+  const { resolveStream } = await import("../lib/api-data.mjs");
+
+  const plan = await withFetch(
+    async (url) => {
+      if (String(url).includes("generate_token")) {
+        return new Response("guest-token-value-123456", { status: 200 });
+      }
+      throw new Error("connect ECONNREFUSED");
+    },
+    () => resolveStream({ rawUrl: mpd("ffffffff-6666-4666-8666-666666666666") })
+  );
+
+  assert.equal(plan.playable, false);
+  assert.doesNotMatch(plan.reason, /has not published/i);
+  assert.match(plan.reason, /could not be reached|reloading/i);
+});
+
 test("a signed URL is relayed through the media gateway, not the signer", async () => {
   const { resolveStream } = await import("../lib/api-data.mjs");
   const signed = `${mpd("dddddddd-4444-4444-8444-444444444444")}?Signature=abc&Key-Pair-Id=XYZ&Policy=p`;
