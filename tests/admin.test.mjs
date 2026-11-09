@@ -22,6 +22,16 @@ const BASE = `http://127.0.0.1:${PORT}`;
 
 const children = [];
 
+/**
+ * The credentials never appear in this repository, not even in a test: the
+ * source is public, so a fixture would publish them. Assertions that need a
+ * *known* pair use throwaway values exported into the dev server's environment;
+ * the shipped digests are still compared by lib/admin.mjs itself.
+ */
+const TEST_USER = "operator-test";
+const TEST_PASS = "operator-test-pass";
+const TEST_ENV = { ADMIN_USERNAME: TEST_USER, ADMIN_PASSWORD: TEST_PASS };
+
 function start(args, env = {}) {
   const child = spawn(process.execPath, args, {
     cwd: ROOT,
@@ -53,6 +63,7 @@ before(async () => {
     PORT: String(PORT),
     HOST: "127.0.0.1",
     PW_UPSTREAM_BASE: `http://127.0.0.1:${FIXPORT}`,
+    ...TEST_ENV,
   });
   await waitFor(`${BASE}/admin.html`);
 });
@@ -61,7 +72,7 @@ after(() => {
   for (const c of children) c.kill("SIGKILL");
 });
 
-const signIn = async (username = "editz", password = "editz900s") => {
+const signIn = async (username = TEST_USER, password = TEST_PASS) => {
   const res = await fetch(`${BASE}/api/admin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -89,7 +100,7 @@ test("the admin page is a standalone, noindex sign-in gate", async () => {
 test("the credentials are not shipped to the browser", async () => {
   // Walk everything a visitor can download and make sure neither the username
   // nor the password text appears anywhere.
-  const secrets = ["editz900s"];
+  const secrets = [TEST_PASS];
 
   async function walk(dir) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -118,7 +129,15 @@ test("the credentials are not shipped to the browser", async () => {
 
   // The username is only allowed to exist server-side, as a digest.
   const client = await (await fetch(`${BASE}/assets/admin.js`)).text();
-  assert.equal(/editz/.test(client), false, "the admin username leaked into the client");
+  assert.equal(client.includes(TEST_USER), false, "the admin username leaked into the client");
+  // This repository is public, so the module that holds the digests must not
+  // hold the words either — a plaintext assignment here would publish them.
+  const server = await readFile(path.join(ROOT, "lib", "admin.mjs"), "utf8");
+  assert.equal(
+    /const\s+(USERNAME|PASSWORD)\s*=\s*["']/.test(server),
+    false,
+    "lib/admin.mjs stores a credential in plaintext"
+  );
   assert.equal(
     /PASSWORD|password\s*=\s*["']/.test(client),
     false,
@@ -127,17 +146,17 @@ test("the credentials are not shipped to the browser", async () => {
 
   // And the API must never echo a secret back, even on a failed sign-in.
   const { body } = await signIn("nobody", "nothing");
-  assert.equal(JSON.stringify(body).includes("editz900s"), false);
+  assert.equal(JSON.stringify(body).includes(TEST_PASS), false);
 });
 
 test("a wrong password is refused and rate limited, the right one gets a session", async () => {
-  const wrong = await signIn("editz", "not-the-password");
+  const wrong = await signIn(TEST_USER, "not-the-password");
   assert.equal(wrong.status, 401);
   assert.equal(wrong.body.success, false);
   // One message for both fields: never confirm which half was right.
   assert.match(wrong.body.error, /Invalid username or password/i);
 
-  const wrongUser = await signIn("someone-else", "editz900s");
+  const wrongUser = await signIn("someone-else", TEST_PASS);
   assert.equal(wrongUser.status, 401);
   assert.equal(wrongUser.body.error, wrong.body.error, "the error revealed which field was wrong");
 
@@ -222,7 +241,7 @@ test("repeated bad passwords trip a cooldown", async () => {
   let limited = false;
   let lastStatus = 0;
   for (let i = 0; i < 8; i += 1) {
-    const attempt = await signIn("editz", `wrong-${i}`);
+    const attempt = await signIn(TEST_USER, `wrong-${i}`);
     lastStatus = attempt.status;
     if (attempt.status === 429) {
       limited = true;

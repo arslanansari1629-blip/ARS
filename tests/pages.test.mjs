@@ -290,6 +290,41 @@ test("batch page renders subjects from upstream detail", async () => {
   dom.window.close();
 });
 
+test("the batch hero paints from the catalogue before the slow detail call returns", async () => {
+  // Production symptom: a cold `/BatchInfo` left the page a blank skeleton for
+  // seconds. The hero must come from the shipped catalogue row, and the page
+  // must still be usable (title, favourite toggle) while the detail call hangs.
+  const { doc, dom } = await render("/batch.html?id=698ad3519549b300a5e1cc6a", {
+    fetchWrap: (target) => {
+      if (target.pathname === "/api/batch" && !target.searchParams.get("header")) {
+        return new Promise(() => {}); // never settles: the slow upstream
+      }
+      return null;
+    },
+    waitForSelector: "#favBatchBtn",
+  });
+
+  assert.match(doc.title, /Arjuna JEE 2027/);
+  const hero = doc.querySelector(".detail-head h1");
+  assert.ok(hero, "the hero never painted without the detail call");
+  assert.match(hero.textContent, /Arjuna JEE 2027/);
+  assert.ok(doc.getElementById("favBatchBtn"), "the hero is missing its favourite toggle");
+  assert.equal(doc.querySelectorAll(".skeleton.sk-cover").length, 0, "the cover is still a skeleton");
+  dom.window.close();
+});
+
+test("the header route answers from the catalogue and defers the subject list", async () => {
+  const res = await nativeFetch(`${BASE}/api/batch?header=1&id=698ad3519549b300a5e1cc6a`);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.success, true);
+  assert.equal(body.header, true);
+  assert.equal(body.subjects, null, "the header route must not claim an empty subject list");
+  assert.match(body.batch.name, /Arjuna JEE 2027/);
+  assert.ok(body.batch.image, "the header carries no cover image");
+  assert.ok(body.batch.startDate, "the header carries no start date");
+});
+
 test("subject page renders chapters with counts", async () => {
   const { doc, dom } = await render(
     "/subject.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&name=Physics",

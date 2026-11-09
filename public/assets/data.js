@@ -61,6 +61,23 @@ export async function loadBatch(id) {
   );
 }
 
+/**
+ * Header-only variant of `loadBatch`: the shipped catalogue row, no upstream
+ * call. The batch page paints its hero from this and then asks for the full
+ * record, so a slow `/BatchInfo` costs the subject list — not the whole page.
+ */
+export async function loadBatchHeader(id) {
+  try {
+    const data = await getJson(`/api/batch?header=1&id=${encodeURIComponent(id)}`);
+    if (data && data.batch && Array.isArray(data.batch.subjects) === false) {
+      return { batch: { ...data.batch, subjects: [] }, headerOnly: true };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadChapters(batch, subject) {
   return fetchData(
     `/api/contents?batch=${encodeURIComponent(batch)}&subject=${encodeURIComponent(subject)}`,

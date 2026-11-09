@@ -13,7 +13,7 @@ import {
 } from "./app.js";
 import { trackBatch } from "./library.js";
 import { isFavourite, toggleFavourite, wireFavourites } from "./favourites.js";
-import { loadBatch as fetchBatchData, loadAnnouncements } from "./data.js";
+import { loadBatch as fetchBatchData, loadBatchHeader, loadAnnouncements } from "./data.js";
 
 mountChrome("batches");
 wireFavourites();
@@ -30,6 +30,10 @@ let tab = "subjects";
 if (!batchId) {
   detailGrid.innerHTML = emptyState("No batch selected", "Open a batch from the catalogue.", `<a class="btn btn-primary" href="/batches.html">Browse batches</a>`);
 } else {
+  // Two requests, deliberately. The hero is painted from the shipped catalogue
+  // row (a local lookup, tens of milliseconds), so the page is never a blank
+  // skeleton while `/BatchInfo` is slow; the subject list then fills in behind
+  // it. Superseded hero renders are ignored so the upstream record always wins.
   loadBatch();
 }
 
@@ -183,7 +187,21 @@ document.querySelectorAll("[data-tab]").forEach((btn) =>
   btn.addEventListener("click", () => setTab(btn.dataset.tab))
 );
 
+async function loadHeader() {
+  const header = await loadBatchHeader(batchId).catch(() => null);
+  // If the detailed record beat us here, its render is the better one.
+  if (!header || batch) return;
+  batch = header.batch;
+  renderDetail();
+  if (!batch.subjects.length) {
+    tabBody.innerHTML = `<div class="list">${Array.from({ length: 4 })
+      .map(() => `<div class="skeleton sk-row"></div>`)
+      .join("")}</div>`;
+  }
+}
+
 async function loadBatch() {
+  const headerPromise = loadHeader();
   try {
     const out = await fetchBatchData(batchId);
     batch = out.batch;
@@ -205,6 +223,7 @@ async function loadBatch() {
     rememberBatch({ id: batch.id, name: batch.name, image: batch.image });
     trackBatch({ id: batch.id, name: batch.name, image: batch.image });
     document.getElementById("detailGrid").classList.add("fade-up");
+    await headerPromise;
   } catch (err) {
     detailGrid.innerHTML = emptyState("Batch unavailable", err.message, `<a class="btn btn-primary" href="/batches.html">Back to batches</a>`);
     tabBody.innerHTML = "";
