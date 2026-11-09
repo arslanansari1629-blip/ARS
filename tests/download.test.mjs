@@ -259,6 +259,16 @@ test("quality labels and ladders read the way people say them", () => {
 
 test("the key of a relay URL is what the signer is asked for", () => {
   assert.equal(keyOf("https://x/api/sign?videoKey=f&key=240%2F000.ts"), "240/000.ts");
-  assert.equal(keyOf("not a url"), "");
   assert.equal(keyOf(""), "");
+});
+
+test("a bare key is passed through, not rewritten", () => {
+  // The signer names the AES key `enc.key` with no rendition in front of it.
+  // Prefixing the quality — which this did — asks for `240/enc.key` and earns a
+  // 403, which is exactly how the first live download failed after the playlist
+  // itself was reading fine.
+  assert.equal(keyOf("enc.key"), "enc.key");
+  assert.equal(keyOf("https://x/api/sign?videoKey=f&key=enc.key"), "enc.key");
+  // Anything that is not a key still has no key of its own.
+  assert.equal(keyOf("not a url"), "");
 });

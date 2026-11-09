@@ -69,7 +69,10 @@ function signerStub({ rendition = "240" } = {}) {
           headers: { "content-type": "application/vnd.apple.mpegurl" },
         });
       }
-      if (key.endsWith("enc.key")) {
+      // Strict on purpose: the source names the key `enc.key`, with no
+      // rendition in front of it. Accepting `240/enc.key` too would hide a bug
+      // that only appears against the real signer.
+      if (key === "enc.key") {
         return new Response(KEY, { status: 200, headers: { "content-type": "application/octet-stream" } });
       }
       if (/^240\/\d{3}\.ts$/.test(key)) {
