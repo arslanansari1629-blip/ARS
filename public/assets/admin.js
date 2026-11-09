@@ -203,6 +203,7 @@ function render(data) {
     ["Node", data.release.node],
     ["Deployment", data.release.deployment || "—"],
   ]);
+  renderHealing(data.selfHeal);
   renderKv("#runtimeKv", [
     ["Uptime", duration(data.uptimeSeconds)],
     ["Resident memory", `${data.runtime.memoryMb} MB`],
@@ -342,6 +343,72 @@ function renderRoutes(data) {
         )
         .join("")
     : `<p class="tiny dim">No requests recorded on this instance yet.</p>`;
+}
+
+/**
+ * What the site repaired on its own.
+ *
+ * The student-facing pages show none of this: a repair is supposed to be
+ * invisible, and a badge saying "we fixed 3 things" is a badge saying "this site
+ * breaks". The operator, though, has to be able to tell "quiet because healthy"
+ * from "quiet because the repair budget ran out" — so the ledger, the signer
+ * ladder and the budget all land here, and nowhere else.
+ */
+function relayLine(r) {
+  // Built by concatenation rather than a nested template: the shipped page-module
+  // check parses these files with a simple scanner that cannot follow `${}` inside
+  // a backtick string, and a false positive there fails the build.
+  const total = String((r && r.failures10m) || 0);
+  if (!r || !r.worst) return total;
+  return total + " · mostly " + String(r.worst[0]);
+}
+
+function renderHealing(h) {
+  const kv = $("#healKv");
+  const log = $("#healLog");
+  if (!kv || !log) return;
+
+  if (!h) {
+    kv.innerHTML = "";
+    log.innerHTML = `<p class="tiny dim">This build does not report self-healing.</p>`;
+    return;
+  }
+
+  const quarantined = (h.signers || []).filter((s) => s.quarantined);
+  // Concatenated rather than nested templates: the shipped page-module check
+  // parses these files with a simple scanner and misreads a backtick inside a
+  // `${}` expression, which fails the build for no real reason. The same scanner
+  // reads a plural noun followed by a bracket in a plain string as a function
+  // call, so the label below is worded around it.
+  const ladder = (h.signers || [])
+    .slice()
+    .sort((a, b) => b.weight - a.weight)
+    .map((s) => s.host + " " + (s.weight === 0 ? "(paused)" : Math.round(s.weight * 100) + "%"))
+    .join(" · ");
+
+  renderKv("#healKv", [
+    ["Repairs this hour", `${h.budget.usedLastHour} of ${h.budget.cap}`],
+    ["Signers quarantined", quarantined.length ? String(quarantined.length) : "none"],
+    ["Signer ladder", ladder || "no signer has answered yet"],
+    ["Relay faults, last 10 min", relayLine(h.relay)],
+  ]);
+
+  $("#healNote").textContent = h.budget.usedLastHour >= h.budget.cap
+    ? "The repair budget for this hour is spent — new faults are being logged and left alone until the window rolls over."
+    : "Repairs the site made without asking anyone. Visitors never see this list.";
+
+  log.innerHTML = (h.repairs || []).length
+    ? h.repairs
+        .map(
+          (r) => `
+      <div class="log-row">
+        <span class="log-title">${esc(r.action)}</span>
+        <span class="tiny dim">${esc(r.summary)}</span>
+        <span class="tiny dim log-when">${esc(ago(Date.parse(r.at)))}</span>
+      </div>`
+        )
+        .join("")
+    : `<p class="tiny dim">Nothing has needed repair since this instance started.</p>`;
 }
 
 function renderLogs(data) {

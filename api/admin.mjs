@@ -15,6 +15,7 @@ import {
   recordRequest,
   noteLog,
 } from "../lib/admin.mjs";
+import { reportPlaybackFailure, recordRelayFailure } from "../lib/selfheal.mjs";
 
 /**
  * The API edge: the operator API, plus two media routes that share this function.
@@ -108,6 +109,7 @@ export default async function handler(req, res) {
 
   // Media routes keep their own CORS and caching rules; only the mount is shared.
   if (action === "hls") return hlsHandler(req, res);
+  if (action === "repair") return repairAction(req, res);
   if (action === "sign") return signHandler(req, res, true);
 
   // No permissive CORS here: this route is same-origin only, by construction.
@@ -196,4 +198,52 @@ export default async function handler(req, res) {
     deep: params.deep === "1",
   });
   return finish(200, { success: true, ...payload });
+}
+
+/**
+ * `GET /api/repair?folder=&kind=&detail=` — the player's report line.
+ *
+ * A player that cannot load a manifest knows something no server metric does:
+ * *that* folder, on *that* device, is dead right now. It calls this before it
+ * retries, which drops any cached plan for the folder so the retry re-probes
+ * instead of receiving the same poisoned URL, and records the fault so the
+ * healer can act if it keeps happening.
+ *
+ * Reachable from `/api/sign?action=repair` (the function is already deployed)
+ * and deliberately forgettable: it returns a tiny JSON receipt and nothing that
+ * a visitor would recognise as a feature. Rate limited per client so it cannot
+ * be used as a cache-flush hammer.
+ */
+export async function repairAction(req, res) {
+  res.setHeader("Cache-Control", "no-store");
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    return res.end();
+  }
+
+  const key = clientKey(req);
+  if (repairHits(key) > 40) return json(res, 429, { success: false, error: "slow down" });
+
+  const { folder = "", kind = "manifest", detail = "" } = query(req);
+  const healed = reportPlaybackFailure({ folder, kind, detail });
+  recordRelayFailure({ relay: "player", kind, detail: folder });
+
+  // A receipt, not a report. The player only needs to know whether a retry is
+  // worth making; anything else would be handing the healing system's internals
+  // to an unauthenticated caller.
+  return json(res, 200, { success: true, ...healed, retry: true });
+}
+
+/** Per-client throttle for repairs; nothing else uses this counter. */
+const repairCounts = new Map();
+function repairHits(key) {
+  const now = Date.now();
+  const cur = repairCounts.get(key) || { n: 0, at: now };
+  if (now - cur.at > 60 * 60 * 1000) {
+    cur.n = 0;
+    cur.at = now;
+  }
+  cur.n += 1;
+  repairCounts.set(key, cur);
+  return cur.n;
 }

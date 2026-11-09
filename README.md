@@ -275,6 +275,32 @@ Three invariants worth keeping:
 `/api/token?fresh=1` proves the whole chain (plan → master → rendition →
 segment) by fetching real bytes, and reports the first step that failed.
 
+### The site repairs itself (`lib/selfheal.mjs`)
+
+Nothing on a student-facing page mentions this. It exists so a dead link becomes
+a retry instead of an error screen:
+
+- **The player reports the folder that died.** Before any retry it fires a
+  fire-and-forget beacon at `/api/repair?folder=…&kind=manifest|segment|stall`.
+  That drops the cached plan for *that folder*, so the retry re-probes instead of
+  receiving the same poisoned URL a second time.
+- **It heals before it complains.** `/api/stream` retries silently, `/api/sign`
+  reorders its signer ladder by observed health (a host that keeps failing is
+  tried last, a quarantined one last of all — never removed, because a slow answer
+  still beats no answer), and `/api/hls`/`/api/sign` every failure kind to the
+  healer.
+- **Repairs are bounded.** One repair per fault per minute, at most 12 an hour;
+  the cap is itself reported as `budget.exhausted` instead of being silently
+  swallowed. A bad minute cannot turn into a repair loop.
+- **It only touches what it owns** — the plan cache, the rendition cache and the
+  guest-token cache, all registered from the modules that own them so the
+  dependency stays one-way. It never edits or deploys code: an auto-deployer
+  triggered by a bad metric is how an outage becomes a cascade.
+
+The ledger is visible in exactly one place, the admin panel's *Self-healing*
+block: repairs made, signers quarantined with the resulting ladder, relay faults
+over the last ten minutes, and how much of the hourly budget is spent.
+
 ## The admin panel
 
 `/admin` is a separate, noindex plate — it is not part of the student shell and
@@ -298,6 +324,7 @@ What the panel reports, refreshed every 20 seconds:
 | Traffic | 30-minute sparkline, success rate, data requests, bytes served, errors |
 | Requests by route | which routes this instance actually served |
 | Slowest / Errors | the eight slowest samples and the last twenty 5xx |
+| Self-healing | repairs made, quarantined signers and the ladder, relay faults, budget |
 | CDN | what Vercel's cache did with the responses this instance produced |
 | Deployment | commit, environment, region, Node version |
 | Runtime & data | uptime, memory, catalogue size |
@@ -346,13 +373,15 @@ vercel --prod
 npm test        # node --test tests/*.test.mjs
 ```
 
-33 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
+117 tests, all offline: a fixture upstream is booted on port 4181 and the dev server on 4180, then
 each page module is executed in jsdom and asserted. Coverage includes page rendering, the
 API contracts, catalogue completeness (the last page is reachable and a batch the upstream search
 cannot see is findable), stream planning (rendition fallback, signer failover and YouTube embeds
 included), the `GetPdf` note resolution
 path, the `/api/sign` relay (token auth, playlist rewriting, key-path recovery), the no-video
-explanations and the lecture stream bootstrap.
+explanations, the lecture stream bootstrap, and the self-healer itself: signer demotion and
+quarantine, the demotion surviving a bad minute, cache eviction per failure class, the repair
+beacon's payload, the backoff ladder and the hourly repair budget.
 
 ## Notes
 

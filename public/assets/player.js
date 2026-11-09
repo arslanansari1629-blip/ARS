@@ -114,6 +114,11 @@ export class ProPlayer {
       this.state({ currentTime: v.currentTime, duration: v.duration });
     });
     v.addEventListener("ratechange", () => this.state({ rate: v.playbackRate }));
+    // Real playback re-arms the preflight: whatever went wrong last time is
+    // behind us, and the *next* failure deserves its own probe.
+    v.addEventListener("playing", () => {
+      this._probeFailed = false;
+    });
     v.addEventListener("volumechange", () =>
       this.state({ volume: v.volume, muted: v.muted })
     );
@@ -122,6 +127,13 @@ export class ProPlayer {
       // events; a spurious element error there must not replace the player.
       if (!this.native) return;
       const code = v.error ? v.error.code : 0;
+      // A native failure is often just a dead signed URL, not an unsupported
+      // file: re-resolve a couple of times before telling the student anything.
+      if (this.attempt < 3) {
+        this._report("segment", `native ${code}`);
+        this.retry({ reason: "The stream link expired." });
+        return;
+      }
       this._fail("Playback error", whyElementFailed(code));
     });
   }
@@ -140,6 +152,7 @@ export class ProPlayer {
       if (this.video.readyState >= 3) return;
       this.recovery += 1;
       if (this.recovery > 3) {
+        this._report("stall", `${Math.round(this.video.currentTime)}s`);
         this.retry({ reason: "The stream stalled repeatedly." });
         return;
       }
@@ -241,6 +254,34 @@ export class ProPlayer {
   }
 
   async _attachHls(plan, autoplay) {
+    // Probe the manifest before handing it to hls.js.
+    //
+    // hls.js reports an expired signature as a generic fatal `manifestLoadError`
+    // after its own retry budget, which on a slow connection is half a minute of
+    // black frame. One cheap request up front answers the same question in a
+    // second, and — crucially — it lets the player re-resolve *before* the
+    // student ever sees a frozen player. A timeout or a 403 here is not an error
+    // to show; it is a signal to go and get a fresh link.
+    if (!this._probeFailed) {
+      const probe = await probeManifest(plan.url, 7000);
+      if (!probe.ok) {
+        // Remember that this cycle has already spent its re-resolve. The next
+        // attach skips the probe and hands the URL to the engine anyway: a probe
+        // can be wrong (a blocked preflight, a rate-limited burst) while the
+        // media pipeline would have played, and a player that refuses to try is
+        // exactly the "video never plays" bug this file exists to avoid. One
+        // probe per failure cycle, never a probe loop.
+        this._probeFailed = true;
+        this._report(
+          probe.status === 403 || probe.status === 401 ? "signature" : "manifest",
+          probe.status || probe.error
+        );
+        return this.retry({
+          reason: probe.status ? "The stream link expired." : "The stream did not answer.",
+        });
+      }
+    }
+
     const Hls = await this._ensureHls();
     const canNative = Boolean(
       this.video.canPlayType && this.video.canPlayType("application/vnd.apple.mpegurl")
@@ -338,6 +379,7 @@ export class ProPlayer {
 
       this.recovery += 1;
       if (this.recovery > 4) {
+        this._report("segment", details || "recovery exhausted");
         this.retry({ reason: "The stream kept dropping." });
         return;
       }
@@ -678,12 +720,44 @@ export class ProPlayer {
   /* ------------------------------- recovery ------------------------------- */
 
   /**
+   * Tell the site that this stream is dead on *this* device.
+   *
+   * `sendBeacon` is used when available because the most important report — "the
+   * manifest 403'd" — happens while the page is possibly being navigated away
+   * from, and a normal fetch gets cancelled. It is fire-and-forget: a player must
+   * never wait on telemetry, and a failed report must never block a retry.
+   */
+  _report(kind, extra = "") {
+    try {
+      const folder = (this.plan && (this.plan.folder || folderOf(this.plan.url))) || "";
+      const q = `/api/repair?folder=${encodeURIComponent(folder)}&kind=${encodeURIComponent(kind)}${
+        extra ? `&detail=${encodeURIComponent(String(extra).slice(0, 160))}` : ""
+      }`;
+      if (navigator && typeof navigator.sendBeacon === "function") {
+        navigator.sendBeacon(q);
+        return;
+      }
+      fetch(q, { method: "GET", keepalive: true, credentials: "omit" }).catch(() => {});
+    } catch {
+      /* telemetry is never load-bearing */
+    }
+  }
+
+  /**
    * Re-resolve the stream and resume at the current position.
    *
    * This is the single path that fixes every failure mode: an expired
    * signature, a dead signer host, a stopped player with a stale URL, and a
    * media pipeline that hls.js could not recover. The position is carried over
    * so a retry never costs the student their place in a two-hour lecture.
+   *
+   * It is also where "the link fell" gets *cured* rather than reported: before
+   * asking for a new plan the player tells the site this folder is dead on this
+   * device, so the poisoned plan is dropped and the new attempt re-probes instead
+   * of being handed the same URL again. Attempts are spaced with a widening
+   * backoff, and after the first three the player stops asking for a new plan and
+   * re-attaches the best one it already has — a stream that 403'd once usually
+   * works again, and re-resolving forever turns one bad minute into a loop.
    */
   async retry({ reason = "", position = null } = {}) {
     if (this.destroyed) return;
@@ -699,14 +773,37 @@ export class ProPlayer {
       paused: false,
     });
 
+    // A dead manifest is reported before the retry, so the retry has a chance of
+    // being given a *different* plan.
+    this._report("manifest", reason);
+
+    const backoff = this._backoff(this.attempt);
+    if (backoff > 0) {
+      this.state({ note: "Reconnecting…" });
+      await new Promise((r) => setTimeout(r, backoff));
+      if (this.destroyed) return;
+    }
+
     let plan = null;
     try {
       plan = await this.resolve(this.attempt);
     } catch (err) {
+      // The resolver itself failed. If a previous plan exists it is still the
+      // best thing we have, so fall back to it instead of dead-ending the page.
+      if (this.plan && this.plan.url && this.attempt <= 4) {
+        this.state({ note: "Using the last known stream…" });
+        return this.load(this.plan, { autoplay: true });
+      }
       this._fail("Stream unavailable", err.message || "The stream service did not respond.");
       return;
     }
     if (!plan || !plan.playable || !plan.url) {
+      // Same reasoning: a resolver that reports "no plan" five times in a row is
+      // unlikely to be wrong, but a cached good plan is still playable.
+      if (this.plan && this.plan.url && this.attempt <= 4) {
+        this.state({ note: "Using the last known stream…" });
+        return this.load(this.plan, { autoplay: true });
+      }
       this._fail(
         "This class has no video yet",
         (plan && plan.reason) || "The source has not published a playable stream for this lecture."
@@ -734,6 +831,19 @@ export class ProPlayer {
     } catch (err) {
       this._fail("Playback not supported", err.message || "The player could not start.");
     }
+  }
+
+  /**
+   * Gap before the next resolve attempt: 0 s, 2.4 s, 3.8 s, 6.1 s, then 9 s.
+   *
+   * A signer that is rate limiting us recovers in seconds, and hammering it is
+   * what keeps it limited — so the first retry is instant (the common case is a
+   * single expired signature, and making the student wait for it is a bug), and
+   * only the later ones back off. Kept as a method so a test can flatten it.
+   */
+  _backoff(attempt) {
+    if (attempt <= 1) return 0;
+    return Math.min(9000, Math.round(1500 * Math.pow(1.6, attempt - 1)));
   }
 
   _fail(title, text) {
@@ -777,6 +887,16 @@ export class ProPlayer {
     this.destroyed = true;
     clearTimeout(this._stalledFor);
     this._teardownPlayers();
+  }
+}
+
+/** The video folder inside a relay URL, for the repair beacon. */
+export function folderOf(url) {
+  try {
+    const u = new URL(String(url || ""), "http://x");
+    return u.searchParams.get("videoKey") || u.searchParams.get("folder") || "";
+  } catch {
+    return "";
   }
 }
 

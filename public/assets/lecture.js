@@ -243,7 +243,9 @@ async function resolvePlan(n) {
   let plan = await api(
     `/api/stream?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
       subjectSlug
-    )}&id=${encodeURIComponent(lectureId)}${n ? `&attempt=${n}` : ""}`
+    )}&id=${encodeURIComponent(lectureId)}${n ? `&attempt=${n}` : ""}${
+      n ? `&cb=${Date.now().toString(36)}` : ""
+    }`
   );
 
   // Server could not reach upstream: resolve the video URL in the browser.
@@ -263,6 +265,21 @@ async function resolvePlan(n) {
   return plan;
 }
 
+/**
+ * How many times this page has healed itself without saying so.
+ *
+ * The first few seconds of a lecture load are the worst place to show an error:
+ * a rate-limited signer or an expired signature fixes itself in one or two
+ * seconds, and the student is still watching a spinner. Up to this many silent
+ * attempts are made before anything is drawn, and the visible Retry buttons
+ * remain the last resort rather than the first.
+ */
+let silent = 0;
+const SILENT_ATTEMPTS = 3;
+
+/** Short, widening pause between silent attempts. */
+const pause = (n) => new Promise((r) => setTimeout(r, Math.min(4000, 700 * n)));
+
 async function startStream() {
   showLoading("Preparing your lecture…", "Fetching stream details from Physics Wallah.");
 
@@ -280,6 +297,14 @@ async function startStream() {
   try {
     plan = await resolvePlan(attempt);
   } catch (err) {
+    // Heal first, ask questions later.
+    if (silent < SILENT_ATTEMPTS) {
+      silent += 1;
+      attempt += 1;
+      showLoading("Connecting…", "Getting a fresh link for this lecture.");
+      await pause(silent);
+      return startStream();
+    }
     showMessage(
       "Stream unavailable",
       err.message || "The stream service did not respond.",
@@ -292,7 +317,8 @@ async function startStream() {
 
   // Upstream signing is intermittently rate-limited; a short retry is cheaper
   // than showing the student an error they cannot act on.
-  if (plan && !plan.playable && plan.retryAfter && attempt < 2) {
+  if (plan && !plan.playable && plan.retryAfter && silent < SILENT_ATTEMPTS) {
+    silent += 1;
     attempt += 1;
     showLoading("Reconnecting…", "The stream service is catching up. Trying again.");
     await new Promise((r) => setTimeout(r, plan.retryAfter * 1000));
@@ -313,6 +339,13 @@ async function startStream() {
       retry("retryExtBtn");
       return;
     }
+    if (silent < SILENT_ATTEMPTS) {
+      silent += 1;
+      attempt += 1;
+      showLoading("Connecting…", "Getting a fresh link for this lecture.");
+      await pause(silent);
+      return startStream();
+    }
     const reason =
       (plan && plan.reason) || "PW has not published a playable stream for this lecture yet.";
     showMessage(
@@ -327,6 +360,7 @@ async function startStream() {
   }
 
   currentPlan = plan;
+  silent = 0;
   attachPlayer(plan);
 }
 

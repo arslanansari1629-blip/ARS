@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ProPlayer, fmtTime } from "../public/assets/player.js";
+import { ProPlayer, fmtTime, folderOf } from "../public/assets/player.js";
 
 /** A minimal stand-in for an HTMLVideoElement with real event dispatch. */
 function stubVideo({ duration = 600, currentTime = 0, src = "" } = {}) {
@@ -200,4 +200,122 @@ test("prewarm never calls load() on a paused element", () => {
   player._prewarm();
   assert.equal(loaded, 0, "prewarm must not reload the media element");
   assert.equal(video.preload, "auto");
+});
+
+/* ------------------------- never-fail-the-link --------------------------- */
+
+/**
+ * The reported complaint is "the link falls": a signed URL expires mid-lecture
+ * and the student is left with a dead player. These tests pin the promise that a
+ * failure turns into *another attempt* first, and that the site is told which
+ * folder died so the retry is handed a different plan instead of the same one.
+ */
+
+/** Capture the repair beacons the player fires, and settle immediately. */
+function setNavigator(value) {
+  // `navigator` is a getter on newer Node globals, so it is redefined rather
+  // than assigned; the descriptor is restored afterwards.
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", { value, configurable: true, writable: true });
+  return () => {
+    if (previous) Object.defineProperty(globalThis, "navigator", previous);
+    else delete globalThis.navigator;
+  };
+}
+
+function withBeacons(fn) {
+  const sent = [];
+  const restore = setNavigator({
+    sendBeacon: (url) => {
+      sent.push(url);
+      return true;
+    },
+  });
+  return Promise.resolve(fn(sent)).finally(restore);
+}
+
+test("a dead manifest is reported before the retry, with the folder", async () => {
+  await withBeacons(async (sent) => {
+    const video = stubVideo({ duration: 600, src: "" });
+    const { player } = makeEngine(video, async () => ({
+      playable: true,
+      kind: "mp4",
+      url: "/api/sign?videoKey=folder-xyz&key=master.m3u8",
+    }));
+
+    player.plan = { playable: true, kind: "hls", url: "/api/sign?videoKey=folder-xyz&key=master.m3u8" };
+    await player.retry({ reason: "The signed stream link expired." });
+
+    assert.equal(sent.length, 1, "exactly one beacon per retry");
+    assert.match(sent[0], /^\/api\/repair\?/);
+    assert.match(sent[0], /folder=folder-xyz/);
+    assert.match(sent[0], /kind=manifest/);
+  });
+});
+
+test("the beacon never throws, even with no folder and no fetch", () => {
+  const restore = setNavigator({});
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = () => {
+    throw new Error("offline");
+  };
+  try {
+    const video = stubVideo({ duration: 600, src: "" });
+    const { player } = makeEngine(video, async () => ({ playable: true }));
+    player.plan = { url: "" };
+    assert.doesNotThrow(() => player._report("stall", 12));
+  } finally {
+    restore();
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("a resolver outage falls back to the last known good plan", async () => {
+  const video = stubVideo({ duration: 600, currentTime: 42, src: "" });
+  const good = "/api/media?url=last-good";
+  const { player } = makeEngine(video, async () => {
+    throw new Error("the resolver is down");
+  });
+  // The plan that was already playing is still the best thing available: dead-
+  // ending the page would be strictly worse than re-attaching it.
+  player.plan = { playable: true, kind: "mp4", url: good };
+  player.video.currentTime = 42;
+
+  await player.retry({ reason: "network" });
+  assert.equal(video.src, good, "the last known plan is re-attached");
+  assert.equal(player.error, undefined, "no dead end was reported");
+});
+
+test("after the fourth failed resolve the player stops looping", async () => {
+  const video = stubVideo({ duration: 600, src: "" });
+  let resolves = 0;
+  const { player, states } = makeEngine(video, async () => {
+    resolves += 1;
+    return { playable: false, reason: "nothing published" };
+  });
+  player._backoff = () => 0;
+  player.plan = { playable: true, kind: "mp4", url: "/api/media?url=old" };
+  player.attempt = 4;
+
+  await player.retry({ reason: "exhausted" });
+  assert.equal(resolves, 1);
+  assert.ok(
+    states.some((s) => s.error),
+    "the student is finally told, instead of a spinner forever"
+  );
+});
+
+test("the first retry does not make the student wait", () => {
+  const { player } = makeEngine(stubVideo({ duration: 600, src: "" }), async () => ({ playable: true }));
+  assert.equal(player._backoff(1), 0, "an expired signature fixes itself instantly");
+  assert.ok(player._backoff(2) > 0, "later attempts back off");
+  assert.equal(player._backoff(30), 9000, "the wait is capped");
+});
+
+test("folderOf reads the folder out of a relay URL", () => {
+  assert.equal(folderOf("/api/sign?videoKey=abc-123&key=master.m3u8"), "abc-123");
+  assert.equal(folderOf("/api/hls?folder=f-9&asset=master.mpd"), "f-9");
+  assert.equal(folderOf("/api/media?url=https%3A%2F%2Fx%2Fy.mp4"), "");
+  assert.equal(folderOf(""), "");
+  assert.equal(folderOf(null), "");
 });

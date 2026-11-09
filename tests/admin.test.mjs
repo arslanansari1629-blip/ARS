@@ -193,6 +193,13 @@ test("stats require a session and describe the site's real state", async () => {
   assert.ok(data.release && typeof data.release.node === "string");
   assert.ok(data.runtime && data.runtime.memoryMb > 0);
 
+  // The self-healing ledger is part of the operator's picture: it is the only
+  // place the site admits it repairs itself.
+  assert.ok(data.selfHeal, "the panel has no self-healing section");
+  assert.ok(Array.isArray(data.selfHeal.repairs), "the repair ledger is missing");
+  assert.ok(Array.isArray(data.selfHeal.signers), "the signer ladder is missing");
+  assert.ok(data.selfHeal.budget.cap > 0, "the repair budget is not described");
+
   // The token is summarised, never dumped.
   assert.ok(data.token && typeof data.token.usable === "boolean");
   const dump = JSON.stringify(data);
@@ -381,6 +388,17 @@ test("the mounted media routes answer instead of crashing", async () => {
   const badBody = await badHost.json();
   assert.equal(badBody.success, false);
   assert.match(badBody.error, /not a media host/);
+
+  // The player's repair line is public on purpose (the player has no session) and
+  // must stay boring: a receipt, no stack trace, no ledger.
+  const repair = await fetch(`${BASE}/api/repair?folder=test-folder&kind=manifest&detail=403`);
+  assert.equal(repair.status, 200, "the repair line is not mounted");
+  const healed = await repair.json();
+  assert.equal(healed.success, true);
+  assert.equal(healed.retry, true, "the player is not told whether to retry");
+  assert.equal(healed.repaired, true);
+  assert.equal(JSON.stringify(healed).includes("summary"), false, "the ledger leaked to a public route");
+  assert.equal(JSON.stringify(healed).includes("signers"), false, "the signer ladder leaked to a public route");
 
   // And the route they ride on still does its own job.
   const stream = await fetch(`${BASE}/api/stream`);

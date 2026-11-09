@@ -74,6 +74,10 @@
     {
       "source": "/api/hls",
       "destination": "/api/stream?action=hls"
+    },
+    {
+      "source": "/api/repair",
+      "destination": "/api/admin?action=repair"
     }
   ]
 }
