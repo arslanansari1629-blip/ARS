@@ -1276,3 +1276,91 @@ test("the worker is served uncached so a deploy is never pinned", async () => {
   const cache = res.headers.get("cache-control") || "";
   assert.match(cache, /max-age=0/, `sw.js is cacheable (${cache}) — a bad build would stick`);
 });
+
+test("a batch still lists its subjects when the legacy detail route is gone", async () => {
+  /* The upstream migrated `/BatchInfo?...&Type=details` to
+     `/v3/batches/<id>/details` and answers the old spelling with a 404
+     (`MONGOOSE_UPGRADE_ERROR`). While only the legacy route was tried, every
+     batch page rendered with an empty subject list — the batch existed, its
+     subjects existed, and the page said there were none. */
+  const { fetchBatch } = await import("../lib/api-data.mjs");
+
+  const calls = [];
+  const original = globalThis.fetch;
+  const realFetch = original;
+  globalThis.fetch = async (input, init) => {
+    const url = String(typeof input === "string" ? input : input.url);
+    calls.push(url);
+    if (url.includes("/BatchInfo")) {
+      return new Response(
+        JSON.stringify({
+          statusCode: null,
+          message: "Not Found",
+          success: false,
+          error: { message: "Not Found", status: 404 },
+          errorFrom: "MONGOOSE_UPGRADE_ERROR",
+        }),
+        { status: 404, headers: { "content-type": "application/json" } }
+      );
+    }
+    if (/\/v3\/batches\/[^/]+\/details/.test(url)) {
+      return new Response(
+        JSON.stringify({
+          data: {
+            _id: "698ad3519549b300a5e1cc6a",
+            name: "Arjuna JEE 2027",
+            byName: "For IIT-JEE Aspirants",
+            language: "Hinglish",
+            class: "11",
+            exam: ["IIT-JEE"],
+            subjects: [
+              {
+                _id: "6a6b44faf834f38ed6f9120d",
+                subject: "Physics By Saleem Ahmad Sir",
+                subjectId: "688dd9660fb5f084935d611f",
+                slug: "physics-by-saleem-ahmad-sir-886822",
+                lectureCount: 242,
+                displayOrder: 14,
+                teacherIds: [{ firstName: "Saleem", lastName: "Ahmad Sir" }],
+              },
+              {
+                _id: "69b5729d45cca26612727f1a",
+                subject: "Maths by Anna Sir",
+                subjectId: "69b572321258ab0500483ec4",
+                slug: "maths-by-anna-sir-438005",
+                lectureCount: 125,
+                displayOrder: 9,
+                teacherIds: [],
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    return realFetch(input, init);
+  };
+
+  try {
+    const out = await fetchBatch("698ad3519549b300a5e1cc6a");
+    assert.equal(out.ok, true, `fetchBatch failed: ${out.error}`);
+    assert.equal(out.subjects.length, 2, "the subject list is still empty");
+    // displayOrder wins over arrival order, so the page lists Maths first.
+    assert.equal(out.subjects[0].name, "Maths by Anna Sir");
+    assert.equal(out.subjects[0].teacherCount ?? out.subjects[0].teachers.length, 0);
+    assert.equal(out.subjects[1].slug, "physics-by-saleem-ahmad-sir-886822");
+    assert.equal(out.subjects[1].lectureCount, 242);
+
+    // The batch header itself is filled in from the same answer.
+    assert.equal(out.batch.name, "Arjuna JEE 2027");
+    assert.equal(out.batch.className, "11");
+    assert.deepEqual(out.batch.exam, ["IIT-JEE"]);
+
+    assert.ok(
+      calls.some((u) => /\/v3\/batches\/[^/]+\/details/.test(u)),
+      "the migrated route was never tried"
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
