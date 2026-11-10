@@ -1,7 +1,7 @@
 {
-  "name": "ArsVibe — Physics Wallah lectures, notes & DPPs",
+  "name": "ArsVibe — Physics Wallah notes & DPPs",
   "short_name": "ArsVibe",
-  "description": "Every Physics Wallah batch, chapter, lecture, class note and DPP in one fast, ad-free place. Works offline once a lecture is saved.",
+  "description": "Every Physics Wallah batch, chapter and lecture list, with every class note and DPP PDF free to read in a clean, ad-free reader. Notes read offline once kept.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -47,10 +47,10 @@
       "description": "Browse every Physics Wallah batch"
     },
     {
-      "name": "Downloads",
+      "name": "Offline reading",
       "short_name": "Offline",
       "url": "/downloads.html",
-      "description": "Lectures saved on this device"
+      "description": "Notes and DPPs kept on this device"
     },
     {
       "name": "My Library",
