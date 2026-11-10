@@ -289,3 +289,37 @@ test("a sleepy mirror does not set the latency of the lecture", async () => {
     `cold start took ${elapsed} ms with one wedged mirror — the probe is still waiting for the slowest host`
   );
 });
+
+test("a slow rendition does not delay the start, and still joins the ladder", async () => {
+  // The player needs one playable rendition to start; the rest is a quality
+  // menu. Waiting for the whole menu set the latency of the lecture — production
+  // measured 2371 ms of probe, all of it "some rendition has not replied yet".
+  // Late answers must still reach the ladder, or the speed-up quietly costs
+  // students their quality choice.
+  resetToken();
+  forgetSignerToken();
+  process.env.PW_TOKEN = "";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (/generate_token/.test(url)) return new Response(JSON.stringify({ token: MINTED }), { status: 200 });
+    if (/240\/main/.test(url)) {
+      await new Promise((r) => setTimeout(r, 2500));
+      return new Response(MASTER, { status: 200 });
+    }
+    return new Response(MASTER, { status: 200 });
+  };
+
+  const { probeRenditions } = await import("../lib/api-data.mjs");
+  const started = Date.now();
+  const probe = await probeRenditions({ folder: "99999999-1111-2222-3333-444444444444", fresh: true });
+  const elapsed = Date.now() - started;
+
+  assert.equal(probe.renditions.length, 4, "the fast renditions should be usable immediately");
+  assert.ok(elapsed < 1200, `the start waited ${elapsed} ms for one slow rendition`);
+  // Best first, and the slow one (240) is the one missing.
+  assert.equal(probe.renditions.map((r) => r.quality).join(","), "1080,720,480,360");
+
+  // The slow one lands later, and lands in the cache rather than being lost.
+  const widened = await probe.renditions.settled;
+  assert.equal(widened.length, 5, "the slow rendition never joined the ladder");
+});

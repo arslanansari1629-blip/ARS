@@ -212,7 +212,15 @@ probe finished, which is why the three numbers were identical. Both are fixed, a
 four tests now assert the medians are non-zero, distinct, and that a request which
 never waited for the mint reports `tokenMs: 0` rather than borrowing the total.
 
-**Tests.** 219 total. Eight in `tests/startup-latency.test.mjs`, one in
+**And then 2.2 s again, now correctly labelled.** With the timer fixed the numbers
+were honest and unflattering: `totalMs 2372, tokenMs 4, probeMs 2371`. The mint
+was never the problem — the probe was. It waited for the *whole ladder*, and the
+player only needs *one* playable rendition to start; the other four are a quality
+menu. The sweep now finishes 250 ms after the first answer and lets the rest land
+in the cache: `renditions.settled` widens the same array for anyone who waits, so
+a fast start does not quietly cost the student their quality choice.
+
+**Tests.** 220 total. Nine in `tests/startup-latency.test.mjs`, one in
 `tests/player.test.mjs` and one in `tests/stream-fastpath.test.mjs`; each was run
 against the previous commit and made to fail first. One existing guard pinned the
 exact template layout of the stream query string and broke when `&level=` was
