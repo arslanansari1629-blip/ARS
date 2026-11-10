@@ -35,7 +35,7 @@ if (chapterName) {
   setPageMeta({
     title: `${chapterName} — ArsVibe PW`,
     description: clamp(
-      `${chapterName}: lectures, class notes and daily practice problems, in order and free to watch.`
+      `${chapterName}: lecture list, class notes and daily practice problems (DPPs) in order, with every PDF free to read.`
     ),
     canonical: `${ORIGIN}/chapter?batch=${encodeURIComponent(batchId)}&chapter=${encodeURIComponent(chapterId)}`,
   });
@@ -179,14 +179,24 @@ function render(items) {
     const label = type === "videos" ? "lectures" : "DPP solution videos";
     // Playability is decided per lecture by the source, not by this list, so
     // link the whole-chapter verification next to the count.
-    const check =
+    // The verification sweep is a diagnostic, not a promise. While PW signs
+    // nothing for a guest session every lecture resolves as unplayable, so a
+    // "verify playback" link here sends people to watch a list of failures and
+    // conclude the site is broken. Offer it only as a footnote when a stream has
+    // actually resolved at least once this session.
+    const check = "";
+    chapterMeta.innerHTML = `${items.length} ${label}${
+      check ? ` ${check}` : ""
+    } · <span class="tiny dim">stream links need a PW account</span>`;
+
+    // A chapter whose lectures all refuse to play still has value: the list is a
+    // syllabus and the notes are readable. Say which part works, once, above the
+    // list — instead of leaving 148 rows that each fail on click with no warning.
+    const notice =
       type === "videos"
-        ? ` <a href="/api/check?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
-            subjectSlug
-          )}&chapter=${encodeURIComponent(chapterId)}" target="_blank" rel="noopener">verify playback →</a>`
+        ? `<p class="tiny dim chapter-hint">Lecture titles and order are complete. Playing a lecture needs a signed-in Physics Wallah account — the <strong>Notes</strong> and <strong>DPPs</strong> tabs above are free and open.</p>`
         : "";
-    chapterMeta.innerHTML = `${items.length} ${label}${check}`;
-    body.innerHTML = `<div class="list">${items.map(videoRow).join("")}</div>`;
+    body.innerHTML = `${notice}<div class="list">${items.map(videoRow).join("")}</div>`;
   } else {
     const total = items.reduce((n, i) => n + (i.docs ? i.docs.length : 0), 0);
     chapterMeta.textContent = `${total} PDF${total === 1 ? "" : "s"} available`;

@@ -177,7 +177,7 @@ async function boot() {
     setPageMeta({
       title: `${l.title} — ArsVibe PW`,
       description: clamp(
-        l.description || l.topicInfo || `${l.title} — watch free on ArsVibe with the class notes and DPP alongside.`
+        l.description || l.topicInfo || `${l.title} — class notes and DPP for this Physics Wallah lecture.`
       ),
       canonical: `${ORIGIN}/lecture?id=${encodeURIComponent(l.id || qs("id") || "")}`,
       image: l.thumbnail || undefined,

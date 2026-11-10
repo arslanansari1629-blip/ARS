@@ -129,7 +129,7 @@ async function load() {
         setPageMeta({
           title: `${subjectNameParam || b.batch.name} — ArsVibe PW`,
           description: clamp(
-            `${subjectNameParam || "This subject"} in ${b.batch.name}: every chapter, lecture, class note and DPP.`
+            `${subjectNameParam || "This subject"} in ${b.batch.name}: every chapter and lecture list, with all its class notes and DPPs.`
           ),
           canonical: `${ORIGIN}/subject?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(subjectSlug)}`,
         });

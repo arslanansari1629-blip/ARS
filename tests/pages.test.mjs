@@ -1536,3 +1536,33 @@ test("the catalogue reports a range, not just a page number", async () => {
   assert.match(text, /1–20 of 14,201/, text);
   dom.window.close();
 });
+
+test("no page advertises playback or 'free to watch' as a feature", async () => {
+  // Every one of these strings was live at some point while playback could not
+  // work. They are search-engine and social-preview copy, so they mislead people
+  // who never even open the page.
+  const pages = [
+    "/",
+    "/batches.html",
+    "/batch.html?id=698ad3519549b300a5e1cc6a",
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&name=Units%20and%20Measurement",
+  ];
+  const banned = [/free to watch/i, /watch free/i, /free to browse and watch/i];
+  for (const path of pages) {
+    const html = await (await nativeFetch(`${BASE}${path}`)).text();
+    for (const re of banned) {
+      assert.doesNotMatch(html, re, `${path} still contains ${re}`);
+    }
+  }
+});
+
+test("a chapter says which tabs work before the lecture list", async () => {
+  const { doc, dom } = await render(
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&name=Units%20and%20Measurement",
+    { waitForSelector: "#body .list .row, #body .list a" , settle: 1600 }
+  );
+  const hint = doc.querySelector(".chapter-hint");
+  assert.ok(hint, "the lectures tab must explain the access limit above the list");
+  assert.match(hint.textContent, /Notes|DPPs/i);
+  dom.window.close();
+});

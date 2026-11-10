@@ -57,8 +57,8 @@ function renderDetail() {
   setPageMeta({
     title: `${batch.name} — ArsVibe PW`,
     description: clamp(
-      `${batch.name}${batch.language ? ` (${batch.language})` : ""} — every subject, chapter, lecture, ` +
-        `class note and DPP in this batch, free to browse and watch on ArsVibe.`
+      `${batch.name}${batch.language ? ` (${batch.language})` : ""} — every subject, chapter and ` +
+        `lecture list, with all its class notes and DPPs free to read on ArsVibe.`
     ),
     canonical: `${ORIGIN}/batch?id=${encodeURIComponent(batch.id || qs("id") || "")}`,
     image: batch.image || undefined,
