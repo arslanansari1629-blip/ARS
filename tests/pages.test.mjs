@@ -745,13 +745,16 @@ test("the downloads page browses live lectures and explains offline playback", a
   assert.ok(doc.getElementById("savedList"), "no saved-downloads list");
   assert.ok(doc.getElementById("savedEmpty"), "the empty state is missing");
 
-  // It has to say how offline playback actually works, because a saved file that
-  // silently expires is the thing people would otherwise not discover.
+  // It has to say what actually works offline. This page used to promise
+  // downloadable lectures with portable MPEG-TS files and "no expiry" — none of
+  // which can happen while PW refuses to sign a stream for a guest session.
+  // What genuinely works is keeping the notes and DPPs, so the page says that.
   const text = doc.body.textContent;
-  assert.match(text, /Download lectures/i);
-  assert.match(text, /No expiry|offline/i);
-  assert.match(text, /MPEG-TS/, "the page never mentions the portable format");
+  assert.match(text, /Offline reading/i);
+  assert.match(text, /note|PDF/i);
+  assert.match(text, /cannot be kept|only signs stream links/i, "the page must be honest about video");
   assert.match(text, /this device only|this browser/i);
+  assert.doesNotMatch(text, /MPEG-TS/, "it must not advertise a format it cannot produce");
 
   // Nothing is saved yet, so the empty state is showing.
   assert.equal(doc.getElementById("savedEmpty").hidden, false);
@@ -1509,19 +1512,14 @@ test("filtering an empty search is a browse, not an empty result", async () => {
   assert.ok(body.batches.every((b) => b.feeTotal === 0 && /kannada/i.test(b.language)));
 });
 
-test("every page states the playback limit instead of promising playback", async () => {
+test("no page promises playback it cannot deliver, and none nags", async () => {
   // The site used to say "watch lectures" on the home page while PW refused every
-  // signing request, so a visitor read that as a broken site. The limitation has
-  // to be visible, once, on every page — and dismissible, because it is a note
-  // and not an error.
+  // signing request. That copy was corrected — but the correction belongs in the
+  // copy and in the message a refusal produces, not in a banner repeating itself
+  // over every page. This test pins both halves: no false promise, and no notice.
   const { doc, dom } = await render("/batches.html", { waitForSelector: "#grid .batch-card" });
-  const notice = doc.querySelector("#statusNotice .status-notice");
-  assert.ok(notice, "the status notice must render");
-  assert.match(notice.textContent, /notes/i);
-  assert.match(notice.textContent, /does not have|need a signed-in/i);
-  assert.ok(doc.querySelector("#statusNotice .status-close"), "it must be dismissible");
+  assert.equal(doc.querySelector("#statusNotice"), null, "the site-wide notice was removed");
 
-  // The home page must not promise playback in its hero or its meta description.
   const home = await (await nativeFetch(`${BASE}/`)).text();
   assert.doesNotMatch(home, /watch lectures/i);
   assert.doesNotMatch(home, /HD<\/strong><span>lecture player/);

@@ -41,8 +41,7 @@ filter ran in the browser over the twenty rows already on screen:
 "watch lectures", the hero said "HD lecture player", and the batch, subject,
 chapter and lecture pages all described themselves as watchable in their meta
 descriptions and structured data — while every playback request was refused.
-Those strings were rewritten, and a quiet, dismissible notice under the nav now
-states what works and what needs an account.
+Those strings were rewritten.
 
 **Third problem: a permanent refusal was retried like a transient one.** A lecture
 page with an unplayable stream retried three times with a widening pause —
@@ -55,10 +54,52 @@ seconds total, with the same-origin copy given a short leash, and a refusal that
 names an access limit is shown immediately with the chapter's notes as the
 primary action.
 
-**Tests.** 10 new (192 total). Several were written to fail against the old code:
+**Tests.** 10 new. Several were written to fail against the old code:
 the Kannada filter, the free/paid totals adding up, an empty search with filters,
 a permanent refusal asked exactly once, and a check that no page description says
 "free to watch".
+
+---
+
+## Round Z.2 — no banner, no promise the page cannot keep
+
+**The problem.** Round Z added a dismissible notice under the nav explaining that
+lecture playback needs a Physics Wallah account. That was the wrong shape of
+honesty: a site that has to put a warning at the top of every page is telling you
+its own copy is untrustworthy. A reader who dismisses the note never sees it again
+and is back to pages claiming to watch things. So the note is gone, and the claims
+are fixed instead.
+
+**What changed.**
+
+- The status notice is deleted — its container from all 15 pages, its module and
+  storage key from `app.js`, and its stylesheet block from `arsvibe.css`. Nothing
+  reads it, so nothing renders it.
+- Every meta description that advertised playback now describes what the page
+  actually holds. The home page promised "free, fast and open" browsing of
+  lectures; it now says you can read every class note and DPP PDF. The batch page
+  offered to "save lectures for offline"; the chapter page called its lectures
+  "ready to play"; the dashboard reported "lectures watched"; the lecture page
+  opened with "watch this lecture in a clean, ad-free player".
+- The downloads page had the largest gap between copy and reality, so it was
+  rewritten rather than patched. It was titled "Download lectures", headed "Watch
+  without a connection", and documented portable MPEG-TS files with "no expiry"
+  and a key that "travels inside" the playlist. It is now **Offline reading**,
+  headed "Read without a connection", and says outright that lecture video cannot
+  be saved because Physics Wallah only signs stream links for signed-in accounts.
+  The five bullet points describe keeping notes and DPPs, which is the part that
+  genuinely works offline.
+- The login page promised every lecture "for FREE"; it now promises the thing a
+  local sign-in actually does — syncing favourites, library and progress.
+- The `og:description` on twelve pages carried the same playback sentence, so the
+  fix is applied there too; a link shared in a study group no longer advertises a
+  player that refuses to play.
+
+**Tests.** The downloads-page test asserted the old copy — "Download lectures",
+"MPEG-TS", "this device only" — so it was rewritten to pin the honest contract
+instead: the page must say *Offline reading*, must mention notes and PDFs, must
+state that video cannot be kept, and must **not** mention MPEG-TS. 193 total,
+all passing.
 
 ---
 

@@ -26,7 +26,7 @@ Home → All batches → Batch (subjects) → Subject (chapters) → Chapter (le
 | `/lecture?batch=…&subject=…&id=…` | Stream resolution + player (HLS / DASH / MP4), speed control, resume position, attached class notes & DPPs |
 | `/viewer?url=…` | In-app PDF reader for notes and DPPs |
 | `/login` | "Continue with Google" (local profile) and **Bypass Login** — mirrors the source sign-in |
-| `/dashboard`, `/library` | Student dashboard: recent batches, continue watching, saved PDFs |
+| `/dashboard`, `/library` | Student dashboard: recent batches, reading positions, saved PDFs |
 | `/favourites` | Batches kept on this device — the heart on any batch card adds and removes |
 
 ## How the data flows
@@ -322,6 +322,14 @@ block: repairs made, signers quarantined with the resulting ladder, relay faults
 over the last ten minutes, and how much of the hourly budget is spent.
 
 ## Downloading lectures for offline use
+
+> **Status: blocked upstream, not by this code.** Everything below is built and
+> tested against recorded fixtures, but it cannot run against the live site
+> unless an operator supplies a `PW_TOKEN` whose account holds the batch. Physics
+> Wallah's signer refuses a guest session, so `/api/stream` answers with
+> `playable: false` and a reason; the download path shows that reason and stops
+> rather than looping. **Notes and DPP PDFs are the part that works offline
+> today** — they are plain files, and `/downloads` leads with them.
 
 `/downloads` turns a lecture into a file that keeps playing with the network off.
 It browses the live catalogue (batch → subject → chapter → lecture) and the

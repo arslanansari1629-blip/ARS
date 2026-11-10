@@ -371,59 +371,8 @@ export function mountChrome(activePage) {
   }
   renderSessionChip();
   window.addEventListener("session:change", renderSessionChip);
-  mountStatusNotice();
 }
 
-/* ------------------------------------------------------------------ */
-/* Service status                                                     */
-/* ------------------------------------------------------------------ */
-
-/**
- * One honest sentence about what works, shown once per browse session.
- *
- * The site used to promise "watch lectures" on every page while Physics Wallah
- * refused every signing request to a guest session. A visitor then clicked a
- * lecture, got a refusal, and assumed the site was broken. Saying it up front —
- * once, quietly, and dismissibly — is the difference between a site with a
- * limitation and a site that lies.
- *
- * It is deliberately not a red error: nothing is malfunctioning on this side,
- * and the catalogue, chapters and notes below it all work.
- */
-const STATUS_KEY = "arsvibe.statusDismissed";
-
-function mountStatusNotice() {
-  if (typeof document === "undefined") return;
-  const host = document.getElementById("statusNotice");
-  if (!host) return;
-  try {
-    if (sessionStorage.getItem(STATUS_KEY) === "1") return;
-  } catch {
-    /* private mode: show it, it is only a sentence */
-  }
-
-  host.innerHTML = `
-    <div class="status-notice" role="status">
-      <span class="status-dot" aria-hidden="true"></span>
-      <p>
-        <strong>Note:</strong> browsing, chapters and every notes &amp; DPP PDF work.
-        Lecture playback and downloads need a signed-in Physics Wallah account, which
-        this site does not have — so those buttons will explain the limit rather than play.
-      </p>
-      <button type="button" class="status-close" aria-label="Dismiss this note">×</button>
-    </div>`;
-
-  const close = host.querySelector(".status-close");
-  if (!close) return;
-  close.addEventListener("click", () => {
-    try {
-      sessionStorage.setItem(STATUS_KEY, "1");
-    } catch {
-      /* ignore */
-    }
-    host.innerHTML = "";
-  });
-}
 
 function renderSessionChip() {
   const host = $("#sessionChip");
