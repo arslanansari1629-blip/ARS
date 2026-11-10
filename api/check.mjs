@@ -5,6 +5,7 @@ import {
   parseFolder,
   fetchSchedule,
   fetchChapterContents,
+  resolveTimings,
 } from "../lib/api-data.mjs";
 import { upstreamJson } from "../lib/upstream.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
@@ -382,7 +383,8 @@ export default async function handler(req, res) {
     // route, so the ceiling is what the function's wall clock allows rather than
     // an arbitrary 12. Anything still over the cap is reported in `note`.
     const capped = Number.isFinite(asked) && asked > 0 ? Math.min(asked, 24) : SWEEP_LIMIT;
-    return json(res, 200, await sweepChapter({ batch, subject, chapter, base, limit: capped }));
+    const swept = await sweepChapter({ batch, subject, chapter, base, limit: capped });
+    return json(res, 200, { ...swept, timing: resolveTimings() });
   }
 
   if (!url && (!batch || !subject || !id)) {
@@ -392,5 +394,6 @@ export default async function handler(req, res) {
     });
   }
 
-  return json(res, 200, await checkLecture({ batch, subject, id, url, base }));
+  const checked = await checkLecture({ batch, subject, id, url, base });
+  return json(res, 200, { ...checked, timing: resolveTimings() });
 }

@@ -679,6 +679,23 @@ export class ProPlayer {
     if (match) this.setQuality(match.height);
   }
 
+  /**
+   * The height the student is actually watching right now, or "".
+   *
+   * A retry asks for a fresh plan, and without this the new plan opens on
+   * whichever rung a cold probe picks — so a student watching 720 who hit a dead
+   * signature came back at 480, and had to sit through the step-up again. Auto
+   * level means the ladder's *current* pick (`loadLevel`), not `currentLevel`,
+   * which is -1 while ABR is in charge.
+   */
+  playingQuality() {
+    const h = this.hls;
+    if (!h || !Array.isArray(h.levels) || !h.levels.length) return "";
+    const i = Number.isInteger(h.currentLevel) && h.currentLevel >= 0 ? h.currentLevel : h.loadLevel;
+    const level = h.levels[i] || h.levels[h.loadLevel] || h.levels[0];
+    return level && level.height ? String(level.height) : "";
+  }
+
   /** A specific height, or "auto". Honest: it also reports what it did. */
   setQuality(height) {
     const auto = height === "auto" || Number(height) < 0;
@@ -838,7 +855,7 @@ export class ProPlayer {
 
     let plan = null;
     try {
-      plan = await this.resolve(this.attempt);
+      plan = await this.resolve(this.attempt, this.playingQuality());
     } catch (err) {
       // The resolver itself failed. If a previous plan exists it is still the
       // best thing we have, so fall back to it instead of dead-ending the page.

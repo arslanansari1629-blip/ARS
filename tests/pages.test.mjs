@@ -725,8 +725,16 @@ test("the lecture player ships quality control and recovery", async () => {
   assert.match(source, /function seekBy|seekBy\(delta\)/, "skip seeking is missing");
   // A stopped player must be able to start again; this is the bug being fixed.
   assert.match(source, /restart\(\)/, "there is no way back from a stopped player");
-  // The page composes the query string with the attempt number it was handed.
-  assert.match(source, /\$\{n \? `&attempt=\$\{n\}` : ""\}/, "the attempt is never sent to /api/stream");
+  // The page composes the query string with the attempt number it was handed,
+  // and with the level it was watching — a retry that names neither re-probes
+  // the dead signer and comes back at the wrong quality.
+  assert.match(source, /&attempt=\$\{n\}/, "the attempt is never sent to /api/stream");
+  assert.match(
+    source,
+    /&level=\$\{encodeURIComponent\(level\)\}/,
+    "a recovery does not ask for the quality the student was watching"
+  );
+  assert.match(source, /playingQuality\(\)/, "the player never reports the level it is on");
 
   assert.ok(
     !/location\.reload\(\)/.test(source),

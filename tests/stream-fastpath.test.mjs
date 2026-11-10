@@ -122,3 +122,18 @@ test("a folder that is not a folder id is refused by the shortcut", async () => 
   assert.notEqual(out.body.fastPath, "folder");
   assert.ok(calls.length > 0);
 });
+
+test("a retry carries the level the student was watching", async () => {
+  // The route has to forward `&level=` into the resolver, or the player's
+  // resume-at-my-quality request is silently ignored and every recovery drops
+  // the student to the rung a cold probe picked.
+  const calls = stubFetch({ signerOk: true });
+  const out = await call(`${BASE}&folder=${FOLDER}&attempt=2&level=720`);
+  assert.equal(out.body.playable, true);
+  // The stub only offers 720, so the level must be the one in use...
+  assert.equal(out.body.quality, "720");
+  // ...and asking for a level the ladder does not have must not break the plan.
+  const other = await call(`${BASE}&folder=${FOLDER}&attempt=3&level=1440`);
+  assert.equal(other.body.playable, true, "an unavailable level must fall back, not fail");
+  assert.ok(calls.length > 0);
+});

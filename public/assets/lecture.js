@@ -287,7 +287,7 @@ function isPermanent(reason) {
   );
 }
 
-async function resolvePlan(n) {
+async function resolvePlan(n, level) {
   // On a retry, name the folder we already know.
   //
   // The video folder is the only thing a plan is actually derived from, and the
@@ -297,12 +297,16 @@ async function resolvePlan(n) {
   // seconds of "Reconnecting…" for information already on screen.
   const knownFolder = currentPlan && currentPlan.url ? folderOf(currentPlan.url) : "";
   const fast = n && knownFolder ? `&folder=${encodeURIComponent(knownFolder)}` : "";
+  // A recovery should resume at the quality the student was watching, not at
+  // whatever a cold probe picks. `level` is a height ("720"), omitted when the
+  // player has not attached a ladder yet.
+  const wantLevel = n && level ? `&level=${encodeURIComponent(level)}` : "";
   let plan = await api(
     `/api/stream?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
       subjectSlug
-    )}&id=${encodeURIComponent(lectureId)}${fast}${n ? `&attempt=${n}` : ""}${
-      n ? `&cb=${Date.now().toString(36)}` : ""
-    }`
+    )}&id=${encodeURIComponent(lectureId)}${fast}${wantLevel}${
+      n ? `&attempt=${n}` : ""
+    }${n ? `&cb=${Date.now().toString(36)}` : ""}`
   );
 
   // Server could not reach upstream: resolve the video URL in the browser.

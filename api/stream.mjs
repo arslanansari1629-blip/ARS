@@ -74,7 +74,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "GET") return methodNotAllowed(res);
 
-  const { url, folder, id, batch, subject, attempt } = query(req);
+  const { url, folder, id, batch, subject, attempt, level } = query(req);
   const mode = modeOf(req);
 
   try {
@@ -92,10 +92,14 @@ export default async function handler(req, res) {
     // for a new signature — for information the page already had. The schedule is
     // still read when there is no folder, which is every first load.
     if (!rawUrl && isFolderId(folderHint)) {
+      // `&level=` is the rendition the student was watching when playback broke.
+      // A recovery should come back at that quality, not restart them at
+      // whichever rung a cold probe would pick.
       const plan = await resolveStream({
         rawUrl: "",
         folder: folderHint,
         fresh: Number(attempt || 0) > 0,
+        startLevel: level || "",
       });
       if (plan.playable) {
         return json(res, 200, { success: true, ...plan, resolvedFrom: "", fastPath: "folder" }, 0);
@@ -152,6 +156,7 @@ export default async function handler(req, res) {
       rawUrl,
       folder: folderHint || parseFolder(rawUrl),
       fresh: Number(attempt || 0) > 0,
+      startLevel: level || "",
     });
 
     // The schedule succeeded but no rendition answered: upstream signing is

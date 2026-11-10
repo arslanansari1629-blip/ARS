@@ -395,3 +395,33 @@ test("the player recovers by itself when the connection comes back", async () =>
     globalThis.document = savedDoc;
   }
 });
+
+test("a retry asks for the quality the student was watching", async () => {
+  // A recovery used to come back on whatever a cold probe picked, so a student
+  // on 720 who hit a dead signature dropped to 480 and had to wait out the
+  // step-up again. The retry must name the level it was on.
+  const video = stubVideo({ src: "/api/media?url=abc" });
+  const asked = [];
+  const { player } = makeEngine(video, async (attempt, level) => {
+    asked.push({ attempt, level });
+    return { playable: true, kind: "mp4", url: "/api/media?url=next" };
+  });
+
+  // What hls.js looks like mid-playback on 720 with ABR in charge.
+  player.hls = { levels: [{ height: 1080 }, { height: 720 }, { height: 480 }], currentLevel: -1, loadLevel: 1 };
+  assert.equal(player.playingQuality(), "720", "auto level has to report the rung ABR is on");
+
+  // A pinned level is reported from currentLevel, not the ladder default.
+  player.hls = { levels: [{ height: 1080 }, { height: 720 }, { height: 480 }], currentLevel: 2, loadLevel: 0 };
+  assert.equal(player.playingQuality(), "480");
+
+  // No ladder yet (a retry before the first manifest): empty, not a wrong guess.
+  player.hls = null;
+  assert.equal(player.playingQuality(), "");
+
+  player.hls = { levels: [{ height: 720 }], currentLevel: -1, loadLevel: 0 };
+  await player.retry({ reason: "The stream link expired." });
+  const last = asked.at(-1);
+  assert.equal(last.level, "720", "the retry should carry the level to resume at");
+  assert.equal(last.attempt > 0, true);
+});
