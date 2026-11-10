@@ -254,7 +254,7 @@ is indistinguishable from a hung page; a number tells a student whether to keep
 waiting or reload. The clock stops on every exit — error, success, overlay close —
 because a counter that keeps running under an error message is worse than none.
 
-**Tests.** 222 total. Ten in `tests/startup-latency.test.mjs`, one in
+**Tests.** 221 total. Ten in `tests/startup-latency.test.mjs`, one in
 `tests/player.test.mjs` and one in `tests/stream-fastpath.test.mjs`; each was run
 against the previous commit and made to fail first. One existing guard pinned the
 exact template layout of the stream query string and broke when `&level=` was
