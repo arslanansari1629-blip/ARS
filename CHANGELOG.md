@@ -220,7 +220,24 @@ menu. The sweep now finishes 250 ms after the first answer and lets the rest lan
 in the cache: `renditions.settled` widens the same array for anyone who waits, so
 a fast start does not quietly cost the student their quality choice.
 
-**Tests.** 220 total. Nine in `tests/startup-latency.test.mjs`, one in
+**And then a change that measured faster and was worse.** The grace window did not
+move the production number, so the remaining cost had to be the handshake: fifteen
+concurrent requests to one mirror, each behind the others. Asking only the
+healthiest host for the opening rendition first — one request — looked like a
+2400 ms → 577 ms win on simulated load. Production disagreed:
+
+```
+before  renditions ["720","480","360","240"]   totalMs 2406
+after   renditions ["720","480"]               totalMs 3156
+```
+
+Slower *and* two levels instead of four, because the simulated mirror answered
+every rendition quickly and the real one does not. Reverted in full: a shorter
+quality menu is not a latency win, it is a feature removed. The lesson is the
+table above — a faster number is not a better player, and "measure it in
+production" is not a formality.
+
+**Tests.** 221 total. Ten in `tests/startup-latency.test.mjs`, one in
 `tests/player.test.mjs` and one in `tests/stream-fastpath.test.mjs`; each was run
 against the previous commit and made to fail first. One existing guard pinned the
 exact template layout of the stream query string and broke when `&level=` was
