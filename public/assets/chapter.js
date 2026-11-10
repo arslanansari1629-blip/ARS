@@ -45,7 +45,15 @@ if (!batchId || !subjectSlug || !chapterId) {
   body.innerHTML = emptyState("Missing chapter", "Open a chapter from a subject page.", `<a class="btn btn-primary" href="/batches.html">Browse batches</a>`);
 } else {
   buildCrumbs();
-  load("videos");
+  // Deep links to a tab: `#notes` and `#dp` land on the tab that actually works,
+  // which is where the lecture page sends someone whose video cannot play.
+  const hash = String(location.hash || "").replace("#", "");
+  const wanted = { notes: "notes", dpp: "DppNotes", dp: "DppNotes", videos: "videos" }[hash];
+  load(wanted || "videos");
+  if (wanted) {
+    const tab = [...tabs.querySelectorAll(".tab")].find((t) => t.dataset.type === wanted);
+    if (tab) tab.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }
 }
 
 function buildCrumbs() {
@@ -208,6 +216,11 @@ tabs.addEventListener("click", (e) => {
   const btn = e.target.closest(".tab");
   if (!btn) return;
   load(btn.dataset.type);
+  // Shareable tab URLs: `#notes` reopens the tab that was open when it was copied.
+  const hashFor = { notes: "notes", DppNotes: "dpp", videos: "videos", DppVideos: "dpp-videos" };
+  if (typeof history !== "undefined" && hashFor[btn.dataset.type]) {
+    history.replaceState(null, "", `#${hashFor[btn.dataset.type]}`);
+  }
 });
 
 /**

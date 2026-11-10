@@ -1566,3 +1566,68 @@ test("a chapter says which tabs work before the lecture list", async () => {
   assert.match(hint.textContent, /Notes|DPPs/i);
   dom.window.close();
 });
+
+test("a lecture that cannot play sends you to its notes, not a retry loop", async () => {
+  // Retrying an access refusal is guaranteed to fail. The reader's useful next
+  // step is the chapter's notes and DPPs, so that must be the primary action.
+  const { doc, dom } = await render(
+    "/lecture.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&chapterName=Units%20and%20Measurement",
+    { settle: 2600 }
+  );
+  const text = doc.body.textContent;
+  assert.match(text, /needs a PW account|no video yet/i, "the page must explain, not spin");
+  const links = [...doc.querySelectorAll("a.btn")].map((a) => a.getAttribute("href") || "");
+  const notesLink = links.find((h) => /chapter\.html/.test(h) && /#notes/.test(h));
+  assert.ok(notesLink, `expected a link to the chapter notes tab, saw ${JSON.stringify(links)}`);
+  assert.match(notesLink, /chapter=69dc843271d06abbf3869763/);
+  dom.window.close();
+});
+
+test("the chapter page opens on the tab named in the URL hash", async () => {
+  const { doc, dom } = await render(
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&name=Units%20and%20Measurement#notes",
+    { settle: 1800 }
+  );
+  const active = doc.querySelector("#tabs .tab.active");
+  assert.ok(active, "a tab must be active");
+  assert.equal(active.dataset.type, "notes", "the #notes hash must open the notes tab");
+  dom.window.close();
+});
+
+test("a permanent stream refusal is explained at once, not after three retries", async () => {
+  // The page retried every unplayable plan three times with a widening pause —
+  // about five seconds of spinner — and then showed the identical message. For a
+  // refusal that names an account requirement, those retries cannot change the
+  // answer, so the reader just waits longer to learn the same thing.
+  let streamCalls = 0;
+  const started = Date.now();
+  const { doc, dom } = await render(
+    "/lecture.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&chapterName=Units%20and%20Measurement",
+    {
+      settle: 1800,
+      fetchWrap: (target) => {
+        if (target.pathname === "/api/stream") {
+          streamCalls += 1;
+          return new Response(
+            JSON.stringify({
+              success: true,
+              playable: false,
+              kind: "dash",
+              url: "",
+              retryAfter: 6,
+              reason:
+                "This lecture's recording exists and its address is in the schedule, but Physics Wallah's signing service refuses to mint a playable link for it (401/403). This site holds only a guest PW session, so it cannot sign this one. Its notes and DPPs still open and download normally.",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        }
+        return null;
+      },
+    }
+  );
+  const elapsed = Date.now() - started;
+  assert.equal(streamCalls, 1, `a permanent refusal must be asked once, saw ${streamCalls}`);
+  assert.ok(elapsed < 4000, `the message should not wait for retries, took ${elapsed}ms`);
+  assert.match(doc.body.textContent, /notes/i);
+  dom.window.close();
+});

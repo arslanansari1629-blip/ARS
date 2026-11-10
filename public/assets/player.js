@@ -450,11 +450,29 @@ export class ProPlayer {
     });
   }
 
-  async _ensureLib(globalName, sources) {
+  /**
+   * Load an engine library, with a bounded wait.
+   *
+   * Three sources at a seven-second timeout each meant up to twenty-one seconds
+   * of spinner before the player gave up and attached the stream natively. On a
+   * slow or filtered connection that is the whole "the video never starts"
+   * experience, and it only got worse the more mirrors were added.
+   *
+   * The same-origin copy is the one we ship, so it is tried first and given a
+   * short leash — if our own server cannot deliver a 400 KB file in two and a
+   * half seconds, a CDN will not save the page. Mirrors then share one remaining
+   * budget rather than each getting a fresh full timeout.
+   */
+  async _ensureLib(globalName, sources, { sameOriginMs = 2500, mirrorMs = 4000, budgetMs = 9000 } = {}) {
     if (window[globalName]) return window[globalName];
+    const deadline = Date.now() + budgetMs;
     for (const src of sources) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      const sameOrigin = String(src).startsWith("/");
+      const timeout = Math.min(sameOrigin ? sameOriginMs : mirrorMs, remaining);
       try {
-        await this._script(src);
+        await this._script(src, timeout);
         if (window[globalName]) return window[globalName];
       } catch {
         /* try the next mirror */

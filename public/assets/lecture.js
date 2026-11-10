@@ -160,7 +160,9 @@ async function boot() {
   // The schedule endpoint can take several seconds on a cold function; making
   // the player wait for a title it does not need was most of the time to the
   // first frame.
-  const stream = startStream();
+  const stream = startStream().catch(() => {
+    /* the player has already reported this; boot must not die with it */
+  });
 
   let detail = null;
   try {
@@ -220,7 +222,9 @@ async function boot() {
     docCount.textContent = "0";
   }
 
-  // The player may already be running; this only waits for it to finish.
+  // The player may already be running; this only waits for it to finish. The
+  // `.catch` matters: a thrown stream error used to reject here and abandon the
+  // rest of `boot`, leaving the page on "Loading lecture…" with no message.
   await stream;
 }
 
@@ -267,6 +271,22 @@ function renderDocs(docs) {
 }
 
 /** Resolve a plan from the server, honouring the attempt counter. */
+/**
+ * Will asking again change the answer?
+ *
+ * The stream route answers `{ playable: false, reason }` for both a transient
+ * failure and a permanent refusal, and the page used to treat them identically:
+ * three silent retries (~5 s of spinner) and then the same message. A refusal
+ * that names an account requirement or a missing catalogue entry is final —
+ * the next request cannot succeed — so it must be shown immediately.
+ */
+function isPermanent(reason) {
+  const text = String(reason || "");
+  return /needs a PW account|signed-in|signing service|refuses to mint|guest PW session|401|403|could not be found in the PW catalogue|no longer serves/i.test(
+    text
+  );
+}
+
 async function resolvePlan(n) {
   let plan = await api(
     `/api/stream?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
@@ -343,9 +363,14 @@ async function startStream() {
     return;
   }
 
+  // A refusal that names an access limit will answer exactly the same way next
+  // time, so retrying it only delays the explanation by five seconds and then
+  // fails anyway. Only *transient* answers are worth a silent retry.
+  const permanent = isPermanent(plan && plan.reason);
+
   // Upstream signing is intermittently rate-limited; a short retry is cheaper
   // than showing the student an error they cannot act on.
-  if (plan && !plan.playable && plan.retryAfter && silent < SILENT_ATTEMPTS) {
+  if (!permanent && plan && !plan.playable && plan.retryAfter && silent < SILENT_ATTEMPTS) {
     silent += 1;
     attempt += 1;
     showLoading("Reconnecting…", "The stream service is catching up. Trying again.");
@@ -367,7 +392,7 @@ async function startStream() {
       retry("retryExtBtn");
       return;
     }
-    if (silent < SILENT_ATTEMPTS) {
+    if (!permanent && silent < SILENT_ATTEMPTS) {
       silent += 1;
       attempt += 1;
       showLoading("Connecting…", "Getting a fresh link for this lecture.");
@@ -376,12 +401,28 @@ async function startStream() {
     }
     const reason =
       (plan && plan.reason) || "PW has not published a playable stream for this lecture yet.";
+
+    // Do not dead-end on a retry loop. When the reason is an access limit rather
+    // than a transient failure, retrying is guaranteed to fail again, and the
+    // thing the student actually came for — the class notes and the DPP — is one
+    // tap away on the chapter page. Lead with that; keep Retry as the secondary
+    // action for the transient cases.
+    const isAccessLimit = isPermanent(reason);
+    const actions = isAccessLimit
+      ? `<a class="btn btn-primary" href="/chapter.html?batch=${encodeURIComponent(
+          qs("batch") || ""
+        )}&subject=${encodeURIComponent(qs("subject") || "")}&chapter=${encodeURIComponent(
+          qs("chapter") || ""
+        )}&name=${encodeURIComponent(qs("chapterName") || "")}#notes">Open the notes &amp; DPPs for this chapter</a>
+         <button class="btn btn-ghost" id="retryBtn">Try again anyway</button>`
+      : `<a class="btn btn-primary" href="${checkUrl()}" target="_blank" rel="noopener">Run playback check</a>
+         <button class="btn btn-ghost" id="retryBtn">Retry</button>`;
+
     showMessage(
-      "This class has no video yet",
+      isAccessLimit ? "Playing this needs a PW account — the notes do not" : "This class has no video yet",
       reason,
       false,
-      `<a class="btn btn-primary" href="${checkUrl()}" target="_blank" rel="noopener">Run playback check</a>
-       <button class="btn btn-ghost" id="retryBtn">Retry</button>`
+      actions
     );
     retry("retryBtn");
     return;
