@@ -37,7 +37,18 @@ export async function upstream(target) {
       lastError = err.message;
     }
   }
-  throw new Error(lastError);
+  // Every relay failed. The raw cause is a browser string — "fetch failed",
+  // "Failed to fetch", "relay 502" — which the chapter page would otherwise
+  // render as its entire explanation of why a lecture list is missing. Say what
+  // a student can act on instead.
+  const err = new Error(
+    /\b(5\d\d|429)\b|fetch|network|non-JSON|unreachable/i.test(lastError)
+      ? "Physics Wallah did not answer for this chapter just now. The chapter and its lectures still exist — this is their server, not this site — so reload in a minute."
+      : lastError
+  );
+  err.relayFailure = true;
+  err.cause = lastError;
+  throw err;
 }
 
 /* ------------------------------ normalisers ------------------------------ */

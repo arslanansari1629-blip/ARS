@@ -118,6 +118,44 @@ promises that lived in UI chrome rather than prose:
   global instead of `window`, which throws wherever `window` is supplied as a
   value and aborted the whole module.
 
+---
+
+## Round Z.4 — the lecture list that would not open
+
+**Reported as "lecture list are not open".** The list renders correctly when
+Physics Wallah answers — the "Units and Measurement" chapter lists all 13 of its
+lectures on production — so this is not a broken render path. It is what the page
+does on the two occasions PW does not answer, and both were dead ends.
+
+- **A 5xx or a timeout showed the browser's own words.** `explainUpstream` passed
+  anything that was not a 401/403/404 straight through, so a transient refusal
+  rendered as **"Could not load this section — fetch failed"**, or the relay's
+  `upstream 502; upstream 502`. Both are machine strings, neither suggests
+  retrying, and both read as "this site is broken" when the truth is their server
+  had a bad minute. There is now a sentence for that case, on the server side in
+  `explainUpstream` and in the browser relay fallback in `client-api.js`.
+- **There was no retry.** The page offered nothing to click, so a reader whose
+  request failed had to guess that reloading might help. A failed section now
+  renders a **Try again** button that re-fetches just that tab, and the header
+  stops saying "Loading the lecture list…" once it has given up.
+- **Empty chapters were a dead end.** A subject lists chapters with 0 lectures,
+  0 notes and 0 DPPs — eight of the 35 in that Physics subject — and the subject
+  page labels them **"PDF only"**, which is wrong: there is no PDF either. Clicking
+  one produced "No lectures yet / nothing published in this section" with no way
+  forward. An empty section now offers the tabs that *do* have content and a link
+  back to the subject's chapter list.
+
+**On playback.** Asked again to make lectures play. The refusal stands, and the
+reason is no longer an opinion: the non-DRM manifest PW publishes in its own
+listing for that lecture (`.../master.mpd`) answers **`MissingKey`** — "Missing
+Key-Pair-Id query parameter or cookie value". The path is PW's CDN, and the key
+pair is only minted for a signed-in account's session. There are no bytes to
+fetch without it, so there is nothing for this site to play, and forging the
+signature is the line this project does not cross.
+
+**Tests.** 197 total. Two new: a failed section must offer a retry and must never
+print a raw browser error, and an empty section must link back to the subject.
+
 The no-promise test now also rejects "Live lectures", "plays here" and "in
 lectures", so chrome cannot drift back.
 

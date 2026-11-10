@@ -1676,3 +1676,68 @@ test("every page has exactly one h1, and it is in the served HTML", async () => 
     window.close();
   }
 });
+
+test("a chapter section that fails to load offers a retry, not a dead end", async () => {
+  // A subject lists chapters with 0 lectures / 0 notes / 0 DPPs, and clicking
+  // one landed on a bare "nothing published here". Worse, when PW's server
+  // answered 502 the page showed the literal string "fetch failed" — the
+  // browser's words for a transient outage — with no way to try again. The
+  // lecture list is reported as "not opening"; these are the two reasons.
+  const CH =
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222" +
+    "&chapter=69dc843271d06abbf3869763&name=Units";
+
+  const transient = () =>
+    new Response(
+      JSON.stringify({
+        success: true,
+        needsProxy: true,
+        key: "items",
+        reason:
+          "Physics Wallah did not answer for this chapter just now. The chapter and its lectures still exist — this is their server, not this site — so reload in a minute.",
+        auth: false,
+      }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+
+  const { doc, window } = await render(CH, {
+    fetchWrap: (target) => (new URL(target).pathname === "/api/contents" ? transient() : null),
+    settle: 1200,
+  });
+
+  const body = doc.getElementById("body");
+  assert.ok(body.querySelector("[data-retry]"), "a failed section must offer a retry");
+
+  // The header must stop claiming it is still loading.
+  const meta = doc.getElementById("chapterMeta").textContent;
+  assert.doesNotMatch(meta, /Loading the lecture list/i, meta);
+
+  // The explanation must be prose a student can act on, never a raw browser error.
+  assert.doesNotMatch(body.textContent, /fetch failed|upstream 50\d/i, body.textContent.slice(0, 200));
+  assert.match(body.textContent, /server|reload|try again/i);
+  window.close();
+});
+
+test("an empty chapter section points somewhere useful", async () => {
+  const CH =
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222" +
+    "&chapter=69dc843271d06abbf3869763&name=Units";
+
+  const { doc, window } = await render(CH, {
+    fetchWrap: (target) =>
+      new URL(target).pathname === "/api/contents"
+        ? new Response(JSON.stringify({ success: true, ok: true, items: [], contentType: "videos" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        : null,
+    settle: 1200,
+  });
+
+  const body = doc.getElementById("body");
+  // No dead end: there is always a route back to the subject's chapter list.
+  const back = [...body.querySelectorAll("a")].find((a) => /chapter/i.test(a.textContent));
+  assert.ok(back, "an empty section must link back to the subject");
+  assert.match(back.getAttribute("href"), /\/subject\.html\?batch=/);
+  window.close();
+});

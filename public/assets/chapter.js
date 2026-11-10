@@ -20,6 +20,16 @@ const subjectSlug = qs("subject");
 const chapterId = qs("chapter");
 const chapterName = qs("name");
 
+const TAB_LABELS = {
+  videos: "lectures",
+  notes: "notes",
+  DppNotes: "DPPs",
+  DppVideos: "DPP solutions",
+};
+const subjectHref = `/subject.html?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
+  subjectSlug
+)}`;
+
 const body = document.getElementById("body");
 const chapterNameEl = document.getElementById("chapterName");
 const chapterMeta = document.getElementById("chapterMeta");
@@ -170,7 +180,11 @@ async function load(nextType) {
       toast("Physics Wallah is not serving this chapter to guests right now", "info");
       return;
     }
-    body.innerHTML = emptyState("Could not load this section", err.message);
+    // Transient (their server, not ours): keep the list reachable.
+    const retry = `<button class="btn btn-primary btn-sm" type="button" data-retry="${type}">Try again</button>`;
+    // The header must stop claiming to be loading something it has given up on.
+    chapterMeta.textContent = "The lecture list did not load — this is Physics Wallah's server, not this site.";
+    body.innerHTML = emptyState("Could not load this section", err.message, retry);
     toast(err.message, "error");
   }
 }
@@ -178,8 +192,22 @@ async function load(nextType) {
 function render(items) {
   if (!items.length) {
     const label = { videos: "lectures", notes: "notes", DppNotes: "DPPs", DppVideos: "DPP solutions" }[type];
-    body.innerHTML = emptyState(`No ${label} yet`, "The source chapter has nothing published in this section.");
-    chapterMeta.textContent = "";
+    // An empty tab is not necessarily an empty chapter: a subject lists chapters
+    // with 0 lectures / 0 notes / 0 DPPs, and clicking one used to land on a
+    // bare "nothing published here" with no way forward. Offer the tabs that do
+    // have content, and a route back to the subject.
+    const others = Object.keys(TAB_LABELS)
+      .filter((t) => cache.has(t) && (cache.get(t) || []).length)
+      .map((t) => `<button class="btn btn-ghost btn-sm" type="button" data-goto="${t}">${
+        cache.get(t).length
+      } ${TAB_LABELS[t]}</button>`);
+    const back = `<a class="btn btn-ghost btn-sm" href="${subjectHref}">All chapters in this subject</a>`;
+    body.innerHTML = emptyState(
+      `No ${label} here`,
+      "Physics Wallah publishes nothing in this section of the chapter. The other tabs, or another chapter, may have what you need.",
+      [...others, back].join(" ")
+    );
+    chapterMeta.textContent = "Nothing published in this section.";
     return;
   }
 
@@ -232,6 +260,23 @@ tabs.addEventListener("click", (e) => {
  * file, never on the strength of having asked.
  */
 body.addEventListener("click", async (event) => {
+  // Retry a section whose upstream call failed, and jump to a tab that has
+  // content when the current one is empty. Both are delegation, because the
+  // list is re-rendered on every tab change.
+  const retryBtn = event.target.closest("[data-retry]");
+  if (retryBtn) {
+    event.preventDefault();
+    cache.delete(retryBtn.dataset.retry);
+    load(retryBtn.dataset.retry);
+    return;
+  }
+  const gotoBtn = event.target.closest("[data-goto]");
+  if (gotoBtn) {
+    event.preventDefault();
+    load(gotoBtn.dataset.goto);
+    return;
+  }
+
   const btn = event.target.closest("[data-keep]");
   if (!btn) return;
   event.preventDefault();
