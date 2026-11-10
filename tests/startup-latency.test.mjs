@@ -228,3 +228,64 @@ test("the plan and the medians tell the same story", async () => {
   assert.equal(t.samples > 0, true, "the cold start was not recorded");
   assert.ok(t.totalMs > 0, "the medians reported zeros for a request that took time");
 });
+
+test("token time measures the mint, not the probe", async () => {
+  // Production reported totalMs = tokenMs = probeMs = 2206: three labels on one
+  // number, because the token timer was read after the probe finished. Real
+  // values with meaningless labels are worse than no instrument — they pointed
+  // at the mint when the probe was the cost.
+  //
+  // The contract, both halves:
+  //   - a request the signer answered anonymously did NOT pay for the mint, so
+  //     tokenMs is 0 and clearly not the same number as totalMs;
+  //   - a request that had to wait for the mint reports it, and reports less
+  //     than the total (the probe is the rest).
+  stubSigner({ mintDelayMs: 250, requireToken: false });
+  const free = await resolveStream({ rawUrl: "", folder: "dddddddd-1111-2222-3333-444444444444", fresh: true });
+  assert.equal(free.playable, true);
+  assert.equal(free.timing.tokenMs, 0, "a request that never waited for the mint must not claim its cost");
+  assert.ok(free.timing.probeMs > 0, "the probe was not timed");
+  assert.notEqual(free.timing.tokenMs, free.timing.totalMs, "two labels on one number again");
+
+  stubSigner({ mintDelayMs: 250, requireToken: true });
+  const paid = await resolveStream({ rawUrl: "", folder: "eeeeeeee-1111-2222-3333-444444444444", fresh: true });
+  assert.equal(paid.playable, true, `the retry did not recover: ${paid.reason}`);
+  assert.ok(paid.timing.tokenMs >= 240, `tokenMs was ${paid.timing.tokenMs}; the wait for the mint was not measured`);
+  assert.ok(
+    paid.timing.tokenMs < paid.timing.totalMs,
+    `tokenMs (${paid.timing.tokenMs}) is the whole request; the clock starts too late`
+  );
+});
+
+test("a sleepy mirror does not set the latency of the lecture", async () => {
+  // The ladder is asked in parallel, and `Promise.all` used to wait for the
+  // *last* answer — so a host that took four seconds made every lecture take
+  // four seconds even though a healthy host had replied at once. Production sat
+  // at 2.2 s for this reason. Once every rendition is spoken for, extra answers
+  // cannot change the plan, so the request must not wait for them.
+  resetToken();
+  forgetSignerToken();
+  process.env.PW_TOKEN = "";
+  const healthy = "https://vidcloud.eu.org";
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (/generate_token/.test(url)) {
+      return new Response(JSON.stringify({ token: MINTED }), { status: 200 });
+    }
+    if (url.startsWith(healthy)) return new Response(MASTER, { status: 200 });
+    // Everything else: a mirror that is up but wedged. It must not be waited on.
+    await new Promise((r) => setTimeout(r, 3000));
+    return new Response(MASTER, { status: 200 });
+  };
+
+  const started = Date.now();
+  const plan = await resolveStream({ rawUrl: "", folder: "ffffffff-1111-2222-3333-444444444444", fresh: true });
+  const elapsed = Date.now() - started;
+
+  assert.equal(plan.playable, true);
+  assert.equal(plan.renditions.length, 5, "the fast host offered all five renditions");
+  assert.ok(
+    elapsed < 1500,
+    `cold start took ${elapsed} ms with one wedged mirror — the probe is still waiting for the slowest host`
+  );
+});

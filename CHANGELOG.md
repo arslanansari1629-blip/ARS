@@ -190,7 +190,29 @@ now answerable from production rather than from a stopwatch on my desk. The
 instrumentation had a bug worth remembering: mismatched key names produced `null`
 medians and reported nothing at all, so a test asserts the numbers are numbers.
 
-**Tests.** 214 total. Five new in `tests/startup-latency.test.mjs`, one in
+**Then production said the number out loud, and it was still 2.2 s.** `/api/check`
+carried `timing` for the first time and reported `totalMs 2206, tokenMs 2206,
+probeMs 2206` — three labels on one number, and 2.2 s between the tap and the
+manifest. Two more bugs, both mine:
+
+- the mint was still *awaited* on the happy path. Overlapping the mint with the
+  probe fixed the ordering, not the wait: when the signer answers an anonymous
+  probe — which this one does — the request then sat out the whole mint for a
+  token it never used. 2181 ms of 2182 ms was minting, for nothing.
+- the probe waited for the **slowest** host. `Promise.all` resolves when every
+  request settles, so one sleepy mirror set the latency of the whole lecture even
+  after a healthy host had answered every rendition. It now resolves as soon as
+  the ladder is settled; stragglers keep running because their answers are still
+  what teach the healer which hosts to trust.
+
+**And the instrument was lying.** `recordTiming` read `{total, token, probe}`
+while the cold path passed `{totalMs, tokenMs, probeMs}`, so every sample recorded
+zeros — and zeros look like a fast server. The token timer was also read after the
+probe finished, which is why the three numbers were identical. Both are fixed, and
+four tests now assert the medians are non-zero, distinct, and that a request which
+never waited for the mint reports `tokenMs: 0` rather than borrowing the total.
+
+**Tests.** 219 total. Eight in `tests/startup-latency.test.mjs`, one in
 `tests/player.test.mjs` and one in `tests/stream-fastpath.test.mjs`; each was run
 against the previous commit and made to fail first. One existing guard pinned the
 exact template layout of the stream query string and broke when `&level=` was
