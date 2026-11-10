@@ -220,7 +220,22 @@ menu. The sweep now finishes 250 ms after the first answer and lets the rest lan
 in the cache: `renditions.settled` widens the same array for anyone who waits, so
 a fast start does not quietly cost the student their quality choice.
 
-**Tests.** 220 total. Nine in `tests/startup-latency.test.mjs`, one in
+**And the first answer was itself 2.4 s.** With the grace window live the number
+did not move, which ruled out "waiting for the rest of the ladder" and pointed at
+the handshake itself: fifteen concurrent requests to one mirror, each waiting on
+the others. The probe now asks the healthiest host for the opening rendition
+first — one request — and fills the ladder behind it. Same simulated workload:
+2400 ms → 577 ms.
+
+That shortcut has an obvious failure mode, and a test found it before production
+did: if the healthiest host is the one that just died, one quick answer is not
+evidence that a lecture does not exist. The rest of the ladder is now the
+*fallback* as well as the filler, and it is computed by subtraction from the full
+cross-product rather than by a hand-rolled "skip the trial rendition" filter —
+that filter left the trial rendition unasked on every other host, which is exactly
+what a fallback needs.
+
+**Tests.** 221 total. Ten in `tests/startup-latency.test.mjs`, one in
 `tests/player.test.mjs` and one in `tests/stream-fastpath.test.mjs`; each was run
 against the previous commit and made to fail first. One existing guard pinned the
 exact template layout of the stream query string and broke when `&level=` was

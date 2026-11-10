@@ -323,3 +323,25 @@ test("a slow rendition does not delay the start, and still joins the ladder", as
   const widened = await probe.renditions.settled;
   assert.equal(widened.length, 5, "the slow rendition never joined the ladder");
 });
+
+test("a dead healthy host still finds the lecture on another mirror", async () => {
+  // The quick path asks one host first. If that host is the one that just died,
+  // one quick answer is not evidence that the lecture does not exist — so the
+  // full ladder has to be the fallback, and it has to be awaited. Spoken as a
+  // test because "faster" must never mean "silently unplayable".
+  resetToken();
+  forgetSignerToken();
+  process.env.PW_TOKEN = "";
+  const dead = "vidcloud.eu.org";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (/generate_token/.test(url)) return new Response(JSON.stringify({ token: MINTED }), { status: 200 });
+    if (url.startsWith("https://" + dead)) return new Response("Forbidden", { status: 403 });
+    return new Response(MASTER, { status: 200 });
+  };
+
+  const plan = await resolveStream({ rawUrl: "", folder: "12121212-1111-2222-3333-444444444444", fresh: true });
+  assert.equal(plan.playable, true, `the fallback did not fire: ${plan.reason}`);
+  assert.equal(plan.renditions.length, 5, "another mirror should have been asked for every rendition");
+  assert.notEqual(plan.timing.host, dead, "the plan should not point at the host that refused");
+});
