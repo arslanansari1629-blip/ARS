@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveStream, pickStartPoint } from "../lib/api-data.mjs";
+import { resolveStream, pickStartPoint, forgetSignerToken } from "../lib/api-data.mjs";
 import { resetToken } from "../lib/pw-auth.mjs";
 
 const FOLDER = "e76c2cf2-413b-4f14-a7b5-8ebeb6c60523";
@@ -55,6 +55,7 @@ function stubSigner({ mintDelayMs = 40, requireToken = true, firstPassToken = ""
   // later test starts with an already-minted token and silently measures the
   // fast path while claiming to measure the slow one.
   resetToken();
+  forgetSignerToken();
   process.env.PW_TOKEN = firstPassToken;
   const seen = { master: 0, minted: false };
   globalThis.fetch = async (input, init) => {
@@ -92,24 +93,45 @@ test("a signer that refuses the unfinished mint still starts the lecture", async
   assert.ok(plan.timing && plan.timing.totalMs >= 0, "a cold start should report its timing");
 });
 
-test("probing does not wait for the token before the first pass", async () => {
-  // The mint is slower than a whole probe pass. If the probe waited for it, the
-  // cold start could not finish in less than the mint delay plus a pass.
+test("the probe is in flight before the mint has landed", async () => {
+  // The old order was mint -> probe: every request paid the mint before the
+  // first signer was even asked. The new order starts both and uses the token if
+  // it is ready, so the *ordering* is the property to pin, not a duration — a
+  // duration can be beaten by a warm cache and then proves nothing.
   //
-  // The token is *refused* here on purpose: with a usable token a serialised
-  // probe would also be fast, so the test would pass on the old code and prove
-  // nothing. Refusing forces the old code down its serial path, where it must
-  // wait out the 400 ms mint before the retry can even start.
-  const seen = stubSigner({ mintDelayMs: 400, requireToken: true });
-  const started = Date.now();
-  const plan = await resolveStream({ rawUrl: "", folder: FOLDER, fresh: true });
-  const elapsed = Date.now() - started;
+  // The signer refuses here on purpose: with a token that works, a serialised
+  // probe is also fast, and the test would pass on the old code.
+  const mintDelay = 400;
+  resetToken();
+  forgetSignerToken();
+  process.env.PW_TOKEN = "";
+  let mintedAt = 0;
+  let firstProbeAt = 0;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (/generate_token/.test(url)) {
+      await new Promise((r) => setTimeout(r, mintDelay));
+      mintedAt = Date.now();
+      return new Response(JSON.stringify({ token: MINTED }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    const auth = String((init && init.headers && (init.headers.authorization || "")) || "");
+    if (!firstProbeAt) firstProbeAt = Date.now();
+    if (!auth.includes(MINTED)) return new Response("refused", { status: 401 });
+    return new Response(MASTER, { status: 200 });
+  };
 
-  assert.equal(plan.playable, true);
-  assert.equal(seen.master > 0, true);
+  const plan = await resolveStream({ rawUrl: "", folder: FOLDER, fresh: true });
+  assert.equal(plan.playable, true, `the retry did not recover: ${plan.reason}`);
+
+  assert.ok(firstProbeAt, "no probe was sent at all");
+  assert.ok(mintedAt, "the token was never minted");
   assert.ok(
-    elapsed < 350,
-    `cold start took ${elapsed} ms — the probe waited for the mint instead of overlapping it`
+    firstProbeAt < mintedAt,
+    `the first probe went out ${firstProbeAt - mintedAt} ms after the mint finished — ` +
+      "the request is serialised again"
   );
 });
 
@@ -154,4 +176,55 @@ test("resolveTimings reports real numbers, not nulls", async () => {
   for (const key of ["totalMs", "tokenMs", "probeMs"]) {
     assert.equal(typeof t[key], "number", `${key} should be a median number, got ${t[key]}`);
   }
+});
+
+test("a signer that answers anonymously does not cost the mint", async () => {
+  // This is the production shape, and it was the whole cold start: the signer
+  // answers an anonymous probe, so the token is never needed — but the resolver
+  // awaited the mint anyway. Production showed totalMs 2182 against tokenMs
+  // 2181, i.e. the token was ~100 % of a request that never used it.
+  stubSigner({ mintDelayMs: 600, requireToken: false });
+  const started = Date.now();
+  const plan = await resolveStream({ rawUrl: "", folder: FOLDER, fresh: true });
+  const elapsed = Date.now() - started;
+
+  assert.equal(plan.playable, true);
+  assert.ok(
+    elapsed < 400,
+    `cold start took ${elapsed} ms with a 600 ms mint — the happy path waited for a token it did not use`
+  );
+});
+
+test("latency medians are real numbers, not zeros", async () => {
+  // The instrument must never report 0 for a request that plainly took time:
+  // zeros look like a fast server and hide a regression. Same key-mismatch trap
+  // as the null medians, one step later.
+  const { resolveTimings } = await import("../lib/api-data.mjs");
+  stubSigner({ mintDelayMs: 20, requireToken: false });
+  await resolveStream({ rawUrl: "", folder: "bbbbbbbb-1111-2222-3333-444444444444", fresh: true });
+
+  const t = resolveTimings();
+  assert.equal(t.samples > 0, true);
+  assert.ok(t.totalMs > 0, `totalMs median was ${t.totalMs} — the sample recorded zeros`);
+  assert.ok(t.probeMs > 0, `probeMs median was ${t.probeMs}`);
+  // The probe dominates now: it is the request that actually has to happen.
+  assert.ok(t.probeMs <= t.totalMs, "the probe cannot take longer than the whole resolution");
+});
+
+test("the plan and the medians tell the same story", async () => {
+  // In production the plan reported `timing: {totalMs: 2182}` while the medians
+  // reported `{samples: 1, totalMs: 0}` — the sample was recorded through the
+  // wrong key and nothing complained. A reader who trusts one number and not the
+  // other should not be able to see them disagree.
+  const { resolveTimings, forgetSignerToken } = await import("../lib/api-data.mjs");
+  stubSigner({ mintDelayMs: 20, requireToken: false });
+  forgetSignerToken();
+  const plan = await resolveStream({ rawUrl: "", folder: "cccccccc-1111-2222-3333-444444444444", fresh: true });
+
+  assert.equal(plan.playable, true);
+  assert.ok(plan.timing && plan.timing.totalMs > 0, "the plan must carry its own cost");
+
+  const t = resolveTimings();
+  assert.equal(t.samples > 0, true, "the cold start was not recorded");
+  assert.ok(t.totalMs > 0, "the medians reported zeros for a request that took time");
 });

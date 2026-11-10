@@ -158,6 +158,46 @@ print a raw browser error, and an empty section must link back to the subject.
 
 ---
 
+## Round AB — start on a rung the line can hold
+
+Round AA fixed the copy. This round is about the two seconds in front of the
+first frame, which the copy was quietly talking around.
+
+**The token was minted, then used.** Resolving a lecture asked the relay for a
+guest token, waited for it, and only then probed the signer with it — two
+network round trips in a row for one question. The mint now starts first and is
+used *if it has landed*; a signer that accepts it costs nothing, and one that
+refuses costs exactly one retry pass, which is what `!found.size && refused` is
+for. Against a 250 ms stub fetch the cold path went **829 ms → 327 ms**, with the
+mint accounting for about half of the old figure.
+
+**Playback opened on the top rendition.** On a line that cannot sustain 1080,
+hls.js fetches a segment, discovers it is behind, and steps down — so the first
+seconds of every lecture were a spinner, and it was the player's own fault. A
+cold start now opens in the *middle* of the ladder and steps up, which is the
+direction that costs no visible wait. Every level is still in the master
+playlist; this picks a starting point, it does not take anything away.
+
+**A recovery now resumes at the quality the student had.** `playingQuality()`
+reads the rung ABR is actually on — `loadLevel`, because `currentLevel` is `-1`
+while auto — the player sends it as `&level=` on a retry, and the resolver opens
+there. A level that vanished in a re-encode falls back to the middle and never
+fails the plan.
+
+**`/api/check` reports its own latency.** `timing` carries medians over the last
+25 resolutions: `totalMs`, `tokenMs`, `probeMs`, `cachedShare`. "Is it faster" is
+now answerable from production rather than from a stopwatch on my desk. The
+instrumentation had a bug worth remembering: mismatched key names produced `null`
+medians and reported nothing at all, so a test asserts the numbers are numbers.
+
+**Tests.** 214 total. Five new in `tests/startup-latency.test.mjs`, one in
+`tests/player.test.mjs` and one in `tests/stream-fastpath.test.mjs`; each was run
+against the previous commit and made to fail first. One existing guard pinned the
+exact template layout of the stream query string and broke when `&level=` was
+added — it now asserts both parameters are sent.
+
+---
+
 ## Round AA — playback works, and the site was saying it did not
 
 **The correction first.** For several rounds this project told students that
