@@ -745,16 +745,27 @@ test("the downloads page browses live lectures and explains offline playback", a
   assert.ok(doc.getElementById("savedList"), "no saved-downloads list");
   assert.ok(doc.getElementById("savedEmpty"), "the empty state is missing");
 
-  // It has to say what actually works offline. This page used to promise
-  // downloadable lectures with portable MPEG-TS files and "no expiry" — none of
-  // which can happen while PW refuses to sign a stream for a guest session.
-  // What genuinely works is keeping the notes and DPPs, so the page says that.
+  // It has to say what actually works offline.
+  //
+  // This assertion used to require the page to say video *cannot* be kept, because
+  // it could not: PW refused to sign a stream for a guest session. That is no
+  // longer true — `/api/check` walks a lecture from plan to master to rendition to
+  // a decrypted segment, and `/api/download?mode=file` assembles the slices — so
+  // the old requirement was telling students not to use a feature that works. What
+  // must stay pinned is that the page describes the mechanism honestly: lectures
+  // are kept in slices, which is why a long class takes minutes.
   const text = doc.body.textContent;
   assert.match(text, /Offline reading/i);
   assert.match(text, /note|PDF/i);
-  assert.match(text, /cannot be kept|only signs stream links/i, "the page must be honest about video");
+  assert.match(text, /lecture/i, "the page dropped lectures entirely");
+  assert.match(text, /slice|pieces/i, "it must say how a lecture is kept");
   assert.match(text, /this device only|this browser/i);
   assert.doesNotMatch(text, /MPEG-TS/, "it must not advertise a format it cannot produce");
+  assert.doesNotMatch(
+    text,
+    /cannot be kept|only signs stream links|Video cannot be saved/i,
+    "the page still claims lectures cannot be saved"
+  );
 
   // Nothing is saved yet, so the empty state is showing.
   assert.equal(doc.getElementById("savedEmpty").hidden, false);
@@ -1512,16 +1523,22 @@ test("filtering an empty search is a browse, not an empty result", async () => {
   assert.ok(body.batches.every((b) => b.feeTotal === 0 && /kannada/i.test(b.language)));
 });
 
-test("no page promises playback it cannot deliver, and none nags", async () => {
-  // The site used to say "watch lectures" on the home page while PW refused every
-  // signing request. That copy was corrected — but the correction belongs in the
-  // copy and in the message a refusal produces, not in a banner repeating itself
-  // over every page. This test pins both halves: no false promise, and no notice.
+test("no page promises more than it delivers, and none nags", async () => {
+  // The site once said "watch lectures" while PW refused every signing request, so
+  // this test banned the phrase. Playback works now — `/api/check` proves a lecture
+  // plays end to end — but the lesson it was written for still holds: a page must
+  // not promise something it cannot do, and a correction belongs in the copy rather
+  // than in a banner repeating itself on every page.
+  //
+  // So the pin moves from the word to the claim. What must never come back is the
+  // general-purpose notice, and the specific promises that were false at the time
+  // and would be false again if signing broke: unlimited free watching, and a
+  // lecture player described as a headline feature independent of any lecture.
   const { doc, dom } = await render("/batches.html", { waitForSelector: "#grid .batch-card" });
   assert.equal(doc.querySelector("#statusNotice"), null, "the site-wide notice was removed");
 
   const home = await (await nativeFetch(`${BASE}/`)).text();
-  assert.doesNotMatch(home, /watch lectures/i);
+  assert.doesNotMatch(home, /free to watch|watch free|unlimited (?:free )?streaming/i);
   assert.doesNotMatch(home, /HD<\/strong><span>lecture player/);
 
   // The hero carried a play-button chip reading "Live lectures", and /downloads
@@ -1582,7 +1599,11 @@ test("a lecture that cannot play sends you to its notes, not a retry loop", asyn
     { settle: 2600 }
   );
   const text = doc.body.textContent;
-  assert.match(text, /needs a PW account|no video yet/i, "the page must explain, not spin");
+  // The copy moved when playback started working: "needs a PW account" was true
+  // for a while and is not any more. What the page must still do is explain the
+  // state it is in rather than spin, and always offer the notes tab.
+  assert.match(text, /no video yet|refused just now|has no released video/i, "the page must explain, not spin");
+  assert.doesNotMatch(text, /needs a PW account/i, "the page still claims playback requires an account");
   const links = [...doc.querySelectorAll("a.btn")].map((a) => a.getAttribute("href") || "");
   const notesLink = links.find((h) => /chapter\.html/.test(h) && /#notes/.test(h));
   assert.ok(notesLink, `expected a link to the chapter notes tab, saw ${JSON.stringify(links)}`);
@@ -2053,5 +2074,54 @@ test("the chapter tabs behave like tabs, by keyboard as well as by mouse", async
   tabs[3].dispatchEvent(new window.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
   await new Promise((r) => setTimeout(r, 400));
   assert.equal(selected()[0].dataset.type, "videos", "Home did not reach the first section");
+  window.close();
+});
+
+test("the seek slider announces a time, not a percentage", async () => {
+  /* The scrubber is `role="slider"` with `aria-valuemin=0 aria-valuemax=100`, and
+     the only value it ever wrote was `aria-valuenow`, as a percentage. Read aloud
+     that is "73" with no unit — and on a lecture it is not even the useful number.
+     A seek control should say where in the class the student is. */
+  const { doc, window } = await render(
+    "/lecture.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763",
+    {
+      settle: 2200,
+      fetchWrap: (target) => {
+        const url = new URL(target);
+        if (url.pathname !== "/api/stream") return null;
+        return new Response(
+          JSON.stringify({
+            success: true,
+            playable: true,
+            kind: "hls",
+            engine: "hls",
+            url: "/api/sign?videoKey=e76c2cf2-413b-4f14-a7b5-8ebeb6c60523&key=master.m3u8",
+            quality: "720",
+            renditions: ["720"],
+            lecture: { title: "A lecture", duration: "1:53:19" },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      },
+    }
+  );
+
+  const scrubber = doc.getElementById("scrubber");
+  assert.equal(scrubber.getAttribute("role"), "slider");
+
+  // The element mock has no media timeline; drive one through the state path the
+  // player uses, which is the same path a real `timeupdate` takes.
+  const video = doc.getElementById("video");
+  Object.defineProperty(video, "duration", { value: 6799, configurable: true });
+  Object.defineProperty(video, "currentTime", { value: 1800, configurable: true });
+  video.dispatchEvent(new window.Event("timeupdate"));
+  await new Promise((r) => setTimeout(r, 120));
+
+  const text = scrubber.getAttribute("aria-valuetext") || "";
+  assert.match(text, /\d+:\d\d/, `the slider has no time to read out: ${JSON.stringify(text)}`);
+  assert.match(text, /of/, "the slider does not say what the position is out of");
+
+  // A slider has to answer the keys its role implies, natively handled here.
+  assert.ok(scrubber.getAttribute("aria-valuemax"), "the slider has no maximum");
   window.close();
 });

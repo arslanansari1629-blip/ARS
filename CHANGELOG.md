@@ -158,6 +158,75 @@ print a raw browser error, and an empty section must link back to the subject.
 
 ---
 
+## Round AA — playback works, and the site was saying it did not
+
+**The correction first.** For several rounds this project told students that
+lectures could not play, and the copy on the home page, the chapter page and
+`/downloads` said so in plain words. That was wrong. Asking the deployment's own
+health route:
+
+```
+/api/check?batch=…&id=69dce295b4ecb06768828339
+→ plan: hls 720 · playlist 200 · 690 segments · key 16 bytes
+  · segment 200, 536 KB · decrypt ok · mpegTs ok  → "plays"
+
+/api/check?…&chapter=69dc843271d06abbf3869763&limit=6
+→ 6 verified, 6 playing, 0 not playing
+```
+
+Signing, AES key resolution, segment relay and decryption all work. It was the
+*diagnosis* that was stale, not the pipeline — an earlier signature refusal had
+been fixed, the copy had not.
+
+**The damage that did.** The site was actively telling users not to try. The home
+hero read "Lecture playback and downloads are not available", the chapter list
+carried "stream links need a PW account" under every chapter, the lecture page
+answered an access-limit state with "Playing this needs a PW account", and
+`/downloads` claimed twice that lecture video "cannot be kept" — while
+`/api/download?mode=list` was happily listing 692 slices for that same lecture.
+A working feature behind a sign saying it is broken is worse than a broken one.
+
+**What the copy says now.** "Video ready" rows play; "Recording pending" means
+the recording genuinely has not been published; lectures are kept in slices, so a
+two-hour class takes a few minutes. Three tests were pinned to the old claims and
+have been rewritten to pin the new ones — including one that now *forbids* the
+site from claiming playback needs an account.
+
+**Player.** Two additions, both about failures the player could not see:
+
+- **Reconnect.** A dropped connection produces no fatal engine error and no stall
+  with the playhead moving; the retry budget simply spends itself against a
+  network that is not there. The player now listens for `online` and re-resolves
+  — but only when the stream is actually broken, never from a hidden tab, and at
+  most twice, so a flapping signal cannot become a retry loop against a
+  rate-limited signer.
+- **The seek slider.** It announced itself as `role="slider"` with
+  `aria-valuemin=0 aria-valuemax=100` and then wrote only a percentage, so a
+  screen reader read "73" with no unit. It now carries `aria-valuetext` as
+  "30:00 of 1:53:19", a real `aria-valuemax` in seconds, and the keys the role
+  implies: PageUp/PageDown (a tenth of the lecture, at least a minute) plus
+  Home/End.
+
+**Self-healing: a real gap.** `resolveStream` honoured `fresh` for the plan cache
+and ignored it for the rendition cache, so a retry rebuilt its plan from rendition
+data up to ten minutes old — the plan it had just decided was broken. Half a
+bypass is worse than none, because it looks like a fresh probe. `fresh` now
+clears both.
+
+**Retries are fast now.** `api/stream` re-read the schedule on every retry: two
+upstream calls with 25-second timeouts, to rediscover a video folder the page had
+been playing from for the last hour. The player now sends the folder it knows, and
+the route probes it directly. If that folder will not sign — a re-encoded
+lecture — it falls through to the schedule exactly as before. The shortcut only
+accepts a bare UUID, so it cannot be pointed anywhere else.
+
+**Tests.** 206 total. New: the folder fast path (including the fallback that
+proves the shortcut is never the reason a playable lecture reports unplayable),
+the reconnect heal (fails with the listener removed), and the slider's announced
+value (fails without `aria-valuetext`).
+
+---
+
 ## Round Z.8 — the tabs were not tabs
 
 **The problem.** The chapter page's section strip — Lectures / Notes / DPPs /

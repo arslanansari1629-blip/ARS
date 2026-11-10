@@ -64,6 +64,40 @@ export class ProPlayer {
     this.destroyed = false;
 
     this._bindElement();
+    this._bindNetwork();
+  }
+
+  /**
+   * Recover by itself when the connection comes back.
+   *
+   * Everything else in this file recovers from a failure it can *see*: a 403, a
+   * fatal engine error, a stall with the playhead moving. A dropped connection is
+   * different — the element reports nothing useful, the retry budget spends
+   * itself against a network that is not there, and the student is left on
+   * "Reconnecting…" until they reload. The browser knows when this happens, so
+   * the player asks rather than guessing.
+   *
+   * The rules keep it from becoming its own failure mode:
+   *   · only if the stream is actually broken (an error, or no playback at all)
+   *   · only once the page is visible again — a lecture paused in a background
+   *     tab must not fire a request
+   *   · at most twice, and only after a connection that was genuinely lost, so a
+   *     flapping signal cannot turn into a retry loop against a rate-limited
+   *     signer.
+   */
+  _bindNetwork() {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    this._networkRetries = 0;
+    window.addEventListener("online", () => {
+      if (this.destroyed || this._networkRetries >= 2) return;
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      const broken = Boolean(this._state && this._state.error);
+      const silent = !this._state || !this._state.playing;
+      if (!broken && !silent) return;
+      this._networkRetries += 1;
+      this.state({ note: "Back online — reconnecting…" });
+      this.retry({ reason: "The connection dropped." });
+    });
   }
 
   /* ------------------------------- state --------------------------------- */

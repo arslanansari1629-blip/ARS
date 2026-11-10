@@ -45,6 +45,18 @@ async function readSchedule(batch, subject, id) {
   };
 }
 
+/**
+ * A video folder is a bare UUID.
+ *
+ * Checked as a whole value rather than by looking for dots: the shortcut below
+ * turns this string into an upstream request, so anything that is not exactly a
+ * folder id — a path, a URL, an empty string — must not reach it.
+ */
+const FOLDER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isFolderId(value) {
+  return FOLDER_ID.test(String(value || ""));
+}
+
 export default async function handler(req, res) {
   // `/api/hls` is rewritten onto this function (see vercel.json): the Hobby plan
   // allows twelve serverless functions per deployment and this project needs
@@ -69,6 +81,28 @@ export default async function handler(req, res) {
     let rawUrl = url || "";
     let folderHint = folder || "";
     let detail = null;
+
+    // A retry mid-lecture does not need the schedule.
+    //
+    // `&folder=` names the video folder the *first* resolution already found, and
+    // that folder is what a plan is probed from. Re-reading the schedule on every
+    // retry cost two upstream calls with 25-second timeouts apiece, so a student
+    // who hit a dead signature ten minutes into a two-hour lecture waited on
+    // Physics Wallah's schedule endpoint before the player even started looking
+    // for a new signature — for information the page already had. The schedule is
+    // still read when there is no folder, which is every first load.
+    if (!rawUrl && isFolderId(folderHint)) {
+      const plan = await resolveStream({
+        rawUrl: "",
+        folder: folderHint,
+        fresh: Number(attempt || 0) > 0,
+      });
+      if (plan.playable) {
+        return json(res, 200, { success: true, ...plan, resolvedFrom: "", fastPath: "folder" }, 0);
+      }
+      // No rendition answered. The schedule may still know something we do not
+      // (a re-encoded folder, a lecture that moved), so fall through to it.
+    }
 
     if (!rawUrl) {
       if (!batch || !subject || !id) {

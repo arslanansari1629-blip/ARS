@@ -319,3 +319,79 @@ test("folderOf reads the folder out of a relay URL", () => {
   assert.equal(folderOf(""), "");
   assert.equal(folderOf(null), "");
 });
+
+test("the player recovers by itself when the connection comes back", async () => {
+  /* A dropped connection is the one failure the media element reports badly: no
+     fatal engine error, no stall with the playhead moving — just a retry budget
+     spending itself against a network that is not there, and a student left on
+     "Reconnecting…" until they reload. The browser knows when it happens, so the
+     player listens instead of guessing.
+
+     The guard rails matter as much as the feature: a lecture paused in a
+     background tab must not fire a request when a phone changes networks, and a
+     flapping signal must not become a retry loop against a rate-limited signer. */
+  const listeners = new Map();
+  const win = {
+    addEventListener(type, fn) {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(fn);
+    },
+  };
+  const saved = globalThis.window;
+  const savedDoc = globalThis.document;
+  globalThis.window = win;
+  globalThis.document = { visibilityState: "visible" };
+
+  try {
+    const video = stubVideo();
+    let resolves = 0;
+    const { player } = makeEngine(video, async () => {
+      resolves += 1;
+      // Resolve to something that cannot load, so the retry path stays observable
+      // without needing a whole HLS pipeline.
+      throw new Error("offline");
+    });
+
+    const online = () => {
+      for (const fn of listeners.get("online") || []) fn();
+    };
+
+    // Nothing is broken and something is playing: a network change is not news.
+    player.state({ playing: true, error: "" });
+    online();
+    assert.equal(resolves, 0, "a healthy player went looking for a new stream");
+
+    // Broken: the player should take the hint.
+    player.state({ playing: false, error: "The network dropped while loading the video." });
+    online();
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(resolves >= 1, "a broken player ignored the connection coming back");
+
+    // Twice is the budget. A third `online` must not add another attempt.
+    const before = resolves;
+    online();
+    online();
+    await new Promise((r) => setTimeout(r, 60));
+    assert.ok(resolves - before <= 1, "the reconnect fired more than once for one event");
+
+    // A hidden tab never fires: the lecture is paused on purpose.
+    const hidden = makeEngine(stubVideo(), async () => {
+      throw new Error("offline");
+    });
+    globalThis.document = { visibilityState: "hidden" };
+    hidden.player.state({ playing: false, error: "boom" });
+    let hiddenResolves = 0;
+    hidden.player.resolve = async () => {
+      hiddenResolves += 1;
+      throw new Error("offline");
+    };
+    for (const fn of listeners.get("online") || []) fn();
+    await new Promise((r) => setTimeout(r, 60));
+    assert.equal(hiddenResolves, 0, "a background tab reconnected itself");
+    hidden.player.destroy();
+    player.destroy();
+  } finally {
+    globalThis.window = saved;
+    globalThis.document = savedDoc;
+  }
+});

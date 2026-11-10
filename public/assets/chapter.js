@@ -263,16 +263,18 @@ function render(items) {
     // conclude the site is broken. Offer it only as a footnote when a stream has
     // actually resolved at least once this session.
     const check = "";
-    chapterMeta.innerHTML = `${items.length} ${label}${
-      check ? ` ${check}` : ""
-    } · <span class="tiny dim">stream links need a PW account</span>`;
+    chapterMeta.innerHTML = `${items.length} ${label}`;
 
     // A chapter whose lectures all refuse to play still has value: the list is a
     // syllabus and the notes are readable. Say which part works, once, above the
     // list — instead of leaving 148 rows that each fail on click with no warning.
+    // Say what the badges mean, once, above the list. The old line here claimed
+    // playback needed an account, which stopped being true and told every student
+    // not to bother clicking. The badges already say which rows have a recording;
+    // this only has to explain that they are the honest part.
     const notice =
       type === "videos"
-        ? `<p class="tiny dim chapter-hint">Lecture titles and order are complete. Playing a lecture needs a signed-in Physics Wallah account — the <strong>Notes</strong> and <strong>DPPs</strong> tabs above are free and open.</p>`
+        ? `<p class="tiny dim chapter-hint">Rows marked <strong>Video ready</strong> play here. <strong>Recording pending</strong> means Physics Wallah has not published that class's recording yet. The <strong>Notes</strong> and <strong>DPPs</strong> tabs hold the PDFs for both.</p>`
         : "";
     body.innerHTML = `${notice}<div class="list">${items.map(videoRow).join("")}</div>`;
   } else {

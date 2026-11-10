@@ -288,10 +288,19 @@ function isPermanent(reason) {
 }
 
 async function resolvePlan(n) {
+  // On a retry, name the folder we already know.
+  //
+  // The video folder is the only thing a plan is actually derived from, and the
+  // page has had it since the first successful resolution. Without it, every
+  // mid-lecture retry made the server re-read the schedule (two upstream calls,
+  // 25-second timeouts) before it could look for a fresh signature — tens of
+  // seconds of "Reconnecting…" for information already on screen.
+  const knownFolder = currentPlan && currentPlan.url ? folderOf(currentPlan.url) : "";
+  const fast = n && knownFolder ? `&folder=${encodeURIComponent(knownFolder)}` : "";
   let plan = await api(
     `/api/stream?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
       subjectSlug
-    )}&id=${encodeURIComponent(lectureId)}${n ? `&attempt=${n}` : ""}${
+    )}&id=${encodeURIComponent(lectureId)}${fast}${n ? `&attempt=${n}` : ""}${
       n ? `&cb=${Date.now().toString(36)}` : ""
     }`
   );
@@ -419,7 +428,7 @@ async function startStream() {
          <button class="btn btn-ghost" id="retryBtn">Retry</button>`;
 
     showMessage(
-      isAccessLimit ? "Playing this needs a PW account — the notes do not" : "This class has no video yet",
+      isAccessLimit ? "This lecture's stream was refused just now" : "This class has no video yet",
       reason,
       false,
       actions
@@ -665,7 +674,17 @@ function paintProgress() {
     bufferedBar.style.width = `${pct(end)}%`;
     if (veilBuffer) veilBuffer.style.width = `${pct(end)}%`;
   }
-  if (scrubber) scrubber.setAttribute("aria-valuenow", String(Math.round(pct(video.currentTime))));
+  if (scrubber) {
+    const dur = Number(video.duration) || 0;
+    const now = Number(video.currentTime) || 0;
+    scrubber.setAttribute("aria-valuenow", String(Math.round(pct(now))));
+    // A percentage is meaningless read aloud ("Seventy-three"). The role is a
+    // slider, so it carries the position as time, and the maximum is the part
+    // of the lecture that is actually seekable.
+    scrubber.setAttribute("aria-valuetext", `${fmtTime(now)} of ${fmtTime(dur)}`);
+    if (dur > 0) scrubber.setAttribute("aria-valuemax", String(Math.round(dur)));
+    scrubber.setAttribute("aria-valuenow", String(Math.round(dur > 0 ? now : 0)));
+  }
 }
 
 function paintStats(s) {
@@ -769,9 +788,42 @@ if (scrubber) {
   scrubber.addEventListener("pointerleave", () => {
     if (!scrubbing && scrubberTip) scrubberTip.classList.remove("on");
   });
+  /**
+   * Full keyboard contract for a control that announces itself as a slider.
+   *
+   * It advertised `role="slider"` with `aria-valuemin/max/now` and then answered
+   * two keys. A screen-reader user is told "slider, 0 to 100" and expects
+   * Home/End/PageUp/PageDown to work; a one-minute nudge is also the only way to
+   * land on a sentence in a two-hour lecture without fighting the mouse.
+   */
   scrubber.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowRight") seekBy(10);
-    if (e.key === "ArrowLeft") seekBy(-10);
+    const dur = Number(video.duration) || 0;
+    const keys = {
+      ArrowRight: 10,
+      ArrowLeft: -10,
+      // A page is a tenth of the lecture, floored at a minute: on a 20-minute
+      // class 10% is two minutes, and on a two-hour one it is twelve.
+      PageUp: Math.max(60, dur * 0.1),
+      PageDown: -Math.max(60, dur * 0.1),
+    };
+    if (e.key in keys) {
+      e.preventDefault();
+      seekBy(keys[e.key]);
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === "Home") {
+      e.preventDefault();
+      pro?.seek(0);
+      flash("Start");
+      e.stopPropagation();
+    }
+    if (e.key === "End" && dur > 0) {
+      e.preventDefault();
+      pro?.seek(Math.max(0, dur - 1));
+      flash("End");
+      e.stopPropagation();
+    }
   });
 }
 
