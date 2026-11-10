@@ -158,6 +158,36 @@ print a raw browser error, and an empty section must link back to the subject.
 
 ---
 
+## Round Z.8 — the tabs were not tabs
+
+**The problem.** The chapter page's section strip — Lectures / Notes / DPPs /
+DPP Solutions — is the primary navigation on that page, and it was marked up as
+four plain `<button>`s. Consequences, all invisible to a sighted mouse user:
+
+- No `role="tab"`, no `role="tablist"`, no `aria-selected`. A screen reader
+  announced "Lectures, button" with no way to tell which section was open, and
+  the panel had no `role="tabpanel"` to be associated with.
+- Every one of the four was its own Tab stop. Reaching the list meant pressing
+  Tab five times, and a keyboard user had no arrow-key navigation between
+  sections — the control did not behave like a tab strip in any respect except
+  that clicking one swapped the content.
+- The strip is horizontally scrollable, so a keyboard user who could not reach
+  the last section had no way to discover it.
+
+**What changed.** `chapter.html` carries the roles and a roving `tabindex`;
+`chapter.js` keeps `aria-selected`, `tabindex`, the `.active` class and the
+panel's `aria-labelledby` in sync on every render, and handles `ArrowLeft` /
+`ArrowRight` (wrapping) plus `Home` / `End`. The panel is labelled by whichever
+section is open, so the list is announced as "Lectures, tab panel" rather than
+as an anonymous region.
+
+**Tests.** 200 total. The new test drives the real page with real keyboard
+events: it asserts one and only one Tab stop, that `ArrowRight` opens the next
+section *and* moves focus and the panel label with it, that the arrows wrap, and
+that `Home`/`End` reach the ends. Verified to fail against the previous markup.
+
+---
+
 ## Round Z.7 — the warning belonged to the wrong tab
 
 **The bug.** Round Z.5 taught the chapter page to say "Some files did not resolve

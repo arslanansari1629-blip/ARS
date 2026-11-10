@@ -165,7 +165,18 @@ function docItemRow(item) {
 
 async function load(nextType, { refresh = false } = {}) {
   type = nextType;
-  tabs.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.type === type));
+  // The tab strip is a real tab widget, so it has to say so: `aria-selected` is
+  // the only thing a screen reader reads as "this section is open", and the
+  // roving `tabindex` is what makes Tab move *past* the strip into the list
+  // instead of stopping on all four sections. The panel follows the selection.
+  tabs.querySelectorAll(".tab").forEach((t) => {
+    const on = t.dataset.type === type;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", String(on));
+    // -1 on the unselected tabs, not 0: one stop for the whole strip.
+    t.tabIndex = on ? 0 : -1;
+  });
+  body.setAttribute("aria-labelledby", `tab-${type}`);
 
   // Retrying an incomplete docs tab must drop the cached (short) answer, or the
   // button would replay the same list and appear to do nothing.
@@ -269,6 +280,29 @@ function render(items) {
     body.innerHTML = `${gap}<div class="list">${items.map(docItemRow).join("")}</div>`;
   }
 }
+
+/**
+ * Arrow keys move between sections, as every tab strip is expected to.
+ *
+ * Home/End jump to the ends. The keys are handled here rather than left to the
+ * browser because `button` elements do not navigate a group on their own — with
+ * `tabindex="-1"` on the unselected tabs, the arrow keys are the *only* way to
+ * reach them from the keyboard, so this is not an enhancement.
+ */
+tabs.addEventListener("keydown", (e) => {
+  const keys = { ArrowRight: 1, ArrowLeft: -1, Home: "first", End: "last" };
+  const move = keys[e.key];
+  if (!move) return;
+  e.preventDefault();
+  const all = [...tabs.querySelectorAll(".tab")];
+  const at = all.indexOf(e.target.closest(".tab"));
+  if (at === -1) return;
+  const next =
+    move === "first" ? 0 : move === "last" ? all.length - 1 : (at + move + all.length) % all.length;
+  const target = all[next];
+  target.focus();
+  load(target.dataset.type);
+});
 
 tabs.addEventListener("click", (e) => {
   const btn = e.target.closest(".tab");

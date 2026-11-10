@@ -63,14 +63,14 @@
       </div>
     </div>
 
-    <div class="tabs" id="tabs">
-      <button class="tab active" data-type="videos">Lectures</button>
-      <button class="tab" data-type="notes">Notes</button>
-      <button class="tab" data-type="DppNotes">DPPs</button>
-      <button class="tab" data-type="DppVideos">DPP Solutions</button>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Chapter sections">
+      <button class="tab active" data-type="videos" role="tab" id="tab-videos" aria-controls="body" aria-selected="true" tabindex="0">Lectures</button>
+      <button class="tab" data-type="notes" role="tab" id="tab-notes" aria-controls="body" aria-selected="false" tabindex="-1">Notes</button>
+      <button class="tab" data-type="DppNotes" role="tab" id="tab-DppNotes" aria-controls="body" aria-selected="false" tabindex="-1">DPPs</button>
+      <button class="tab" data-type="DppVideos" role="tab" id="tab-DppVideos" aria-controls="body" aria-selected="false" tabindex="-1">DPP Solutions</button>
     </div>
 
-    <div id="body" class="mt-4"></div>
+    <div id="body" class="mt-4" role="tabpanel" aria-labelledby="tab-videos" tabindex="0"></div>
   </div>
 </main>
 

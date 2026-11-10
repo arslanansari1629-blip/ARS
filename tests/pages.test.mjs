@@ -1999,3 +1999,59 @@ test("an incomplete notes tab keeps its warning after switching tabs and back", 
   assert.equal(warned(), false, "the lectures tab is wearing the notes warning");
   window.close();
 });
+
+test("the chapter tabs behave like tabs, by keyboard as well as by mouse", async () => {
+  /* The section strip is a tab widget, and it was marked up as four plain
+     buttons: no `aria-selected`, no role, and every one of them a Tab stop. A
+     screen reader therefore announced "Lectures, button" with no indication
+     which section was open, and reaching Notes took four presses of Tab. */
+  const CH =
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222" +
+    "&chapter=69dc843271d06abbf3869763&name=Units";
+
+  const { doc, window } = await render(CH, {
+    settle: 900,
+    fetchWrap: (target) =>
+      new URL(target).pathname === "/api/contents"
+        ? new Response(JSON.stringify({ success: true, ok: true, items: [], contentType: "videos" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        : null,
+  });
+
+  const tablist = doc.getElementById("tabs");
+  assert.equal(tablist.getAttribute("role"), "tablist", "the strip is not marked as a tab list");
+
+  const tabs = [...tablist.querySelectorAll(".tab")];
+  assert.equal(tabs.length, 4);
+  for (const t of tabs) assert.equal(t.getAttribute("role"), "tab", "a section is not a tab");
+  assert.equal(doc.getElementById("body").getAttribute("role"), "tabpanel");
+
+  // Exactly one stop, and exactly one section reported as selected.
+  const selected = () => tabs.filter((t) => t.getAttribute("aria-selected") === "true");
+  assert.equal(selected().length, 1, "more or less than one tab reports itself selected");
+  assert.equal(tabs.filter((t) => t.tabIndex === 0).length, 1, "the strip is not a single Tab stop");
+
+  // Arrow keys move the selection, and the panel follows it.
+  tabs[0].focus();
+  tabs[0].dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(selected()[0].dataset.type, "notes", "ArrowRight did not open the next section");
+  assert.equal(doc.getElementById("body").getAttribute("aria-labelledby"), "tab-notes");
+  assert.equal(doc.activeElement.dataset.type, "notes", "focus did not follow the selection");
+
+  // It wraps, rather than dead-ending on the last section.
+  tabs[1].dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(selected()[0].dataset.type, "videos", "ArrowLeft did not move back");
+
+  // End goes to the last section, Home back to the first.
+  tabs[0].dispatchEvent(new window.KeyboardEvent("keydown", { key: "End", bubbles: true }));
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(selected()[0].dataset.type, "DppVideos", "End did not reach the last section");
+  tabs[3].dispatchEvent(new window.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+  await new Promise((r) => setTimeout(r, 400));
+  assert.equal(selected()[0].dataset.type, "videos", "Home did not reach the first section");
+  window.close();
+});
