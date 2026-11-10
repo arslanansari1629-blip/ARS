@@ -9,9 +9,11 @@ const back = () => {
 retry?.addEventListener("click", back);
 
 // Come back on our own when the connection returns, so the person is not
-// left staring at a page that started working a minute ago.
-addEventListener("online", () => {
-  retry.textContent = "Back online — reloading…";
+// left staring at a page that started working a minute ago. Bound on `window`
+// rather than the bare global: the bare name is absent in an embedding that
+// supplies `window` as a value (service-worker sheet, test harness, webview).
+window.addEventListener("online", () => {
+  if (retry) retry.textContent = "Back online — reloading…";
   setTimeout(back, 600);
 });
 
@@ -28,5 +30,5 @@ const paint = () => {
   }
 };
 paint();
-addEventListener("online", paint);
-addEventListener("offline", paint);
+window.addEventListener("online", paint);
+window.addEventListener("offline", paint);

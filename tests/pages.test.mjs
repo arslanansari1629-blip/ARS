@@ -1649,3 +1649,21 @@ test("a language is spelled the same way in the filter and on the card", async (
   );
   dom.window.close();
 });
+
+test("every page has exactly one h1, and it is in the served HTML", async () => {
+  // A page whose only <h1> is injected after a fetch has none at all until the
+  // request lands — screen readers and search engines see a heading-less page.
+  // batch.html legitimately builds its h1 from the batch name, so it is allowed
+  // to start empty, but it must still have the heading once rendered.
+  const pages = [
+    "/", "/batches.html", "/favourites.html", "/library.html", "/downloads.html",
+    "/login.html", "/viewer.html?url=" + encodeURIComponent("https://static.pw.live/x.pdf") + "&name=Notes.pdf",
+    "/offline.html", "/404.html",
+  ];
+  for (const path of pages) {
+    const { doc, window } = await render(path, { settle: 400 });
+    const h1s = doc.querySelectorAll("h1");
+    assert.equal(h1s.length, 1, `${path} has ${h1s.length} <h1> headings, expected 1`);
+    window.close();
+  }
+});

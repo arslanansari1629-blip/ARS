@@ -85,8 +85,11 @@ function offerUpdate(worker) {
 
 export async function boot({ update = true } = {}) {
   paintPip();
-  addEventListener("online", paintPip);
-  addEventListener("offline", paintPip);
+  // Qualified on purpose: a bare `addEventListener` resolves against the global
+  // object, which does not carry it in every embedding (test harnesses, SSR
+  // shims, some in-app webviews). `window` is the thing that owns the event.
+  window.addEventListener("online", paintPip);
+  window.addEventListener("offline", paintPip);
 
   if (!update) return null;
   const reg = await registerWorker({ onUpdate: offerUpdate });
@@ -97,5 +100,5 @@ export async function boot({ update = true } = {}) {
 if (typeof document !== "undefined" && document.readyState !== "loading") {
   boot().catch(() => {});
 } else if (typeof document !== "undefined") {
-  addEventListener("DOMContentLoaded", () => boot().catch(() => {}), { once: true });
+  window.addEventListener("DOMContentLoaded", () => boot().catch(() => {}), { once: true });
 }
