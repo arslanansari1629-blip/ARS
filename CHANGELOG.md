@@ -237,6 +237,14 @@ quality menu is not a latency win, it is a feature removed. The lesson is the
 table above — a faster number is not a better player, and "measure it in
 production" is not a formality.
 
+**What the number actually was.** A chapter sweep on the live deployment — six
+lectures, seven resolutions — reported `timing { samples: 7, totalMs: 612,
+tokenMs: 9 }` while a single cold request to the same lecture reported 3285 ms.
+The difference is not the probe: it is a cold serverless instance paying for
+connection setup to the mirrors. That is the honest state of the latency work —
+steady-state resolution is ~0.6 s, a cold instance is ~3 s, and the instrument now
+tells you which one you measured instead of leaving you to guess.
+
 **Tests.** 221 total. Ten in `tests/startup-latency.test.mjs`, one in
 `tests/player.test.mjs` and one in `tests/stream-fastpath.test.mjs`; each was run
 against the previous commit and made to fail first. One existing guard pinned the
