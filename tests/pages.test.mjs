@@ -1631,3 +1631,23 @@ test("a permanent stream refusal is explained at once, not after three retries",
   assert.match(doc.body.textContent, /notes/i);
   dom.window.close();
 });
+
+test("a language is spelled the same way in the filter and on the card", async () => {
+  // The filter said "Gujarati" while the cards beside it said "Gujrati" (the
+  // upstream spelling), which reads as a bug because it is one.
+  const { doc, dom } = await render("/batches.html", { waitForSelector: "#grid .batch-card" });
+  const labels = [...doc.querySelectorAll("#grid .pill")].map((p) => p.textContent.trim());
+  assert.ok(!labels.includes("Gujrati"), `card pill still says Gujrati: ${labels.join(",")}`);
+
+  const facets = await (await nativeFetch(`${BASE}/api/batches?facets=1`)).json();
+  const gujarati = facets.languages.find((l) => l.key === "gujarati");
+  assert.equal(gujarati.label, "Gujarati");
+
+  const res = await (await nativeFetch(`${BASE}/api/batches?lang=gujarati`)).json();
+  assert.ok(res.batches.length > 0, "the filter must find the Gujarati batches");
+  assert.ok(
+    res.batches.every((b) => b.language === "Gujarati"),
+    `cards must carry the same spelling: ${[...new Set(res.batches.map((b) => b.language))].join(",")}`
+  );
+  dom.window.close();
+});

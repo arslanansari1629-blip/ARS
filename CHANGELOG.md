@@ -5,6 +5,63 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round Z — the catalogue filters were filtering twenty rows
+
+**The problem.** The catalogue is 14,201 batches across 711 pages, and every
+filter ran in the browser over the twenty rows already on screen:
+
+- The language dropdown was built from those same twenty rows, so it offered only
+  the languages that happened to appear on page 1. Kannada — 70 batches — could
+  not be reached through the UI at all.
+- Choosing a language filtered the current page, usually to nothing, and said
+  "Nothing on this page" as though the catalogue were empty.
+- Sorting did the same, so "Price: low to high" sorted twenty arbitrary batches.
+- "Free only" with an empty search box short-circuited to zero results, because a
+  filter without a query was treated as a search for the empty string.
+
+42% of the catalogue is free (5,854 batches), and none of that was reachable.
+
+**What changed.**
+
+- `lib/catalog.mjs` now applies language, price and sort over the whole catalogue
+  before paging, and `searchLocalCatalog` accepts filters with no query at all —
+  filtering is a browse, not an empty search.
+- A new `?facets=1` endpoint returns every language with its count and the free
+  and paid totals, cached for an hour. The dropdown says "Kannada (70)" and cannot
+  offer the same language twice, because the source spells one language two ways
+  (`Assamese` and `ASSAMESE` were splitting it in half).
+- Misspellings are corrected for display (`Gujrati` → Gujarati, `Bangla` →
+  Bengali) and the aliases are accepted as filter input.
+- The result line reports a range — "1–20 of 14,201" — instead of hiding the scale
+  behind a page number, and filtered views say how many matches exist beyond the
+  first 80.
+- Filters live in the URL, so a filtered view can be linked and reloaded.
+
+**Second problem: the site promised what it could not do.** The home page said
+"watch lectures", the hero said "HD lecture player", and the batch, subject,
+chapter and lecture pages all described themselves as watchable in their meta
+descriptions and structured data — while every playback request was refused.
+Those strings were rewritten, and a quiet, dismissible notice under the nav now
+states what works and what needs an account.
+
+**Third problem: a permanent refusal was retried like a transient one.** A lecture
+page with an unplayable stream retried three times with a widening pause —
+about five seconds of spinner — and then showed the same message. Two bugs came
+out of chasing it: `boot()` awaited a promise it never caught (so a stream error
+abandoned the page on "Loading lecture…" with no message at all), and the player
+spent up to 21 seconds trying three engine sources at seven seconds each before
+falling back to native playback. The engine download is now bounded to nine
+seconds total, with the same-origin copy given a short leash, and a refusal that
+names an access limit is shown immediately with the chapter's notes as the
+primary action.
+
+**Tests.** 10 new (192 total). Several were written to fail against the old code:
+the Kannada filter, the free/paid totals adding up, an empty search with filters,
+a permanent refusal asked exactly once, and a check that no page description says
+"free to watch".
+
+---
+
 ## Round Y1 — a lecture that will not play now says why
 
 **The problem.** A lecture whose stream URL was clearly present in the schedule —
@@ -139,9 +196,10 @@ This is the honest state, not the aspirational one, verified against production 
 
 | Layer | Status |
 | --- | --- |
-| Catalogue (14,201 batches) | **Works** |
+| Catalogue (14,201 batches) | **Works** — searchable, filterable by language and price across the whole catalogue |
 | Batch pages and subject lists | **Works** |
 | Chapter lists | **Works** |
+| Free / paid split | **Works** — 5,854 free, 8,347 paid, filterable |
 | Lecture lists per chapter | **Works** — 13 lectures in one chapter verified |
 | Notes and DPPs | **Works** — PDFs open and download |
 | Lecture playback | **Does not work** — see below |
@@ -157,5 +215,5 @@ relaying changes the answer.
 Nothing that gates downloads behind a generated key was reintroduced; that
 approach was removed and has stayed removed.
 
-**Gates at this commit.** `npm test` → 182 passing. `node scripts/build.mjs` → 15
+**Gates at this commit.** `npm test` → 192 passing. `node scripts/build.mjs` → 15
 pages, 10 API functions, 39 assets, 14,201 batches indexed.
