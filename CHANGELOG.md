@@ -158,6 +158,44 @@ print a raw browser error, and an empty section must link back to the subject.
 
 ---
 
+## Round Z.7 — the warning belonged to the wrong tab
+
+**The bug.** Round Z.5 taught the chapter page to say "Some files did not resolve
+— **Load the rest**" when a notes tab came back shorter than the chapter really
+is. The flag behind it, `partial`, was a single module-level variable, and every
+tab switch goes through the same `load()`. Worse, it was reset *after* the
+cache-hit early return:
+
+```js
+if (cache.has(type)) return render(cache.get(type));  // ← stale flag
+partial = false;
+```
+
+So the flag belonged to whichever tab rendered *last*, and it was wrong in
+both directions, silently:
+
+- **notes (short) → any tab that fetches → notes.** The fetching tab reset
+  `partial` to `false`; the cached notes tab then rendered with it. A tab showing
+  3 of the chapter's 24 notes dropped its own warning and presented the short
+  list as the whole chapter — exactly the failure Z.5 existed to prevent,
+  reintroduced by a cache hit.
+- **The reverse is a false alarm**: a complete list could wear the previous
+  tab's "did not resolve".
+
+**What changed.** `cache` is now `type -> { items, partial }`: the flag is stored
+*with* the list it describes, so a cached render reports what that list actually
+is. The empty-state tab suggestions read `.items` accordingly. Also, `fetchData`
+now `await`s its normaliser — the browser-relay normaliser resolves keyless
+attachments through `GetPdf` (Round Z.6) and is `async`.
+
+**Tests.** 199 total. The new test opens a short notes tab, switches to a tab
+that fetches, switches back, and requires the warning to still be there. It was
+confirmed to fail against the previous `chapter.js` — the first version I wrote
+passed by luck, because the tab I switched to happened to be one that never
+renders a docs warning at all.
+
+---
+
 ## Round Z.6 — the relay made up a PDF link
 
 **The bug.** Round Z.5 fixed the resolver *on the server*. There is a second code

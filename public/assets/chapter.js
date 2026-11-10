@@ -37,8 +37,17 @@ const crumbs = document.getElementById("crumbs");
 const tabs = document.getElementById("tabs");
 
 let type = "videos";
+/**
+ * `type -> { items, partial }`.
+ *
+ * `partial` is stored *with* the list it describes rather than beside it. It
+ * used to be a single module-level flag, so it belonged to whichever tab was
+ * rendered last: switching away and back to a cached tab showed the flag left by
+ * the previous one. A short notes tab silently stopped warning when it was
+ * reopened, and a complete tab could wear another tab's "did not resolve".
+ */
 const cache = new Map();
-/** True when the last section came back shorter than the source listed. */
+/** True when the section being rendered came back shorter than the source said. */
 let partial = false;
 
 if (chapterName) {
@@ -161,7 +170,11 @@ async function load(nextType, { refresh = false } = {}) {
   // Retrying an incomplete docs tab must drop the cached (short) answer, or the
   // button would replay the same list and appear to do nothing.
   if (refresh) cache.delete(type);
-  if (cache.has(type)) return render(cache.get(type));
+  if (cache.has(type)) {
+    const hit = cache.get(type);
+    partial = Boolean(hit.partial);
+    return render(hit.items);
+  }
   partial = false;
 
   body.innerHTML = `<div class="list">${Array.from({ length: 5 })
@@ -170,7 +183,6 @@ async function load(nextType, { refresh = false } = {}) {
 
   try {
     const out = await loadContents(batchId, subjectSlug, chapterId, type);
-    cache.set(type, out.items || []);
     // A notes/DPP tab resolves one storage key per attachment. When PW's
     // rate-limited lookup gives up partway, the tab renders a *shorter* list
     // than the chapter really has, with nothing to say so — which reads as
@@ -179,6 +191,7 @@ async function load(nextType, { refresh = false } = {}) {
     // `failed` = an attachment PW would not resolve; `skipped` = we ran out of
     // budget before asking. Either way the list is short of the truth.
     partial = Boolean(d && ((d.failed || 0) > 0 || (d.skipped || 0) > 0));
+    cache.set(type, { items: out.items || [], partial });
     render(out.items || []);
   } catch (err) {
     /* An upstream that refuses guest sessions is not a broken page: the chapter
@@ -211,9 +224,9 @@ function render(items) {
     // bare "nothing published here" with no way forward. Offer the tabs that do
     // have content, and a route back to the subject.
     const others = Object.keys(TAB_LABELS)
-      .filter((t) => cache.has(t) && (cache.get(t) || []).length)
+      .filter((t) => cache.has(t) && (cache.get(t).items || []).length)
       .map((t) => `<button class="btn btn-ghost btn-sm" type="button" data-goto="${t}">${
-        cache.get(t).length
+        cache.get(t).items.length
       } ${TAB_LABELS[t]}</button>`);
     const back = `<a class="btn btn-ghost btn-sm" href="${subjectHref}">All chapters in this subject</a>`;
     body.innerHTML = emptyState(

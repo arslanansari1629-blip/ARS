@@ -1912,3 +1912,90 @@ test("the browser relay resolves keyless notes instead of inventing a link", asy
   );
   window.close();
 });
+
+test("an incomplete notes tab keeps its warning after switching tabs and back", async () => {
+  /* `partial` is module-level state, and every tab switch goes through the same
+     `load()`. The flag used to be reset *after* the cache-hit early-return, so
+     returning to a cached tab rendered with whatever the *previous* tab had left
+     behind. Both directions are wrong and both are silent:
+
+       notes (short) → videos → notes   loses the warning, so a 3-of-24 list
+                                        presents itself as the whole chapter
+       videos (fine) → notes (cached)   shows "did not resolve" over a list that
+                                        is complete
+
+     The flag belongs to a tab, not to the page. */
+  const CH =
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222" +
+    "&chapter=69dc843271d06abbf3869763&name=Units";
+
+  const shortNotes = () =>
+    new Response(
+      JSON.stringify({
+        success: true,
+        ok: true,
+        contentType: "notes",
+        items: [
+          {
+            id: "n1",
+            title: "Class Notes",
+            docs: [{ name: "Notes.pdf", url: "https://static.pw.live/a.pdf" }],
+          },
+        ],
+        // Three of the chapter's notes never resolved.
+        diagnostics: { listed: 1, attachments: 3, needed: 3, failed: 2, firstError: "throttled" },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
+
+  const lecture = (i) =>
+    JSON.stringify({
+      id: `v${i}`,
+      kind: "video",
+      title: `Lecture ${i}`,
+      status: "Ready",
+      types: ["HLS"],
+      date: `2026-01-0${i + 1}T00:00:00.000Z`,
+    });
+
+  const { doc, window } = await render(CH, {
+    settle: 900,
+    fetchWrap: (target) => {
+      const url = new URL(target);
+      if (url.pathname !== "/api/contents") return null;
+      const type = url.searchParams.get("type") || "videos";
+      if (type === "notes") return shortNotes();
+      return new Response(
+        JSON.stringify({
+          success: true,
+          ok: true,
+          contentType: type,
+          items: [0, 1, 2].map((i) => JSON.parse(lecture(i))),
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    },
+  });
+
+  const body = doc.getElementById("body");
+  const click = async (t) => {
+    const tab = [...doc.querySelectorAll("#tabs .tab")].find((x) => x.dataset.type === t);
+    tab.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 700));
+  };
+  const warned = () => /did not resolve/i.test(body.textContent);
+
+  await click("notes");
+  assert.equal(warned(), true, "a short notes tab must warn the first time");
+
+  // A tab that has to *fetch* runs `partial = false`. Coming back to the
+  // cached notes tab must not inherit that reset — this is the case that failed.
+  await click("DppNotes");
+  await click("notes");
+  assert.equal(warned(), true, "the warning vanished when the cached notes tab was reopened");
+
+  // The reverse: a complete tab must never wear another tab's warning.
+  await click("videos");
+  assert.equal(warned(), false, "the lectures tab is wearing the notes warning");
+  window.close();
+});

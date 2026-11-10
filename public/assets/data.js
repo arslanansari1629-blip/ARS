@@ -43,7 +43,10 @@ async function fetchData(serverPath, upstreamPath, normalizer) {
   }
 
   const json = await upstream(upstreamPath);
-  const out = normalizer(json);
+  // Normalisers may finish the job themselves: the relay path has to call
+  // `GetPdf` for keyless attachments before the list is complete (see
+  // `client-api.js`), so this is awaited rather than assumed synchronous.
+  const out = await normalizer(json);
   return out;
 }
 
