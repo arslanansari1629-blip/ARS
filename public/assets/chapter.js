@@ -175,8 +175,12 @@ async function load(nextType, { refresh = false } = {}) {
     t.setAttribute("aria-selected", String(on));
     // -1 on the unselected tabs, not 0: one stop for the whole strip.
     t.tabIndex = on ? 0 : -1;
+    // Taken from the element rather than rebuilt from `type`: the ids are
+    // `tab-<type>` today, so both spellings work, but reading the tab's own id
+    // means the panel cannot end up pointing at an id nobody owns if either
+    // side is renamed.
+    if (on) body.setAttribute("aria-labelledby", t.id);
   });
-  body.setAttribute("aria-labelledby", `tab-${type}`);
 
   // Retrying an incomplete docs tab must drop the cached (short) answer, or the
   // button would replay the same list and appear to do nothing.
