@@ -5314,7 +5314,7 @@ body.side-rail .side-brand:hover .brand-img {
 /* ==========================================================================
    33 — Resume rail on the dashboard
    --------------------------------------------------------------------------
-   The dashboard's "Continue watching" was a list with no progress in it. The
+   The dashboard's lecture list used to show no progress at all. The
    player already saves a position per lecture, so this band reads those and
    shows the three facts a resume needs: which lecture, how far in, and a way
    back to it.

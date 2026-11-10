@@ -36,7 +36,7 @@ if (session) {
    * Resume rail + watch time.
    *
    * The player saves its position under `pos:<lectureId>` every few seconds;
-   * nothing on the dashboard ever read it, so "Continue watching" was a list of
+   * nothing on the dashboard ever read it, so the lecture list was a set of
    * lectures with no idea how far in you were. Reading the same keys costs no
    * request and is always current, because the player writes them.
    */

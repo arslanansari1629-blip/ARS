@@ -527,7 +527,7 @@ async function renderSpace() {
   // lectures" is otherwise a mystery, and so is the reverse.
   const kept = await countKeptDocs();
   const tail = kept ? ` · ${kept} note${kept === 1 ? "" : "s"} kept` : "";
-  spaceText.textContent = `${fmtBytes(used)} in lectures${tail} · ${fmtBytes(est.usage)} used of ${fmtBytes(
+  spaceText.textContent = `${fmtBytes(used)} in saved files${tail} · ${fmtBytes(est.usage)} used of ${fmtBytes(
     est.quota
   )} available`;
 }

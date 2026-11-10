@@ -101,6 +101,26 @@ instead: the page must say *Offline reading*, must mention notes and PDFs, must
 state that video cannot be kept, and must **not** mention MPEG-TS. 193 total,
 all passing.
 
+**What the first pass missed.** Live-checking the deployed pages found the
+promises that lived in UI chrome rather than prose:
+
+- The hero carried a play-button chip reading **"Live lectures"** — the most
+  prominent claim on the site, and wrong. It is now "Chapter-wise PDFs" with a
+  document icon.
+- `/downloads` still said a saved lecture "stays in this browser, and plays
+  here", filtered "saved lectures", and reported storage as "0 B in lectures".
+  All three now talk about saved files.
+- The dashboard's "Watched on this device" counter can never move, because video
+  never plays; it is now "Position saved". Its "Continue watching" panel is
+  "Recent lectures".
+- `viewer.html` had no `<h1>` at all — its document title was a `<div>`.
+- `offline-boot.js` and `offline-page.js` bound `addEventListener` on the bare
+  global instead of `window`, which throws wherever `window` is supplied as a
+  value and aborted the whole module.
+
+The no-promise test now also rejects "Live lectures", "plays here" and "in
+lectures", so chrome cannot drift back.
+
 ---
 
 ## Round Y1 — a lecture that will not play now says why

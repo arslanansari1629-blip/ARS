@@ -1524,6 +1524,15 @@ test("no page promises playback it cannot deliver, and none nags", async () => {
   assert.doesNotMatch(home, /watch lectures/i);
   assert.doesNotMatch(home, /HD<\/strong><span>lecture player/);
 
+  // The hero carried a play-button chip reading "Live lectures", and /downloads
+  // described a saved lecture as playing "here" with the note "No expiry". Both
+  // survived the first copy pass because they were UI chrome, not prose.
+  assert.doesNotMatch(home, /live lectures/i, "the hero still offers a lecture player");
+  const dl = await (await nativeFetch(`${BASE}/downloads.html`)).text();
+  assert.doesNotMatch(dl, /plays here/i, "the empty state still promises a playing lecture");
+  assert.doesNotMatch(dl, /in lectures/i, "the storage line still claims lectures are saved");
+  assert.doesNotMatch(dl, /Download lectures/i);
+
   dom.window.close();
 });
 
