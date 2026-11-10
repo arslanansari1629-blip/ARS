@@ -131,7 +131,9 @@ export async function loadContents(batch, subject, topic, type) {
   return fetchData(
     `/api/contents?batch=${encodeURIComponent(batch)}&subject=${encodeURIComponent(subject)}&topic=${encodeURIComponent(topic)}&type=${encodeURIComponent(type)}`,
     `/TopicInfo?BatchId=${encodeURIComponent(batch)}&SubjectId=${encodeURIComponent(subject)}&TopicId=${encodeURIComponent(topic)}&ContentType=${encodeURIComponent(type)}&page=1`,
-    (json) => normalizeContents(json, type)
+    // The relay has to be told which batch and subject the attachments belong
+    // to: resolving a keyless PDF means calling `GetPdf` with all four ids.
+    (json) => normalizeContents(json, type, batch, subject)
   );
 }
 
@@ -147,7 +149,7 @@ export async function loadLecture(batch, subject, id) {
   return fetchData(
     `/api/lecture?batch=${encodeURIComponent(batch)}&subject=${encodeURIComponent(subject)}&id=${encodeURIComponent(id)}`,
     `/Schedule?BatchId=${encodeURIComponent(batch)}&SubjectId=${encodeURIComponent(subject)}&ContentId=${encodeURIComponent(id)}`,
-    (json) => normalizeSchedule(json, id)
+    (json) => normalizeSchedule(json, id, batch, subject)
   );
 }
 

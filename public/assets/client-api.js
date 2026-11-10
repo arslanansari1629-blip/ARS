@@ -51,6 +51,74 @@ export async function upstream(target) {
   throw err;
 }
 
+/* --------------------------- PDF key resolution --------------------------- */
+
+/**
+ * `attachmentId -> storage key`, for the browser-relay path.
+ *
+ * The server route resolves unkeyed attachments through `GetPdf` before it
+ * answers (see `lib/api-data.mjs`). When the server cannot reach PW at all the
+ * page falls back to this module and fetches the same JSON in the browser —
+ * and that path used to skip `GetPdf` entirely, so every unkeyed Class Notes
+ * attachment rendered as a dead link (`static.pw.live/<attachmentId>`). The
+ * relay has to finish the job or the tab is wrong in a different way.
+ *
+ * Only successes are stored, for the same reason as the server: `GetPdf` is
+ * rate-limited, and remembering "throttled once" as "never resolvable" is how
+ * a whole tab stays empty for the rest of the session.
+ */
+const keyCache = new Map();
+
+/** Ask PW for an attachment's storage key. `""` means it could not be had. */
+async function pdfKey(batchId, subjectSlug, pdfId, attachmentId) {
+  const cacheKey = `${pdfId}:${attachmentId}`;
+  const known = keyCache.get(cacheKey);
+  if (known) return known;
+  if (!batchId || !subjectSlug || !pdfId || !attachmentId) return "";
+  try {
+    const json = await upstream(
+      `/GetPdf?BatchId=${encodeURIComponent(batchId)}&SubjectId=${encodeURIComponent(
+        subjectSlug
+      )}&PdfId=${encodeURIComponent(pdfId)}&AttachmentId=${encodeURIComponent(attachmentId)}`
+    );
+    const d = json && json.data;
+    const key = d && (d.key || d.path);
+    if (key) keyCache.set(cacheKey, String(key));
+    return key ? String(key) : "";
+  } catch {
+    // A relay failure here is not fatal: the rest of the tab still renders, and
+    // the row says the file did not resolve instead of lying about it.
+    return "";
+  }
+}
+
+/**
+ * Resolve the attachments that arrived without a storage key, three at a time.
+ *
+ * The cap matters as much as it does on the server: a 118-entry chapter asked
+ * for all at once is throttled into returning nothing at all.
+ */
+async function resolveDocUrls(docs, batchId, subjectSlug) {
+  const CONCURRENCY = 3;
+  let cursor = 0;
+  let failed = 0;
+  async function worker() {
+    while (cursor < docs.length) {
+      const doc = docs[cursor++];
+      const key = await pdfKey(batchId, subjectSlug, doc.pdfId, doc.attachmentId);
+      if (key) {
+        doc.url = `${ASSET_BASE}${String(key).replace(/^\/+/, "")}`;
+        delete doc.pending;
+      } else {
+        failed++;
+      }
+    }
+  }
+  const start = Math.min(CONCURRENCY, docs.length);
+  await Promise.all(Array.from({ length: start }, worker));
+  return { needed: docs.length, failed };
+}
+
 /* ------------------------------ normalisers ------------------------------ */
 
 const ASSET_BASE = "https://static.pw.live/";
@@ -66,6 +134,13 @@ export function asset(input) {
   const base = (input.baseUrl || ASSET_BASE).replace(/\/+$/, "");
   const rel = input.key || input.path;
   if (rel) return `${base}/${String(rel).replace(/^\/+/, "")}`;
+  // An attachment that *carries* a `key` field but leaves it empty is PW saying
+  // "this object has no storage key" — the file is only reachable through
+  // `GetPdf`. Falling back to the attachment `_id` here invented a URL that
+  // looks real (`static.pw.live/<id>`), so the row rendered a PDF link that
+  // 403s and the file could never be resolved. Only descriptors that have no
+  // key field at all (some cover images are addressed by id) may use `_id`.
+  if ("key" in input || "path" in input) return "";
   if (input._id) return `${base}/${input._id}`;
   return "";
 }
@@ -181,7 +256,7 @@ export function normalizeChapters(json) {
   };
 }
 
-export function normalizeContents(json, contentType) {
+export async function normalizeContents(json, contentType, batchId = "", subjectSlug = "") {
   const arr = (json && json.data) || [];
   const isVideo = contentType === "videos" || contentType === "DppVideos";
 
@@ -202,13 +277,20 @@ export function normalizeContents(json, contentType) {
     const push = (hw) => {
       for (const att of hw.attachmentIds || []) {
         const url = asset(att);
-        if (!url) continue;
+        // An attachment with no key and no URL is not a missing document — it
+        // is one whose key only `GetPdf` can name. Keep it (with `pending`) so
+        // the resolver below can fill `url` in; dropping it here is what made
+        // the relay render a shorter notes list than the chapter really has.
+        if (!url && !att._id) continue;
         docs.push({
           id: att._id || hw._id,
           name: (att.name || hw.topic || "Document").trim(),
           topic: hw.topic || "",
           note: hw.note || "",
           url,
+          pdfId: item._id,
+          attachmentId: att._id || "",
+          ...(url ? {} : { pending: true }),
         });
       }
     };
@@ -224,8 +306,27 @@ export function normalizeContents(json, contentType) {
     };
   });
 
-  if (isVideo) items.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  return { success: true, items, contentType };
+  if (isVideo) {
+    items.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    return { success: true, items, contentType };
+  }
+
+  // Same contract the server route answers with, so the chapter page can report
+  // an incomplete tab identically whichever path produced it.
+  const pending = items.flatMap((it) => (it.docs || []).filter((d) => d.pending));
+  const diagnostics = { listed: items.length, attachments: pending.length, needed: pending.length, failed: 0 };
+  if (pending.length) {
+    const { failed } = await resolveDocUrls(pending, batchId, subjectSlug);
+    diagnostics.failed = failed;
+    // A row whose only attachment never resolved would render "No file
+    // attached", which is a claim about the chapter rather than about the
+    // lookup. Drop those rows and let `failed` say why the list is short.
+    for (const it of items) {
+      it.docs = (it.docs || []).filter((d) => d.url);
+    }
+  }
+  for (const it of items) for (const d of it.docs || []) delete d.pending;
+  return { success: true, items, contentType, diagnostics };
 }
 
 export function normalizeAnnouncements(json) {
@@ -250,27 +351,40 @@ export function normalizeAnnouncements(json) {
   };
 }
 
-export function normalizeSchedule(json, contentId) {
+export async function normalizeSchedule(json, contentId, batchId = "", subjectSlug = "") {
   const d = json && json.data;
   if (!d) throw new Error("Lecture not found");
   const docs = [];
   const seen = new Set();
+  const pending = [];
   const push = (hw) => {
     for (const att of hw.attachmentIds || []) {
       const url = asset(att);
-      if (!url || seen.has(url)) continue;
-      seen.add(url);
-      docs.push({
+      if (url) {
+        if (seen.has(url)) continue;
+        seen.add(url);
+      }
+      const doc = {
         id: att._id || hw._id,
         name: (att.name || hw.topic || "Document").trim(),
         topic: hw.topic || "",
         note: hw.note || "",
         url,
-      });
+        pdfId: d._id,
+        attachmentId: att._id || "",
+      };
+      docs.push(doc);
+      // Attachments arrive without a key; the lecture page must not show them
+      // as downloadable until `GetPdf` has named one.
+      if (!url) pending.push(doc);
     }
   };
   for (const hw of d.homeworkIds || []) push(hw);
   if (d.dpp && Array.isArray(d.dpp.homeworkIds)) d.dpp.homeworkIds.forEach(push);
+
+  if (pending.length) await resolveDocUrls(pending, batchId, subjectSlug);
+  // A file that did not resolve is not a file with a dead link.
+  for (let i = docs.length - 1; i >= 0; i--) if (!docs[i].url) docs.splice(i, 1);
 
   const vd = d.videoDetails || {};
   return {

@@ -158,6 +158,54 @@ print a raw browser error, and an empty section must link back to the subject.
 
 ---
 
+## Round Z.6 — the relay made up a PDF link
+
+**The bug.** Round Z.5 fixed the resolver *on the server*. There is a second code
+path with its own copy of the logic: when the server cannot reach PW at all,
+`/api/contents` answers `{ needsProxy: true }` and `data.js` refetches the same
+JSON in the browser through a CORS relay. Two faults lived there, and both were
+invisible from the server-side tests because the server resolves the key before
+it answers:
+
+- `asset()` ends with `if (input._id) return base + "/" + input._id`. PW sends
+  every Class Notes attachment with a `key` field that is **empty** — that is PW
+  saying "this object has no storage key, ask `GetPdf`". The fallback ignored
+  that and produced `https://static.pw.live/6a01ef0c6c4a24dd586b1d8c`: a URL
+  that looks exactly like a real one. The row rendered a PDF badge, an **Open**
+  and a **Download** button, and every one of them 403s.
+- The relay never called `GetPdf`. So on this path nothing ever filled the gap,
+  and the fabricated link was the *only* thing the student got.
+
+The result is the worst shape a bug can take: a chapter whose notes look
+complete and are all broken, with no way to tell that from the chapter simply not
+having notes.
+
+**What changed.** `public/assets/client-api.js`:
+
+- `asset()` no longer invents a URL from an `_id` when the descriptor carries a
+  `key`/`path` field that is empty. Descriptors with *no* key field at all (some
+  cover images are addressed by id) still resolve, so nothing else regressed.
+- `normalizeContents` and `normalizeSchedule` keep keyless attachments as
+  `pending` instead of dropping them, then resolve them through
+  `GetPdf?BatchId&SubjectId&PdfId&AttachmentId` at the same three-at-a-time
+  concurrency the server uses — a 118-entry chapter asked all at once is
+  throttled into returning nothing.
+- Same cache discipline as the server: **only successes** are remembered, so one
+  throttled response does not poison the attachment for the rest of the session.
+- The relay now returns the same `diagnostics` shape the server route does, so
+  the chapter page's "Some files did not resolve / **Load the rest**" affordance
+  works identically on both paths. That includes dropping a row whose only
+  attachment failed, rather than rendering it as "No file attached" — which would
+  be a claim about the chapter instead of about the lookup.
+
+**Tests.** 198 total. A new page test drives the real chapter page through the
+relay path with PW throttling the first attempt, and asserts that no
+`static.pw.live/<attachmentId>` link is ever rendered, that the tab says it is
+short, and that the retry resolves the real key. Verified to fail against the
+previous `client-api.js`.
+
+---
+
 ## Round Z.5 — the notes tab was shorter than the chapter
 
 **The bug.** Every note and DPP PDF arrives from PW's listing *without* a storage

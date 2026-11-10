@@ -1800,3 +1800,115 @@ test("a notes tab that resolves only some attachments says so", async () => {
   window.close();
 });
 
+
+test("the browser relay resolves keyless notes instead of inventing a link", async () => {
+  /* When the server cannot reach PW at all, `/api/contents` answers
+     `{ needsProxy: true }` and `data.js` fetches the same JSON in the browser.
+     That path had two faults of its own:
+
+       1. `asset()` fell back to the attachment `_id` whenever `key` was absent,
+          so an attachment PW had explicitly left keyless became
+          `static.pw.live/<attachmentId>` — a URL that looks right, renders a
+          "Download" button, and 403s. The student sees a chapter whose notes
+          are all broken rather than a chapter whose notes need a lookup.
+       2. The relay never called `GetPdf`, so nothing ever filled the gap.
+
+     Both are invisible from the server-side tests because the server route
+     resolves the key before it answers. This drives the real page through the
+     relay path, with PW throttling the first attempt. */
+  const CH =
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822" +
+    "&chapter=6a6b461cce4ac4e9ab51ee98&name=Ch%2001";
+
+  let throttled = true;
+  const getPdf = [];
+
+  const relayListing = () =>
+    JSON.stringify({
+      data: [
+        {
+          _id: "69ff18a7ef0d5bb3113d55b1",
+          topic: "Units and Measurement 13 : Class Notes",
+          startTime: "2026-05-11T12:45:00.000Z",
+          homeworkIds: [
+            {
+              _id: "6a01ef0fb9a30be431546b84",
+              topic: "Units and Measurement 13 : Class Notes",
+              note: "Class Notes",
+              // Exactly what PW ships: a key field, empty.
+              attachmentIds: [
+                {
+                  _id: "6a01ef0c6c4a24dd586b1d8c",
+                  baseUrl: "https://static.pw.live/",
+                  key: "",
+                  name: "Units and Measurement 13 Class Notes.pdf",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+  const { doc, window } = await render(CH, {
+    settle: 600,
+    fetchWrap: (target) => {
+      const url = new URL(target);
+      if (url.pathname === "/api/contents") {
+        return new Response(
+          JSON.stringify({ success: true, needsProxy: true, key: "items", reason: "blocked", auth: false }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      // The relay URL wraps the upstream URL in a query parameter.
+      const inner = decodeURIComponent(target.href || String(target));
+      if (/GetPdf/.test(inner)) {
+        getPdf.push(inner);
+        return throttled
+          ? new Response("{}", { status: 429, headers: { "content-type": "application/json" } })
+          : new Response(
+              JSON.stringify({ success: true, data: { key: "5eb3/ADMIN/resolved.pdf" } }),
+              { status: 200, headers: { "content-type": "application/json" } }
+            );
+      }
+      if (/TopicInfo/.test(inner)) {
+        return new Response(relayListing(), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return null;
+    },
+  });
+
+  const openNotes = async () => {
+    const tab = [...doc.querySelectorAll("#tabs .tab")].find((t) => t.dataset.type === "notes");
+    tab.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 900));
+  };
+
+  await openNotes();
+  const body = doc.getElementById("body");
+
+  // Fault 1: no fabricated download. The dead link must not exist at all.
+  const hrefs = [...body.querySelectorAll("a")].map((a) => a.getAttribute("href") || "");
+  assert.equal(
+    hrefs.some((h) => /static\.pw\.live\/6a01ef0c6c4a24dd586b1d8c/.test(h)),
+    false,
+    "the attachment id was turned into a fake storage URL"
+  );
+  // And the tab is honest about being short rather than silently empty.
+  assert.match(body.textContent, /did not resolve|Load the rest/i, body.textContent.slice(0, 300));
+  assert.ok(getPdf.length >= 1, "the relay never asked GetPdf for the key");
+
+  // Fault 2: the next attempt actually resolves it, and the row becomes real.
+  throttled = false;
+  await openNotes();
+  const retry = [...body.querySelectorAll("[data-retry]")];
+  if (retry.length) retry[0].dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 1200));
+
+  const links = [...body.querySelectorAll("a")].map((a) => a.getAttribute("href") || "");
+  assert.ok(
+    links.some((h) => /resolved\.pdf/.test(decodeURIComponent(h))),
+    `the resolved PDF never rendered: ${links.join(" | ")}`
+  );
+  window.close();
+});
