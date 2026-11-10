@@ -47,20 +47,51 @@ async function fetchData(serverPath, upstreamPath, normalizer) {
   return out;
 }
 
-export async function loadCatalog(page = 1) {
+/**
+ * Query string for the catalogue filters.
+ *
+ * These are sent to the server, not applied here: the catalogue is 14,201 rows
+ * over 711 pages, and filtering the twenty already on screen is not filtering.
+ * An empty value is omitted so the routes keep their cacheable default shape.
+ */
+function catalogQuery({ page = 1, term = "", lang = "", price = "", sort = "" } = {}) {
+  const qs = new URLSearchParams();
+  if (term) qs.set("search", term);
+  if (lang) qs.set("lang", lang);
+  if (price && price !== "all") qs.set("price", price);
+  if (sort && sort !== "default") qs.set("sort", sort);
+  if (page && page !== 1) qs.set("page", String(page));
+  return qs.toString();
+}
+
+export async function loadCatalog(page = 1, filters = {}) {
+  const query = catalogQuery({ ...filters, page });
+  const search = filters.term || filters.lang || (filters.price && filters.price !== "all");
   return fetchData(
-    `/api/batches?page=${page}`,
+    `/api/batches${query ? `?${query}` : ""}`,
     `/AllBatches?page=${page}`,
-    (json) => normalizeCatalog(json, page)
+    // A filtered listing comes back in the search shape (one page of best hits),
+    // so it must be normalised the same way or the pager loses its totals.
+    (json) => (search ? normalizeSearch(json, page) : normalizeCatalog(json, page))
   );
 }
 
-export async function searchBatches(term) {
+export async function searchBatches(term, filters = {}) {
+  const query = catalogQuery({ ...filters, term });
   return fetchData(
-    `/api/batches?search=${encodeURIComponent(term)}`,
+    `/api/batches?${query}`,
     `/searchBatch?name=${encodeURIComponent(term)}`,
     (json) => normalizeSearch(json)
   );
+}
+
+/** Languages and price counts for the filter controls. */
+export async function loadFacets() {
+  const data = await getJson("/api/batches?facets=1");
+  return {
+    languages: Array.isArray(data.languages) ? data.languages : [],
+    prices: data.prices || { free: 0, paid: 0, total: 0 },
+  };
 }
 
 export async function loadBatch(id) {

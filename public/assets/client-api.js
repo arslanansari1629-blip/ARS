@@ -99,10 +99,18 @@ export function normalizeCatalog(json, page = 1) {
   };
 }
 
-export function normalizeSearch(json) {
+export function normalizeSearch(json, page = 1) {
+  const batches = ((json && json.batches) || []).map(batch).filter(Boolean);
+  // `total` is the number of matches across the whole catalogue, which is not the
+  // length of this list: the API caps a first page at 80 hits. Dropping it made
+  // the page report "80 results" for a search that really had 143.
   return {
     success: true,
-    batches: ((json && json.batches) || []).map(batch).filter(Boolean),
+    batches,
+    page: (json && json.page) || page,
+    totalPages: (json && json.totalPages) || 1,
+    total: typeof json?.total === "number" ? json.total : batches.length,
+    unfilteredTotal: typeof json?.unfilteredTotal === "number" ? json.unfilteredTotal : undefined,
   };
 }
 

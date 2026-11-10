@@ -273,8 +273,17 @@ test("batches page lists catalogue with pager and result count", async () => {
   assert.ok(doc.querySelectorAll("#grid .batch-card").length >= 2);
   assert.match(doc.getElementById("resultCount").textContent, /14,201 batches/);
   assert.ok(doc.querySelectorAll("#pager button").length >= 3);
+  // The dropdown offers every language in the catalogue with its count, not just
+  // the languages that happened to appear on this page of twenty.
   const langs = [...doc.querySelectorAll("#langFilter option")].map((o) => o.textContent);
-  assert.ok(langs.includes("Hinglish"), langs.join(","));
+  assert.ok(
+    langs.some((l) => /^Hinglish\b/.test(l)),
+    langs.join(",")
+  );
+  assert.ok(
+    langs.some((l) => /^Kannada\b/.test(l)),
+    "Kannada has 70 batches that are nowhere near page 1; the filter must offer it"
+  );
   dom.window.close();
 });
 
@@ -1449,4 +1458,81 @@ test("a migrated batch page is not reported as degraded", async () => {
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("the language filter searches the whole catalogue, not the visible page", async () => {
+  // Production bug: the dropdown was built from the batches on the current page
+  // and the filter ran in the browser over those same twenty rows. Kannada has
+  // 70 batches spread across 711 pages, so "filter by Kannada" showed an empty
+  // grid on page 1 and the batch could not be reached at all.
+  const facets = await (await nativeFetch(`${BASE}/api/batches?facets=1`)).json();
+  assert.equal(facets.success, true);
+  const kannada = facets.languages.find((l) => l.key === "kannada");
+  assert.ok(kannada, "Kannada must be offered as a filter");
+  assert.equal(kannada.count, 70);
+  // One entry per language: the catalogue contains both "ASSAMESE" and
+  // "Assamese", which used to appear twice and split the same language in half.
+  const assamese = facets.languages.filter((l) => /assam/i.test(l.label));
+  assert.equal(assamese.length, 1, JSON.stringify(assamese));
+
+  const res = await nativeFetch(`${BASE}/api/batches?lang=kannada`);
+  const body = await res.json();
+  assert.equal(body.total, 70);
+  assert.ok(body.batches.length > 20, "every Kannada batch should be returned, not one page");
+  assert.ok(body.batches.every((b) => /kannada/i.test(b.language)));
+});
+
+test("price filters and sorting apply to the whole catalogue", async () => {
+  const free = await (await nativeFetch(`${BASE}/api/batches?price=free`)).json();
+  assert.ok(free.total > 5000, `expected thousands of free batches, got ${free.total}`);
+  assert.ok(free.batches.every((b) => b.feeTotal === 0), "a free filter must only return free batches");
+
+  const paid = await (await nativeFetch(`${BASE}/api/batches?price=paid`)).json();
+  assert.ok(paid.batches.every((b) => (b.feeTotal || 0) > 0));
+
+  // Both halves must add up: a filter that silently drops rows is worse than none.
+  const total = await (await nativeFetch(`${BASE}/api/batches?page=1`)).json();
+  assert.equal(free.total + paid.total, total.total);
+
+  const cheap = await (await nativeFetch(`${BASE}/api/batches?sort=price&pageSize=10`)).json();
+  const fees = cheap.batches.map((b) => b.feeTotal);
+  assert.deepEqual(fees, [...fees].sort((a, b) => a - b), `not sorted: ${fees}`);
+});
+
+test("filtering an empty search is a browse, not an empty result", async () => {
+  // "Free only" with an empty search box used to short-circuit to no results,
+  // because a filter without a query was treated as a search for "".
+  const res = await nativeFetch(`${BASE}/api/batches?price=free&lang=kannada`);
+  const body = await res.json();
+  assert.equal(body.success, true);
+  assert.ok(body.total > 0, "a filter with no search term must still return batches");
+  assert.ok(body.batches.every((b) => b.feeTotal === 0 && /kannada/i.test(b.language)));
+});
+
+test("every page states the playback limit instead of promising playback", async () => {
+  // The site used to say "watch lectures" on the home page while PW refused every
+  // signing request, so a visitor read that as a broken site. The limitation has
+  // to be visible, once, on every page — and dismissible, because it is a note
+  // and not an error.
+  const { doc, dom } = await render("/batches.html", { waitForSelector: "#grid .batch-card" });
+  const notice = doc.querySelector("#statusNotice .status-notice");
+  assert.ok(notice, "the status notice must render");
+  assert.match(notice.textContent, /notes/i);
+  assert.match(notice.textContent, /does not have|need a signed-in/i);
+  assert.ok(doc.querySelector("#statusNotice .status-close"), "it must be dismissible");
+
+  // The home page must not promise playback in its hero or its meta description.
+  const home = await (await nativeFetch(`${BASE}/`)).text();
+  assert.doesNotMatch(home, /watch lectures/i);
+  assert.doesNotMatch(home, /HD<\/strong><span>lecture player/);
+
+  dom.window.close();
+});
+
+test("the catalogue reports a range, not just a page number", async () => {
+  const { doc, dom } = await render("/batches.html", { waitForSelector: "#grid .batch-card" });
+  const text = doc.getElementById("resultCount").textContent;
+  assert.match(text, /14,201 batches/);
+  assert.match(text, /1–20 of 14,201/, text);
+  dom.window.close();
 });

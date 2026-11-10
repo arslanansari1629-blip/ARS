@@ -6290,3 +6290,64 @@ body.side-rail .side-brand:hover .brand-img {
 .toast.info {
   border-left-color: var(--cyan);
 }
+
+/* ------------------------------------------------------------------ */
+/* Service status notice                                              */
+/* ------------------------------------------------------------------ */
+
+/* A quiet, dismissible statement of what works. Not an alert: nothing is
+   broken on this side, and it must not compete with the page content. */
+.status-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 14px 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line, #2a2f3a);
+  border-radius: 12px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.status-notice p {
+  margin: 0;
+  flex: 1;
+  color: var(--muted, #a6adbb);
+}
+
+.status-notice strong {
+  color: var(--text, #e8ecf3);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: #e0a83a;
+  flex: none;
+}
+
+.status-close {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted, #a6adbb);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.status-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text, #e8ecf3);
+}
+
+.status-close:focus-visible {
+  outline: 2px solid var(--brand, #6c8cff);
+  outline-offset: 2px;
+}
