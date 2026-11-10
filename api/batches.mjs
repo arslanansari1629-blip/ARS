@@ -1,5 +1,5 @@
 import { json, cors, query, methodNotAllowed, proxyFallback } from "../lib/http.mjs";
-import { CATALOG_SORTS as SORTS } from "../lib/catalog.mjs";
+import { CATALOG_SORTS as SORTS, normaliseSort } from "../lib/catalog.mjs";
 import { fetchCatalogPage, searchCatalog } from "../lib/api-data.mjs";
 import {
   searchLocalCatalog,
@@ -14,7 +14,8 @@ import {
  * GET /api/batches?search=arjuna        → search across every batch
  * GET /api/batches?facets=1             → languages and price counts for the filters
  *
- * `lang`, `price` (free|paid) and `sort` (name|newest|price|free) are applied
+ * `lang`, `price` (free|paid) and `sort` (name|newest|price-asc|price-desc) are
+ * applied
  * over the whole catalogue before paging. They used to be applied in the browser
  * to the twenty rows already fetched, which is why filtering by a language with
  * 70 batches across 711 pages usually showed an empty grid.
@@ -39,7 +40,11 @@ export default async function handler(req, res) {
       return json(res, 200, { success: true, languages, prices, catalog: CATALOG_SOURCE }, 3600);
     }
 
-    const filters = { lang, price, sort: SORTS.has(sort) ? sort : "default" };
+    // Echo the sort the catalogue actually applied, not the raw query string:
+    // a legacy ?sort=price is really "price-asc", and reporting "price" back
+    // would describe a sort key this API no longer has.
+    const wanted = normaliseSort(sort);
+    const filters = { lang, price, sort: SORTS.has(wanted) ? wanted : "default" };
 
     if (search || lang || (price && price !== "all")) {
       let out = null;

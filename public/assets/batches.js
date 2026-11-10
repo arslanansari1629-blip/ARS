@@ -28,8 +28,12 @@ const resultCount = document.getElementById("resultCount");
 // A deep link with ?lang= pre-applies the language filter, so a sidebar entry
 // like "Hinglish batches" can point at a real filtered view.
 const initialLang = qs("lang") || "";
-const SORTS = ["name", "newest", "price", "free"];
-const initialSort = SORTS.includes(qs("sort")) ? qs("sort") : "default";
+const SORTS = ["name", "newest", "price-asc", "price-desc"];
+// Old links used ?sort=price / ?sort=free; keep them working.
+const SORT_ALIASES = { price: "price-asc", free: "price-desc" };
+const initialSort = SORTS.includes(SORT_ALIASES[qs("sort")] || qs("sort"))
+  ? SORT_ALIASES[qs("sort")] || qs("sort")
+  : "default";
 const initialPrice = ["free", "paid"].includes(qs("price")) ? qs("price") : "all";
 const state = {
   page: 1,

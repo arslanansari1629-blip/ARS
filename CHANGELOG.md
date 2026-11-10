@@ -123,6 +123,32 @@ lectures", so chrome cannot drift back.
 
 ---
 
+## Round Z.3 — the sort dropdown had a key collision
+
+**The problem.** The price sort was encoded as `?sort=free` for "Price: high to
+low" — the same string the price *filter* uses for "Free only". The two
+controls therefore could not be reasoned about separately, and the sort was
+silently dropped: `/api/batches?price=free&sort=price-asc` came back with
+`filters.sort: "default"` and rows in catalogue order. Nothing errored, which is
+why it survived the filter round.
+
+**What changed.** Sort keys are now self-describing — `price-asc` and
+`price-desc` — and cannot collide with `free` / `paid` / `all`:
+
+- `lib/catalog.mjs` exports `normaliseSort`, which maps the old bookmarked keys
+  (`price` → `price-asc`, `free` → `price-desc`) so existing links keep working,
+  and `applyFilters` normalises before checking the sort set.
+- `/api/batches` echoes the sort it actually applied rather than the raw query
+  string, so a legacy `?sort=price` reports `price-asc` instead of a key the API
+  no longer has.
+- The dropdown values match, and `batches.js` resolves aliases when reading
+  `?sort=`.
+
+A new test asserts the two controls stay separate: no sort key may equal a price
+filter value, and the legacy aliases keep their original meaning. 195 total.
+
+---
+
 ## Round Y1 — a lecture that will not play now says why
 
 **The problem.** A lecture whose stream URL was clearly present in the schedule —
