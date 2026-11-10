@@ -245,7 +245,16 @@ connection setup to the mirrors. That is the honest state of the latency work �
 steady-state resolution is ~0.6 s, a cold instance is ~3 s, and the instrument now
 tells you which one you measured instead of leaving you to guess.
 
-**Tests.** 221 total. Ten in `tests/startup-latency.test.mjs`, one in
+**And the wait says what it is waiting for.** The last honest numbers were ~0.6 s
+steady state and ~3 s on a cold instance, and a cold instance is not something the
+player can remove — so the wait was made legible instead. The overlay now carries
+a live line naming the real work ("Asking Physics Wallah for a signed link…") and a
+running count, in a polite live region. "Preparing your lecture…" for eight seconds
+is indistinguishable from a hung page; a number tells a student whether to keep
+waiting or reload. The clock stops on every exit — error, success, overlay close —
+because a counter that keeps running under an error message is worse than none.
+
+**Tests.** 222 total. Ten in `tests/startup-latency.test.mjs`, one in
 `tests/player.test.mjs` and one in `tests/stream-fastpath.test.mjs`; each was run
 against the previous commit and made to fail first. One existing guard pinned the
 exact template layout of the stream query string and broke when `&level=` was

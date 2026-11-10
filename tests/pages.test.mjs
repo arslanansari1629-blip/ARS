@@ -2133,3 +2133,33 @@ test("the seek slider announces a time, not a percentage", async () => {
   assert.ok(scrubber.getAttribute("aria-valuemax"), "the slider has no maximum");
   window.close();
 });
+
+test("the wait says what it is waiting for, and for how long", async () => {
+  // "Preparing your lecture…" for eight seconds is indistinguishable from a hung
+  // page. The overlay now carries a live line naming the actual work and a
+  // running count, in a polite live region so it is read out rather than only
+  // seen.
+  const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  const src = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
+
+  assert.match(html, /id="overlayNote"/, "the loading overlay has nowhere to explain itself");
+  assert.match(
+    html,
+    /id="overlayNote"[^>]*aria-live="polite"/,
+    "the status line is not announced to a screen reader"
+  );
+
+  assert.match(src, /signed link/i, "the status line never names the actual wait");
+  assert.match(src, /function stopWaiting/, "the clock is never stopped");
+  // The clock must stop on every exit, or it keeps counting behind an error.
+  assert.match(
+    src,
+    /function showMessage\([\s\S]{0,300}stopWaiting\(\)/,
+    "an error message leaves the waiting clock running underneath it"
+  );
+  assert.match(
+    src,
+    /function hideOverlay\(\)[\s\S]{0,120}stopWaiting\(\)/,
+    "the clock survives the overlay closing"
+  );
+});

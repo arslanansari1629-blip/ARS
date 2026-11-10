@@ -45,6 +45,7 @@ const scrubberTrack = document.querySelector("#scrubber .scrubber-track");
 const overlay = $("overlay");
 const overlayTitle = $("overlayTitle");
 const overlayText = $("overlayText");
+const overlayNote = $("overlayNote");
 const overlayActions = $("overlayActions");
 const spinner = $("spinner");
 
@@ -126,11 +127,59 @@ function showMessage(title, text, error = false, actions = "") {
   overlay.style.display = "grid";
   overlayTitle.textContent = title;
   overlayText.textContent = text;
+  // An error is the answer; a running clock under it would only confuse.
+  stopWaiting();
   spinner.style.display = "none";
   overlayActions.innerHTML = actions;
   overlay.style.background = error
     ? "radial-gradient(circle at 50% 40%, rgba(255,93,115,.18), rgba(5,6,12,.96))"
     : "radial-gradient(circle at 50% 40%, rgba(108,92,231,.28), rgba(5,6,12,.94))";
+}
+
+/**
+ * Say what the wait is actually for, and how long it has been.
+ *
+ * "Preparing your lecture…" for eight seconds is indistinguishable from a page
+ * that has hung, and the honest answer — the server is asking three mirrors for
+ * a signature — is more reassuring than a spinner on its own. The elapsed count
+ * is also the only thing that tells a student whether to keep waiting or reload,
+ * so it is written in a live region rather than silently.
+ *
+ * Started once per load (not per message) so the number never resets to zero
+ * while the student is looking at it.
+ */
+let waitingSince = 0;
+let waitingTick = 0;
+
+function noteFor(elapsed) {
+  if (elapsed < 1200) return "Asking Physics Wallah for a signed link…";
+  if (elapsed < 4000) return `Getting a signed link · ${Math.round(elapsed / 1000)}s`;
+  if (elapsed < 9000) return `Some sources are slow to answer · ${Math.round(elapsed / 1000)}s`;
+  return `Still trying — some sources are slow · ${Math.round(elapsed / 1000)}s`;
+}
+
+function startWaiting() {
+  if (!overlayNote || waitingTick) return;
+  waitingSince = Date.now();
+  clearInterval(waitingTick);
+  waitingTick = setInterval(() => {
+    if (!waitingSince) return;
+    overlayNote.hidden = false;
+    overlayNote.textContent = noteFor(Date.now() - waitingSince);
+  }, 1000);
+  // A number in a browser; a handle under Node, where a stray interval would keep
+  // a test process alive. The optional call is a no-op for the number.
+  waitingTick.unref?.();
+}
+
+function stopWaiting() {
+  if (waitingTick) clearInterval(waitingTick);
+  waitingTick = 0;
+  waitingSince = 0;
+  if (overlayNote) {
+    overlayNote.hidden = true;
+    overlayNote.textContent = "";
+  }
 }
 
 function showLoading(title, text) {
@@ -139,10 +188,12 @@ function showLoading(title, text) {
   overlayText.textContent = text;
   spinner.style.display = "block";
   overlayActions.innerHTML = "";
+  startWaiting();
 }
 
 function hideOverlay() {
   overlay.style.display = "none";
+  stopWaiting();
 }
 
 if (!batchId || !subjectSlug || !lectureId) {
