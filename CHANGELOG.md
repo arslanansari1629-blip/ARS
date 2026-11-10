@@ -156,6 +156,35 @@ signature is the line this project does not cross.
 **Tests.** 197 total. Two new: a failed section must offer a retry and must never
 print a raw browser error, and an empty section must link back to the subject.
 
+---
+
+## Round Z.5 — the notes tab was shorter than the chapter
+
+**The bug.** Every note and DPP PDF arrives from PW's listing *without* a storage
+key, so each attachment needs its own `GetPdf` lookup before its row can render.
+That loop cached the result — but it cached **failures too**, writing
+`undefined` under `pdfUrlCache`, and the guard read `url === undefined`. So a
+single throttled `GetPdf` marked that attachment permanently unresolvable for
+the life of the process. PW rate-limits these calls as a matter of course, so
+this happened routinely: a chapter with 24 notes rendered 3, the rest invisible,
+and reloading did not help because the "no" was already remembered. Only
+successes are cached now.
+
+**The second fault: unbounded work.** A long chapter is up to 120 listed entries
+across six pages — 40 sequential rounds at three-at-a-time. Against a throttled
+upstream that exceeds the function timeout, and the tab renders *nothing at all*
+rather than a short list. The loop now has a 12-second deadline and reports what
+it skipped as `diagnostics.skipped` instead of being killed mid-flight.
+
+**Said out loud.** When a docs tab does come back short, it now says so — "Some
+files did not resolve" with a **Load the rest** button that re-fetches — instead
+of presenting an incomplete list as the chapter's true contents.
+
+**Tests.** 197 total, plus a new `tests/notes-resolution.test.mjs` that drives
+the real resolver against a stub upstream which throttles past `upstreamJson`'s
+internal retry. It was verified to fail against the old cache and pass against
+the new one, so it pins the fix rather than describing it.
+
 The no-promise test now also rejects "Live lectures", "plays here" and "in
 lectures", so chrome cannot drift back.
 

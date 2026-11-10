@@ -1741,3 +1741,62 @@ test("an empty chapter section points somewhere useful", async () => {
   assert.match(back.getAttribute("href"), /\/subject\.html\?batch=/);
   window.close();
 });
+
+test("a notes tab that resolves only some attachments says so", async () => {
+  // Every notes/DPP attachment needs its own GetPdf lookup, and PW rate-limits
+  // them. When the lookup gives up partway the tab renders a *shorter* list than
+  // the chapter really has — "3 PDFs" for a chapter with 24 — with nothing to
+  // say so. That is the "notes are missing" report.
+  const CH =
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222" +
+    "&chapter=69dc843271d06abbf3869763&name=Units";
+
+  const docs = (resolved) =>
+    JSON.stringify({
+      success: true,
+      ok: true,
+      contentType: "notes",
+      items: [0, 1, 2].map((i) => ({
+        id: `i${i}`,
+        title: `Lecture ${i}`,
+        docs: [
+          {
+            name: `Notes ${i}.pdf`,
+            pdfId: `p${i}`,
+            attachmentId: `a${i}`,
+            url: i < resolved ? `https://static.pw.live/${i}.pdf` : "",
+          },
+        ],
+      })),
+      diagnostics: { listed: 3, attachments: 3, needed: 3, failed: 3 - resolved, firstError: "throttled" },
+    });
+
+  const { doc, window } = await render(CH, {
+    fetchWrap: (target) => {
+      const url = new URL(target);
+      if (url.pathname !== "/api/contents") return null;
+      if (url.searchParams.get("type") === "videos") {
+        return new Response(
+          JSON.stringify({ success: true, ok: true, contentType: "videos", items: [] }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(docs(2), { status: 200, headers: { "content-type": "application/json" } });
+    },
+    settle: 1000,
+  });
+
+  // Open the Notes tab.
+  const notesTab = [...doc.querySelectorAll(".tab")].find((t) => t.dataset.type === "notes");
+  notesTab.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 1200));
+
+  const body = doc.getElementById("body");
+  assert.match(body.textContent, /did not resolve|Load the rest/i, body.textContent.slice(0, 200));
+  assert.ok(
+    [...body.querySelectorAll("[data-retry]")].some((b) => /Load the rest/i.test(b.textContent)),
+    "an incomplete docs list must offer to load the rest"
+  );
+  window.close();
+});
+

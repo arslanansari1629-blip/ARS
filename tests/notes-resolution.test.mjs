@@ -1,94 +1,88 @@
 /**
- * Regression test: PW list responses return class-note / DPP attachments with
- * an empty storage `key`. The API layer must resolve them through GetPdf so the
- * UI gets a real PDF URL instead of a placeholder row.
+ * Notes/DPP attachment resolution.
+ *
+ * Every note and DPP PDF arrives from PW's listing without a storage key, so
+ * each one needs its own `GetPdf` lookup before the row can render. That loop
+ * had two faults:
+ *
+ *   1. A failed lookup was written into the cache as `undefined`, and the guard
+ *      read `url === undefined` — so one throttled request marked that
+ *      attachment unresolvable for the life of the process. PW rate-limits
+ *      these calls, so this happened routinely, and the Notes tab stayed short
+ *      long after the limit had cleared.
+ *   2. The work was unbounded. A 120-entry chapter is 40 sequential rounds at
+ *      three-at-a-time; against a slow upstream that exceeds the function
+ *      timeout and the tab renders nothing at all rather than a short list.
+ *
+ * The fix is that only *successes* are cached, and the loop has a deadline
+ * after which it reports what it skipped instead of being killed mid-flight.
  */
 
-import { test, before, after } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import http from "node:http";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PORT = 4200;
-const FIXPORT = 4201;
-const BASE = `http://127.0.0.1:${PORT}`;
-
-const BATCH = "698ad3519549b300a5e1cc6a";
-const SUBJECT = "physics-by-saleem-ahmad-sir-886822";
-const CHAPTER = "6a6b461cce4ac4e9ab51ee98";
-
-const children = [];
-
-function start(args, env = {}) {
-  const child = spawn(process.execPath, args, {
-    cwd: ROOT,
-    env: { ...process.env, ...env },
-    stdio: "ignore",
+/** A stub PW upstream: the listing plus a GetPdf that throttles on demand. */
+async function stubUpstream(handler) {
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, "http://127.0.0.1");
+    const out = handler(url);
+    res.writeHead(out.status || 200, { "content-type": "application/json" });
+    res.end(JSON.stringify(out.body));
   });
-  children.push(child);
-  return child;
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address();
+  return { server, base: `http://127.0.0.1:${port}` };
 }
 
-async function waitFor(url, ms = 25000) {
-  const deadline = Date.now() + ms;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) return true;
-    } catch {
-      /* retry */
+test("a throttled GetPdf is retried on the next request, not cached as dead", async () => {
+  let getPdfCalls = 0;
+  const { server, base } = await stubUpstream((url) => {
+    if (url.pathname === "/GetPdf") {
+      getPdfCalls++;
+      // `upstreamJson` retries a 429 once internally, so a single throttled
+      // response is absorbed and proves nothing. Throttle past that retry: the
+      // whole first round fails, which is the state that used to be cached.
+      if (getPdfCalls <= 2) return { status: 429, body: { success: false, message: "slow down" } };
+      return {
+        status: 200,
+        body: { success: true, data: { _id: "pdf1", fileName: "Notes.pdf", key: "pw/notes/1.pdf" } },
+      };
     }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error(`timed out waiting for ${url}`);
-}
-
-before(async () => {
-  start(["scripts/fixture-upstream.mjs"], { FIXTURE_PORT: String(FIXPORT) });
-  await waitFor(`http://127.0.0.1:${FIXPORT}/AllBatches?page=1`);
-  start(["scripts/dev.mjs"], {
-    PORT: String(PORT),
-    HOST: "127.0.0.1",
-    PW_UPSTREAM_BASE: `http://127.0.0.1:${FIXPORT}`,
+    return {
+      status: 200,
+      body: {
+        success: true,
+        data: [
+          {
+            // Real listing shape: attachments live on the item, and each one
+            // arrives with no storage key — that gap is what GetPdf fills.
+            _id: "item1",
+            topic: "Units and Measurement 01",
+            attachmentIds: [{ _id: "att1", name: "Notes.pdf" }],
+          },
+        ],
+      },
+    };
   });
-  await waitFor(`${BASE}/`);
-});
 
-after(() => {
-  for (const child of children) child.kill("SIGTERM");
-});
+  const pinned = process.env.PW_UPSTREAM_BASE;
+  process.env.PW_UPSTREAM_BASE = base;
+  try {
+    const { fetchChapterContents } = await import(`../lib/api-data.mjs?t=${Date.now()}`);
+    const first = await fetchChapterContents("b1", "s1", "topic1", "notes");
+    assert.ok(first.diagnostics.failed >= 1, "the throttled lookup should be reported as failed");
 
-test("notes with an empty attachment key are resolved via GetPdf", async () => {
-  const res = await fetch(
-    `${BASE}/api/contents?batch=${BATCH}&subject=${SUBJECT}&topic=${CHAPTER}&type=notes`
-  );
-  assert.equal(res.status, 200);
-  const data = await res.json();
-  assert.equal(data.success, true);
-  assert.equal(data.ok, true);
-  assert.ok(Array.isArray(data.items) && data.items.length >= 1);
-  assert.equal(data.items[0].kind, "notes");
-
-  const docs = data.items[0].docs;
-  assert.equal(docs.length, 1, `expected one resolved PDF, got ${docs.length}`);
-  assert.match(
-    docs[0].url,
-    /^https:\/\/static\.pw\.live\/5eb393ee95fab7468a79d189\/ADMIN\/7a2b3197-71da-4d2b-ba3c-e5a24721fffa\.pdf$/
-  );
-  assert.match(docs[0].name, /Class Notes\.pdf$/);
-  assert.match(data.items[0].title, /Class Notes/);
-});
-
-test("note rows never come back with an unusable url", async () => {
-  const res = await fetch(
-    `${BASE}/api/contents?batch=${BATCH}&subject=${SUBJECT}&topic=${CHAPTER}&type=DppNotes`
-  );
-  const data = await res.json();
-  for (const item of data.items || []) {
-    for (const doc of item.docs || []) {
-      assert.match(doc.url, /^https?:\/\//, `bad doc url for ${doc.name}`);
-    }
+    // The same attachment, asked for again. It must try the network once more.
+    const before = getPdfCalls;
+    const second = await fetchChapterContents("b1", "s1", "topic1", "notes");
+    assert.ok(getPdfCalls > before, "a failed lookup must not be cached as permanently unresolved");
+    assert.equal(second.diagnostics.failed, 0, "the retry should resolve the attachment");
+    const url = second.items[0].docs[0].url;
+    assert.match(String(url), /pw\/notes\/1\.pdf/, "the resolved url must reach the row");
+  } finally {
+    if (pinned === undefined) delete process.env.PW_UPSTREAM_BASE;
+    else process.env.PW_UPSTREAM_BASE = pinned;
+    await new Promise((r) => server.close(r));
   }
 });

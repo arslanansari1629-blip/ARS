@@ -38,6 +38,8 @@ const tabs = document.getElementById("tabs");
 
 let type = "videos";
 const cache = new Map();
+/** True when the last section came back shorter than the source listed. */
+let partial = false;
 
 if (chapterName) {
   chapterNameEl.textContent = chapterName;
@@ -152,11 +154,15 @@ function docItemRow(item) {
     </div>`;
 }
 
-async function load(nextType) {
+async function load(nextType, { refresh = false } = {}) {
   type = nextType;
   tabs.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.type === type));
 
+  // Retrying an incomplete docs tab must drop the cached (short) answer, or the
+  // button would replay the same list and appear to do nothing.
+  if (refresh) cache.delete(type);
   if (cache.has(type)) return render(cache.get(type));
+  partial = false;
 
   body.innerHTML = `<div class="list">${Array.from({ length: 5 })
     .map(() => `<div class="skeleton sk-row"></div>`)
@@ -165,6 +171,14 @@ async function load(nextType) {
   try {
     const out = await loadContents(batchId, subjectSlug, chapterId, type);
     cache.set(type, out.items || []);
+    // A notes/DPP tab resolves one storage key per attachment. When PW's
+    // rate-limited lookup gives up partway, the tab renders a *shorter* list
+    // than the chapter really has, with nothing to say so — which reads as
+    // "this chapter has 3 notes" when it has 24. Report the gap.
+    const d = (out && out.diagnostics) || null;
+    // `failed` = an attachment PW would not resolve; `skipped` = we ran out of
+    // budget before asking. Either way the list is short of the truth.
+    partial = Boolean(d && ((d.failed || 0) > 0 || (d.skipped || 0) > 0));
     render(out.items || []);
   } catch (err) {
     /* An upstream that refuses guest sessions is not a broken page: the chapter
@@ -236,7 +250,10 @@ function render(items) {
   } else {
     const total = items.reduce((n, i) => n + (i.docs ? i.docs.length : 0), 0);
     chapterMeta.textContent = `${total} PDF${total === 1 ? "" : "s"} available`;
-    body.innerHTML = `<div class="list">${items.map(docItemRow).join("")}</div>`;
+    const gap = partial
+      ? `<p class="tiny dim chapter-hint">Some files did not resolve — Physics Wallah limits how fast links can be fetched. <button class="btn btn-ghost btn-sm" type="button" data-retry="${type}">Load the rest</button></p>`
+      : "";
+    body.innerHTML = `${gap}<div class="list">${items.map(docItemRow).join("")}</div>`;
   }
 }
 
@@ -266,8 +283,7 @@ body.addEventListener("click", async (event) => {
   const retryBtn = event.target.closest("[data-retry]");
   if (retryBtn) {
     event.preventDefault();
-    cache.delete(retryBtn.dataset.retry);
-    load(retryBtn.dataset.retry);
+    load(retryBtn.dataset.retry, { refresh: true });
     return;
   }
   const gotoBtn = event.target.closest("[data-goto]");
