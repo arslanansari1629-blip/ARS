@@ -52,7 +52,7 @@ function row(c, index) {
           ${c.videos ? `<span class="count-chip v">${c.videos} lectures</span>` : ""}
           ${c.notes ? `<span class="count-chip n">${c.notes} notes</span>` : ""}
           ${c.exercises ? `<span class="count-chip">${c.exercises} DPP</span>` : ""}
-          ${!c.videos && !c.notes && !c.exercises ? `<span class="count-chip">PDF only</span>` : ""}
+          ${!c.videos && !c.notes && !c.exercises ? `<span class="count-chip" title="Physics Wallah has published nothing in this chapter yet">Coming soon</span>` : ""}
         </span>
       </span>
       <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
