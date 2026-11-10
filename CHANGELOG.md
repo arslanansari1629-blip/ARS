@@ -147,6 +147,13 @@ why it survived the filter round.
 A new test asserts the two controls stay separate: no sort key may equal a price
 filter value, and the legacy aliases keep their original meaning. 195 total.
 
+**Also in this round: the install manifest.** `manifest.webmanifest` is what a
+phone shows when someone installs the site, and its description still read
+"Every Physics Wallah batch, chapter, lecture, class note and DPP … Works
+offline once a lecture is saved", with a Downloads shortcut described as
+"Lectures saved on this device". Both promised an offline lecture that cannot
+exist. It now describes notes and DPPs, which do work offline.
+
 ---
 
 ## Round Y1 — a lecture that will not play now says why
