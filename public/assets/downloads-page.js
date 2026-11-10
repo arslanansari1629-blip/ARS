@@ -563,13 +563,13 @@ async function boot() {
     stepSubject.hidden = false;
     subjectList.innerHTML = emptyState(
       "Offline saving is turned off in this browser",
-      "Private mode and some in-app browsers block local storage. Open the site in a normal window to keep lectures on this device.",
+      "Private mode and some in-app browsers block local storage. Open the site in a normal window to keep notes and DPPs on this device.",
       ""
     );
     savedList.innerHTML = "";
     savedEmpty.hidden = false;
     spaceText.textContent = "Storage is unavailable in this browser.";
-    persistNote.textContent = "This browser will not keep downloads.";
+    persistNote.textContent = "This browser will not keep saved files.";
     return;
   }
 
@@ -578,10 +578,10 @@ async function boot() {
   try {
     const persisted = await requestPersistence();
     persistNote.textContent = persisted
-      ? "This device keeps downloads until you remove them."
-      : "Downloads stay in this browser — keep them if you clear your site data.";
+      ? "This device keeps saved files until you remove them."
+      : "Saved files stay in this browser — keep them if you clear your site data.";
   } catch {
-    persistNote.textContent = "Downloads stay in this browser.";
+    persistNote.textContent = "Saved files stay in this browser.";
   }
 
   if (!pick.batch) {
