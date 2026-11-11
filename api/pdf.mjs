@@ -231,6 +231,21 @@ async function dppRoute(req, res, params) {
       pages: paper.pages || 0,
       bytes: paper.bytes || 0,
       stats: paper.stats || { total: 0, answerable: 0 },
+      ...(params.probe === "extract"
+        ? {
+            probed: await (async () => {
+              const got = await fetchPaperBytes(url);
+              if (!got.bytes) return { error: got.error };
+              const doc = await extractPdfDocument(got.bytes);
+              return {
+                ok: doc.ok,
+                pages: doc.pages,
+                firstPageText: String(doc.pageTexts?.[0] || "").slice(0, 300),
+                firstRuns: (doc.items?.[0] || []).slice(0, 10).map((it) => it.str),
+              };
+            })(),
+          }
+        : {}),
       // A paper nobody can read is the case where the geometry matters most — a
       // scanned sheet and a sheet the reader got wrong look identical from the
       // answer, so the layout is attached to the failure too.
