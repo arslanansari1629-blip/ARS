@@ -150,6 +150,11 @@ page; and the media-relay fallback overwrote the paper's real error with its own
 (`404` became `400`), so the message blamed this site's proxy instead of the dead
 link. Both are covered now.
 
+The three column bugs above were each found the same way — by reading the *deployed*
+paper with `?lines=1` and comparing with the printed key — which is why the marking
+check (`?check=1`) exists now, and why the two-column fixture is the paper's measured
+runs rather than something drawn to look like it.
+
 Three more found while building it:
 
 - `scorePaper` keyed answers by index *or* question number and guessed between
