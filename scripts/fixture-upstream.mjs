@@ -54,6 +54,8 @@ const routes = [
   // gets them wrong, so they are what the practice tests assert against.
   { match: /dpp-paper-real\.pdf$/, file: "dpp-paper-real.pdf", type: "application/pdf" },
   { match: /dpp-paper-stacked\.pdf$/, file: "dpp-paper-stacked.pdf", type: "application/pdf" },
+  // DPP 11 as the source prints it: two questions to a row, on three pages.
+  { match: /dpp-paper-columns\.pdf$/, file: "dpp-paper-columns.pdf", type: "application/pdf" },
 ];
 
 http

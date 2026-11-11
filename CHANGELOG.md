@@ -31,17 +31,35 @@ unreachable from the site.
 - **The operator panel's runner asks the same public route**, so an operator cannot
   see the key before submitting either, and the same analysis filters are there.
 
-**The bug this round was really about.** The papers that ship are set with each
-option letter and its value as **separate text runs**: `(A) (B) (C) (D)` on one
-line, `5 4 2 3` on the next. Reading the page as a stream of lines pairs every
-letter with the wrong value — Q2's five options became "A is 4, B is 5". Nothing
-throws; the paper just marks wrongly. So there are now two readers: text order, and
-**positions** (runs grouped into visual lines by `y`, each value given to the
-nearest marker to its left). Both run, the one that recovers more scorable
-questions wins, and the response names it in `parser`. `lib/dpp-paper.mjs` is
-tested against a fixture that reproduces the real DPP 11 layout, including the
-table-shaped answer key whose number and letter are separate cells — that one was
-also silently dropping half the key.
+**The bug this round was really about — two of them, in the same paragraph.**
+
+1. The papers that ship are set with each option letter and its value as **separate
+   text runs**: `(A) (B) (C) (D)` on one line, `5 4 2 3` on the next. Reading the
+   page as a stream of lines pairs every letter with the wrong value — Q2's four
+   options became "A is 4, B is 5".
+2. Worse, and only visible on a *real* paper: PW sets **two questions side by side**
+   to fit fourteen questions onto three pages. Question 1 is printed beside
+   question 8. Grouping runs into visual lines and reading across therefore
+   produced a "line" made of two unrelated questions, and Q1's options came back
+   holding Q7's and Q8's values. Nothing threw. Every option looked plausible. The
+   fixture that reproduced the first layout was single-column, so the tests were
+   green while production was marking wrongly — which is the whole argument for
+   checking the deployed build against a real paper instead of trusting a suite.
+
+So there are now two readers: text order, and **positions** — runs grouped into
+visual lines by `y`, columns inferred from where the question markers start, each
+value given to the nearest marker to its left. A two-column page is read down the
+left and then down the right, and the questions are re-sorted into the paper's own
+numbering. Both readers run, the one that recovers more scorable questions wins,
+and the response names it in `parser`.
+
+`lib/dpp-paper.mjs` is tested against three fixtures that reproduce the real DPP 11
+geometry — single column, stacked values, and the two-column sheet whose expected
+marking is the real paper's own key (14 of 14). The two-column test fails outright
+if the column reader is removed, which was checked rather than assumed. The
+table-shaped answer key had a third instance of the same disease: it put each
+question number and its letter in separate cells, and a cell-wise read was silently
+dropping half the key.
 
 The practice page also had two bugs of its own, both found by driving it rather
 than reading it: the failure branch called a `const` helper declared below it, so
@@ -62,7 +80,7 @@ Three more found while building it:
   layout above; the fixture upstream serves both.
 
 `/dpp` is in `robots.txt` as a disallow: every URL is a PDF that may disappear, and
-there is nothing there to rank. 267 tests pass; 17 of them are new and 4 drive the
+there is nothing there to rank. 268 tests pass; 18 of them are new and 4 drive the
 page itself in jsdom (answer → submit → analysis, refresh → restored, keyboard →
 scored).
 

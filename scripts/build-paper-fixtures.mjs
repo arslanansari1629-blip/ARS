@@ -13,6 +13,12 @@
  *     stream of lines it pairs every letter with the wrong number: `(A) (B)`
  *     followed by `5 4`. Only the positioned reader gets it right, so this is
  *     the fixture that decides whether the feature works on a real paper.
+ *   · `dpp-paper-columns.pdf` — DPP 11 as PW actually prints it: **two questions
+ *     side by side** on a three-page sheet, question 1 beside question 8. This
+ *     is the layout that broke the first positioned reader in production — a row
+ *     spans two unrelated questions, so reading across splices Q8's values into
+ *     Q1's options without anything throwing. Every question here is the real
+ *     paper's, with the real answer key, so the expected marking is the paper's.
  *
  * Run with `node scripts/build-paper-fixtures.mjs` (needs the dev dependency
  * `pdf-lib`); the generated files are committed, so the test suite does not.
@@ -165,9 +171,159 @@ async function stackedPaper() {
   return t.save();
 }
 
+/**
+ * DPP 11 as the source actually prints it: two questions to a row.
+ *
+ * The question set, the options and the key are the real paper's (Arjuna JEE
+ * 2027, Units and Measurements, DPP 11). Only the geometry is reproduced — but
+ * the geometry *is* the feature: a row here spans Q1 and Q8, so any reader that
+ * groups by line and reads across will hand Q1 the wrong four options.
+ */
+const DPP11 = [
+  {
+    n: 1,
+    stem: ["The most accurate reading of the length of", "long fibre is 6.28 cm"],
+    options: ["6 cm", "6.5 cm", "5.99 cm", "6.0 cm"],
+    key: "B",
+  },
+  {
+    n: 2,
+    stem: ["The number of significant figures in", "0.06900 is:"],
+    options: ["5", "4", "2", "3"],
+    key: "B",
+  },
+  {
+    n: 3,
+    stem: ["The number of significant figures in", "0.0006032 m2 is:"],
+    options: ["4", "5", "7", "3"],
+    key: "A",
+  },
+  {
+    n: 4,
+    stem: ["What is the number of significant figures in", "0.310 x 10^3?"],
+    options: ["2", "3", "4", "6"],
+    key: "B",
+  },
+  {
+    n: 5,
+    stem: ["The sum of the numbers 436.32, 227.2 and", "0.301 in appropriate significant figures is:"],
+    options: ["663.821", "664", "663.8", "663.82"],
+    key: "C",
+  },
+  {
+    n: 6,
+    stem: ["Taking into account the significant figures,", "what is the value of (9.99 m - 0.0099 m)?"],
+    options: ["9.98 m", "9.980 m", "9.9 m", "9.9801 m"],
+    key: "A",
+  },
+  {
+    n: 7,
+    stem: ["The decimal equivalent of 1/20 upto three", "significant figures is"],
+    options: ["0.0500", "0.05000", "0.0050", "5.0 x 10"],
+    key: "A",
+  },
+  {
+    n: 8,
+    stem: ["The numbers 2.745 and 2.735 on rounding off", "to 3 significant figures will give:"],
+    options: ["2.75 and 2.74", "2.74 and 2.73", "2.75 and 2.73", "2.74 2.74"],
+    key: "D",
+  },
+  {
+    n: 9,
+    stem: ["The length, breadth and thickness of a block", "are l = 12 cm, b = 6 cm, t = 2.45 cm."],
+    options: ["1 x 10^2 cm3", "2 x 10^2 cm3", "1.764 x 10^2", "None of these"],
+    key: "B",
+  },
+  {
+    n: 10,
+    stem: ["The mass and volume of a body are 4.237 g", "and 2.5 cm3. Its density is:"],
+    options: ["1.6048", "1.69", "1.7", "1.695"],
+    key: "C",
+  },
+  {
+    n: 11,
+    stem: ["Subtract 2.5 x 10^-6 from 4.0 x 10^-4 with", "due regard to significant figures"],
+    options: ["4.0 x 10^-4", "6.0 x 10^-4", "4.0 x 10^-3", "4.0 x 10^-5"],
+    key: "A",
+  },
+  {
+    n: 12,
+    stem: ["The mass and radius of the earth are", "5.975 x 10^24 kg and 6.37 x 10^6 m."],
+    options: ["5.53 x 10^3", "5.52 x 10^3", "5.54 x 10^3", "5.5 x 10^3"],
+    key: "B",
+  },
+  {
+    n: 13,
+    stem: ["The significant figures of the number", "6.0023 are:"],
+    options: ["1", "5", "4", "2"],
+    key: "B",
+  },
+  {
+    n: 14,
+    stem: ["If L = 242.33 cm, B = 2.1 cm", "then L + B ="],
+    options: ["4.423 cm", "4.43 cm", "4.4 cm", "4 cm"],
+    key: "C",
+  },
+];
+
+async function columnPaper() {
+  const pdf = await PDFDocument.create();
+  const t = await sheet(pdf).init();
+
+  // Two columns of ~250pt with a 60pt gutter: the shape PW uses to fit a
+  // fourteen-question paper onto three pages.
+  const COLUMNS = [LEFT, 305];
+  const PER_PAGE = 8; // four rows of two questions
+  const ROW_HEIGHT = 172;
+
+  for (let start = 0; start < DPP11.length; start += PER_PAGE) {
+    t.newPage();
+    t.run("JEE", { y: 30, size: 9 });
+    t.run(`Arjuna JEE 2027 — DPP: 11 — page ${start / PER_PAGE + 1}`, {
+      y: 46,
+      size: 10,
+      bold: true,
+    });
+    t.run("Time duration - 30 min", { y: 62, size: 9 });
+
+    const slice = DPP11.slice(start, start + PER_PAGE);
+    slice.forEach((q, index) => {
+      const column = COLUMNS[index % 2];
+      const row = Math.floor(index / 2);
+      const top = 90 + row * ROW_HEIGHT;
+      t.run(`Q${q.n} ${q.stem[0]}`, { x: column, y: top, size: 7.5 });
+      t.run(q.stem[1], { x: column, y: top + 12, size: 7.5 });
+      // One option per line, letter and value as separate runs — the shape the
+      // source uses — and every option stays inside its own column, which is what
+      // makes the gutter a reliable boundary.
+      q.options.forEach((value, i) => {
+        const y = top + 30 + i * 13;
+        t.run(`(${String.fromCharCode(65 + i)})`, { x: column, y, size: 7.5 });
+        t.run(value, { x: column + 16, y, size: 7 });
+      });
+    });
+  }
+
+  // The key, in the source's table shape, on its own page.
+  t.newPage();
+  t.run("Answer Key", { y: 60, size: 11, bold: true });
+  DPP11.forEach((q, index) => {
+    const row = Math.floor(index / 2);
+    const x = index % 2 === 0 ? LEFT : LEFT + 100;
+    const y = 84 + (row % 7) * 16 + Math.floor(index / 14) * 130;
+    t.run("|", { x: x - 10, y, size: 9 });
+    t.run(`Q${q.n}`, { x, y, size: 9 });
+    t.run("|", { x: x + 40, y, size: 9 });
+    t.run(`(${q.key})`, { x: x + 46, y, size: 9 });
+  });
+
+  return t.save();
+}
+
 const files = [
   ["dpp-paper-real.pdf", questionPaper],
   ["dpp-paper-stacked.pdf", stackedPaper],
+  ["dpp-paper-columns.pdf", columnPaper],
 ];
 
 for (const [name, build] of files) {

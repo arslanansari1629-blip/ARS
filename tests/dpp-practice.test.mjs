@@ -79,6 +79,7 @@ after(() => {
 const PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper.pdf`;
 const REAL_PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-real.pdf`;
 const STACKED_PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-stacked.pdf`;
+const COLUMN_PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-columns.pdf`;
 
 async function get(pathname) {
   const res = await REAL_FETCH(`${BASE}${pathname}`);
@@ -214,6 +215,54 @@ test("the image-only question is not scored against the student", async () => {
   assert.equal(body.result.scored, 4, "only the four readable questions are marked");
   assert.equal(body.result.percent, 100);
   assert.equal(body.result.rows[4].outcome, "unscored");
+});
+
+test("a two-column paper keeps each question's options in its own question", async () => {
+  // This is the layout PW actually prints DPP 11 in: question 1 beside question
+  // 8, question 2 beside question 9. Read across, a row spans two unrelated
+  // questions and Q1 silently inherits Q8's options — nothing throws, and every
+  // option *looks* plausible. So the assertions are about specific values.
+  const { res, body } = await get(`/api/pdf?dpp=${encodeURIComponent(COLUMN_PAPER())}`);
+
+  assert.equal(res.status, 200, JSON.stringify(body).slice(0, 300));
+  assert.equal(body.success, true, body.error);
+  assert.equal(body.parser, "layout");
+  assert.equal(body.stats.total, 14, "the paper has fourteen questions");
+  assert.equal(body.stats.unreadable, 0, "every question in this paper is readable");
+
+  const byNumber = new Map(body.questions.map((q) => [q.number, q]));
+  assert.deepEqual([...byNumber.keys()], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+
+  // Q1 must have Q1's options — the values from question 8 are the mistake this
+  // test exists for.
+  assert.deepEqual(byNumber.get(1).options.map((o) => o.text), [
+    "6 cm",
+    "6.5 cm",
+    "5.99 cm",
+    "6.0 cm",
+  ]);
+  assert.deepEqual(byNumber.get(8).options.map((o) => o.text), [
+    "2.75 and 2.74",
+    "2.74 and 2.73",
+    "2.75 and 2.73",
+    "2.74 2.74",
+  ]);
+  assert.deepEqual(byNumber.get(7).options.map((o) => o.text), [
+    "0.0500",
+    "0.05000",
+    "0.0050",
+    "5.0 x 10",
+  ]);
+  // The stems are not spliced either: Q3's stem does not carry Q9's wording.
+  assert.match(byNumber.get(3).text, /0\.0006032/);
+  assert.equal(/block|thickness/i.test(byNumber.get(3).text), false, "Q3's stem picked up Q9");
+
+  const marked = await post(`/api/pdf?dpp=${encodeURIComponent(COLUMN_PAPER())}`, {
+    // The real key: 1 B, 2 B, 3 A, 4 B, 5 C, 6 A, 7 A, 8 D, 9 B, 10 C, 11 A, 12 B, 13 B, 14 C.
+    answers: { 0: "B", 1: "B", 2: "A", 3: "B", 4: "C", 5: "A", 6: "A", 7: "D", 8: "B", 9: "C", 10: "A", 11: "B", 12: "B", 13: "C" },
+  });
+  assert.equal(marked.body.result.correct, 14, JSON.stringify(marked.body.review.map((r) => [r.number, r.outcome])));
+  assert.equal(marked.body.result.percent, 100);
 });
 
 /* ------------------------------------------------------- the guard rails */
