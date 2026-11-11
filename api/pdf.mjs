@@ -1,6 +1,15 @@
 import { cors, json, query, badRequest } from "../lib/http.mjs";
 import { resolvePdfUrl } from "../lib/api-data.mjs";
-import { readDppPaper, scorePaper, testPayload } from "../lib/dpp-paper.mjs";
+import {
+  readDppPaper,
+  scorePaper,
+  testPayload,
+  extractPdfDocument,
+  fetchPaperBytes,
+  inferColumns,
+  layoutLines,
+  layoutLinesInColumns,
+} from "../lib/dpp-paper.mjs";
 
 /**
  * GET /api/pdf?batch=&subject=&pdf=&attachment=
@@ -220,6 +229,24 @@ async function dppRoute(req, res, params) {
     });
   }
 
+  // `?lines=1` appends how the paper was laid out: the columns the reader found
+  // and the visual lines it read. A paper that comes out with the wrong options
+  // is a geometry problem, and there is no way to diagnose one from the answers
+  // alone. The text is public (it is the PDF) and the shape is bounded, so this
+  // is a diagnostic, not a leak.
+  if (params.lines === "1") {
+    const layout = await describeLayout(url);
+    return json(res, 200, {
+      success: true,
+      source: "pdf",
+      url,
+      bytes: paper.bytes,
+      parser: paper.parser,
+      ...testPayload(paper),
+      layout,
+    });
+  }
+
   // Note what is *absent*: `questions[].answer`, `answerKey`. Deliberate.
   return json(res, 200, {
     success: true,
@@ -230,6 +257,36 @@ async function dppRoute(req, res, params) {
     truncated: (paper.bytes || 0) > MAX_PAPER_BYTES,
     ...testPayload(paper),
   });
+}
+
+/**
+ * How the reader saw the page.
+ *
+ * Bounded on purpose: the question markers (which is what decides the columns),
+ * the column boundaries, and the first lines of each page — enough to see why a
+ * paper came out wrong, small enough to read in a browser.
+ */
+async function describeLayout(url) {
+  const fetched = await fetchPaperBytes(url);
+  if (!fetched.bytes) return { ok: false, error: fetched.error };
+  const doc = await extractPdfDocument(fetched.bytes);
+  if (!doc.ok) return { ok: false, error: doc.error };
+
+  return {
+    ok: true,
+    pages: doc.pages,
+    pageDetail: doc.items.slice(0, 4).map((page, index) => {
+      const markers = page
+        .map((it) => ({ x: Math.round(it.x), y: Math.round(it.y), str: String(it.str).trim() }))
+        .filter((r) => /^Q\s*\d+\b/.test(r.str))
+        .map((r) => ({ x: r.x, y: r.y, q: (r.str.match(/^Q\s*(\d+)/) || [])[1] }));
+      const columns = inferColumns(page);
+      const lines = (columns.length > 1 ? layoutLinesInColumns(page, columns) : layoutLines(page))
+        .slice(0, 45)
+        .map((line) => line.text.slice(0, 110));
+      return { index, runs: page.length, markers, columns, lines };
+    }),
+  };
 }
 
 export default async function handler(req, res) {
