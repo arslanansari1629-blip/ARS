@@ -20,6 +20,7 @@ import { spawn } from "node:child_process";
 import { register } from "node:module";
 import { JSDOM } from "jsdom";
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -43,6 +44,7 @@ import { rank, cleanName, cleanXp, rowId, board, publish, clearBoard } from "../
 register("./loader.mjs", import.meta.url);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const join = (...parts) => path.join(...parts);
 const PORT = 4302;
 const FIXPORT = 4303;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -398,6 +400,24 @@ test("the dashboard shows the same record, and the name on the board is not the 
   assert.equal(ms[0].done, true);
   assert.equal(ms.at(-1).done, false);
   assert.equal(nextMilestone(600).xp, 1000);
+});
+
+test("the dashboard band is in the served HTML, not built after a redirect", async () => {
+  // `/dashboard` requires a session and bounces a signed-out visitor to the
+  // login page — so the served HTML is the only place the XP band can be checked
+  // without a browser profile. A hidden band that only appears after sign-in
+  // would mean a signed-out student never sees the record they already have.
+  const log = await (await REAL_FETCH(`${BASE}/leaderboard.html`)).text();
+  assert.match(log, /id="xpTotal"/, "the board page does not serve its standing");
+  assert.match(log, /seven-day|streakWeek/, "the board page has no streak strip");
+
+  const src = await (await REAL_FETCH(`${BASE}/assets/dashboard.js`)).text();
+  assert.match(src, /id="xpTotal"|byId\("xpTotal"\)/, "the dashboard never paints XP");
+  assert.match(src, /progress:change/, "the dashboard band never updates");
+
+  const html = await readFile(join(ROOT, "public", "dashboard.html"), "utf8");
+  assert.match(html, /id="xpBand"/, "the dashboard has no XP band");
+  assert.match(html, /id="streakWeek"/, "the dashboard has no streak strip");
 });
 
 test("the browser id is stored, stable, and opaque", () => {
