@@ -554,3 +554,11 @@ test("progress is stamped so another instance's panel can see it", async () => {
   await restoreSchedulerState();
   assert.equal(scannerReport().sharedAt, first, "the stamp did not survive the cold start");
 });
+
+test("the report the panel draws carries the shared stamp", () => {
+  // A field that exists in `scannerReport()` but not in `scheduleReport()` is
+  // invisible: the panel reads the schedule report, not the scanner one. This is
+  // the seam where a fix looks applied and changes nothing.
+  assert.equal("sharedAt" in scheduleReport().scanner, true, "the schedule report drops the shared stamp");
+  assert.equal(scheduleReport().scanner.sharedAt, "");
+});
