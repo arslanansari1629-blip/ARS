@@ -5724,6 +5724,7 @@ body.side-rail .side-brand:hover .brand-img {
 
 .admin-good { color: var(--ok); }
 .admin-bad { color: var(--danger); }
+.admin-warn { color: var(--warn, #a8620b); }
 
 .admin-hero-stats {
   display: grid;
@@ -5988,6 +5989,302 @@ body.side-rail .side-brand:hover .brand-img {
 }
 
 .log-when { text-align: right; }
+
+/* ---- the healer ---------------------------------------------------------
+   A probe table, a ladder per fault, and the lifecycle strip above them. The
+   language is the same one the rest of the panel uses: mono figures, one blue,
+   rules rather than boxes, and a state that is legible at a glance without a
+   legend. Nothing here animates except the green live dot and the pulse on a
+   running repair, and both respect prefers-reduced-motion.
+   ------------------------------------------------------------------------ */
+
+.admin-heal-head h3 {
+  margin: 0.15rem 0 0.25rem;
+  font-size: 1.06rem;
+}
+
+.admin-heal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.heal-flow {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0.6rem 0 0.4rem;
+  padding: 0;
+  list-style: none;
+  counter-reset: healstep;
+}
+
+.heal-flow li {
+  position: relative;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.45rem 0.55rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--rule-2);
+  border-radius: var(--r-sm);
+  background: var(--card-2);
+  font-size: 0.72rem;
+}
+
+.heal-flow li strong {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.heal-flow li span {
+  font-size: 0.66rem;
+  color: var(--ink-4);
+  line-height: 1.35;
+}
+
+.heal-flow li.on {
+  border-top-color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.heal-flow li.on strong { color: var(--blue-ink); }
+.heal-flow li.on span { color: var(--ink-2); }
+
+.heal-flow li.bad {
+  border-top-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--card-2));
+}
+
+.heal-flow li.bad strong { color: var(--danger); }
+
+/* The arrow between steps: a hairline, not an icon. */
+.heal-flow li + li::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -0.35rem;
+  width: 0.35rem;
+  height: 1px;
+  background: var(--rule-2);
+}
+
+.heal-flow-note {
+  margin: 0 0 0.75rem;
+  max-width: 78ch;
+}
+
+.heal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: var(--s-4);
+  margin-top: 0.4rem;
+}
+
+.heal-h {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.heal-probes,
+.heal-symptoms {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.heal-probe {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--card-2);
+}
+
+.heal-probe strong {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.heal-probe p { margin: 0.05rem 0 0; }
+
+.heal-probe-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+
+.heal-probe.is-ok .heal-probe-dot {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 16%, transparent);
+}
+
+.heal-probe.is-bad .heal-probe-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.heal-probe.is-skip .heal-probe-dot { background: var(--rule-2); }
+
+.heal-probe-value {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.heal-probe-ms { min-width: 3.2rem; text-align: right; }
+
+.heal-symptom {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-2);
+  border-radius: var(--r-sm);
+  background: var(--card-2);
+}
+
+.heal-symptom.sev-high { border-left-color: var(--danger); }
+.heal-symptom.sev-medium { border-left-color: var(--warn, #a8620b); }
+.heal-symptom.sev-low { border-left-color: var(--blue); }
+
+.heal-symptom.st-repaired { border-left-color: var(--ok); }
+.heal-symptom.st-failed {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, var(--card-2));
+}
+
+.heal-symptom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.heal-symptom-head strong { font-size: 0.82rem; }
+
+.heal-state {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.6rem;
+}
+
+.st-repaired .heal-state { color: var(--ok); border-color: currentColor; }
+.st-failed .heal-state,
+.st-escalated .heal-state { color: var(--danger); border-color: currentColor; }
+.st-degraded .heal-state { color: var(--warn, #a8620b); border-color: currentColor; }
+.st-repairing .heal-state { color: var(--blue-ink); border-color: currentColor; }
+
+/* The ladder: one mark per rung, filled up to where the symptom has climbed. */
+.heal-rungs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.heal-rungs i {
+  width: 14px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--rule-2);
+}
+
+.heal-rungs i.on { background: var(--blue); }
+.st-failed .heal-rungs i.on,
+.st-escalated .heal-rungs i.on { background: var(--danger); }
+
+.heal-rungs span {
+  margin-left: 0.3rem;
+  font-size: 0.68rem;
+}
+
+.heal-needs {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--danger);
+}
+
+.heal-symptom-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.st-repairing .heal-state { animation: adminPulse 1.4s ease-in-out infinite; }
+
+.heal-kv { margin-top: 0.9rem; }
+
+.heal-timeline {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.55rem;
+}
+
+.heal-timeline summary {
+  cursor: pointer;
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.heal-timeline-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.heal-timeline-list li {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.74rem;
+}
+
+.heal-timeline-list li:last-child { border-bottom: 0; }
+.heal-timeline-list li > span:last-child { grid-column: 2 / -1; }
+
+.heal-tl-key { font-family: var(--mono); color: var(--ink-2); }
+.heal-tl-move i { font-style: normal; color: var(--ink-4); }
+.heal-tl-move b { font-weight: 600; color: var(--blue-ink); }
+
+#adminNote {
+  transition: color 0.2s var(--ease), opacity 0.2s var(--ease);
+  opacity: 0.55;
+}
+
+#adminNote.on {
+  opacity: 1;
+  color: var(--blue-ink);
+}
+
+@media (max-width: 860px) {
+  .heal-grid { grid-template-columns: minmax(0, 1fr); }
+  .heal-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .heal-flow li + li::before { display: none; }
+  .heal-timeline-list li { grid-template-columns: 4.5rem minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-repairing .heal-state { animation: none; }
+  #adminNote { transition: none; }
+}
 
 /* ---- content audit ------------------------------------------------------ */
 

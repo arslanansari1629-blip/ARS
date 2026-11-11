@@ -272,12 +272,58 @@
         <div class="dpp-review" id="dppTestReview"></div>
       </section>
 
-      <!-- self-healing: visible here and nowhere else on the site -->
-      <section class="card pad-md admin-block">
-        <h3 class="mb-2">Self-healing</h3>
+      <!-- the healer: probe readings, the state machine, and what it did about it.
+           Visible here and nowhere else on the site — a visitor never learns the
+           system exists unless it fails to fix something. -->
+      <section class="card pad-md admin-block admin-heal" id="healBlock" style="grid-column:1/-1">
+        <div class="row between mb-2 admin-heal-head">
+          <div>
+            <span class="eyebrow">Self-healing</span>
+            <h3 id="healVerdict">Reading the system…</h3>
+            <p class="tiny dim" id="healSub">Six probes, one state machine, bounded repairs.</p>
+          </div>
+          <div class="admin-heal-actions">
+            <span class="tiny dim" id="healStamp">no sweep yet</span>
+            <button class="btn btn-ghost btn-sm" id="healSweep" type="button">Sweep &amp; repair</button>
+          </div>
+        </div>
+
+        <p class="admin-error" id="healError" role="alert" hidden></p>
+
+        <ol class="heal-flow" id="healFlow" aria-label="Healing lifecycle">
+          <li data-step="healthy"><strong>healthy</strong><span>every probe passes</span></li>
+          <li data-step="degraded"><strong>degraded</strong><span>a probe is failing</span></li>
+          <li data-step="repairing"><strong>repairing</strong><span>a repair is running</span></li>
+          <li data-step="repaired"><strong>repaired</strong><span>the fix went in</span></li>
+          <li data-step="escalated"><strong>escalated</strong><span>the fix did not hold</span></li>
+          <li data-step="failed"><strong>failed</strong><span>needs an operator</span></li>
+        </ol>
+        <p class="tiny dim heal-flow-note" id="healFlowNote">
+          A symptom climbs that ladder one rung at a time, and drops straight back to
+          healthy the moment its probe passes again. Nothing is retried forever.
+        </p>
+
+        <div class="heal-grid">
+          <div class="heal-col">
+            <h4 class="heal-h">Probes <span class="tiny dim" id="healProbeStamp"></span></h4>
+            <div class="heal-probes" id="healProbes"></div>
+          </div>
+          <div class="heal-col">
+            <h4 class="heal-h">Faults &amp; repairs</h4>
+            <div class="heal-symptoms" id="healSymptoms"></div>
+          </div>
+        </div>
+
+        <div class="admin-kv heal-kv" id="healKv"></div>
+
+        <h4 class="heal-h mt-3">What the site did about it</h4>
         <p class="tiny dim mb-2" id="healNote">Repairs the site made without asking anyone.</p>
-        <div class="admin-kv" id="healKv"></div>
-        <div class="admin-log mt-2" id="healLog"></div>
+        <div class="admin-log" id="healLog"></div>
+
+        <details class="heal-timeline">
+          <summary class="tiny dim">State transitions <span id="healTimelineCount"></span></summary>
+          <ol class="heal-timeline-list" id="healTimeline"></ol>
+        </details>
       </section>
     </div>
 

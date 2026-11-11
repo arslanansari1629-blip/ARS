@@ -227,6 +227,82 @@ test("stats require a session and describe the site's real state", async () => {
   assert.equal(after.status, 401, "the session survived sign-out");
 });
 
+test("the healer answers only to a session, and a GET never repairs", async () => {
+  const anon = await fetch(`${BASE}/api/admin?action=heal`);
+  assert.equal(anon.status, 401, "the healer's state answered without a session");
+
+  const { body: auth } = await signIn();
+
+  // A read is a read: it probes, it reports, and it changes nothing.
+  const read = await fetch(`${BASE}/api/admin?action=heal`, {
+    headers: { "x-admin-token": auth.token },
+  });
+  assert.equal(read.status, 200);
+  const seen = await read.json();
+  assert.equal(seen.success, true);
+  assert.ok(seen.heal, "the healer returned no report");
+  assert.equal(seen.heal.applied, false, "a GET applied a repair");
+  assert.deepEqual(seen.heal.actions, [], "a GET ran repairs");
+
+  // The report has to be drawable: probes with readings, a lifecycle, a budget.
+  assert.ok(Array.isArray(seen.heal.probes) && seen.heal.probes.length >= 4, "too few probes");
+  const catalog = seen.heal.probes.find((p) => p.id === "catalog-index");
+  assert.ok(catalog && catalog.ok, "the catalogue probe is not passing");
+  assert.ok(catalog.value > 1000, `catalogue probe saw ${catalog.value} batches`);
+  assert.deepEqual(seen.heal.lifecycle, [
+    "healthy",
+    "degraded",
+    "repairing",
+    "repaired",
+    "escalated",
+    "failed",
+  ]);
+  assert.ok(seen.heal.budget.cap > 0, "the repair budget is not described");
+  assert.equal(typeof seen.heal.verdict, "string");
+
+  // Nothing in the report may leak a token or a credential.
+  const dump = JSON.stringify(seen);
+  assert.equal(/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.e30\./.test(dump), false, "a token was echoed");
+  assert.equal(dump.includes(TEST_PASS), false);
+
+  // The panel's own stats poll carries the healer too, so one refresh paints both.
+  const stats = await (await fetch(`${BASE}/api/admin?action=stats`, {
+    headers: { "x-admin-token": auth.token },
+  })).json();
+  assert.ok(stats.heal, "the stats poll does not carry the healer");
+  assert.ok(Array.isArray(stats.heal.probes));
+});
+
+test("a sweep is a POST, is bounded, and reports what it did", async () => {
+  const { body: auth } = await signIn();
+  const res = await fetch(`${BASE}/api/admin?action=heal&sweep=1`, {
+    method: "POST",
+    headers: { "x-admin-token": auth.token },
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.success, true);
+  assert.equal(data.heal.swept, true);
+  assert.equal(data.heal.applied ?? true, true, "a sweep did not apply its repairs");
+  assert.ok(Array.isArray(data.heal.actions), "the sweep reported no actions");
+  // A healthy fixture has nothing to repair — and must not invent work.
+  assert.equal(
+    data.heal.actions.filter((a) => a.ran).length,
+    0,
+    "a healthy system repaired something"
+  );
+  // Every action it *would* take is described, even the ones it did not take.
+  assert.ok(Object.keys(data.heal.repairs).length >= 4, "the repair catalogue is missing");
+
+  // An unknown symptom is refused rather than silently ignored.
+  const bad = await fetch(`${BASE}/api/admin?action=heal&symptom=not-a-fault`, {
+    method: "POST",
+    headers: { "x-admin-token": auth.token },
+  });
+  const refused = await bad.json();
+  assert.equal(refused.success, false, "an unknown symptom was accepted");
+});
+
 test("the panel renders its gate and its blocks from the shipped module", async () => {
   const js = await (await fetch(`${BASE}/assets/admin.js`)).text();
 

@@ -114,6 +114,8 @@ lib/                 shared upstream client + normalisers (server side)
   admin.mjs          credentials (digests), sessions, traffic counters, health probes
   hls.mjs            CORS-safe manifest/segment gateway (mounted on api/stream.mjs)
   sign.mjs           signed-playlist relay (mounted on api/admin.mjs)
+  healer.mjs         the self-healing state machine: probes, repair ladders, the loop
+  healer-wire.mjs    what a repair is allowed to touch in this deployment
 public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
   dpp.html           attempt a DPP paper and read the analysis
@@ -433,6 +435,40 @@ The ledger is visible in exactly one place, the admin panel's *Self-healing*
 block: repairs made, signers quarantined with the resulting ladder, relay faults
 over the last ten minutes, and how much of the hourly budget is spent.
 
+### Above it: the healer (`lib/healer.mjs`)
+
+The reactive layer above acts when a request happens to report a fault. The
+healer *looks* for one, and decides what to do about it as a state machine:
+
+```
+healthy → degraded → repairing → repaired → healthy
+                         ↓
+                    escalated → failed → (operator)
+```
+
+- **Six probes, every pass**: catalogue index (count, and whether it loaded at
+  all), the guest-token ladder (seconds left *and* how many credentials are
+  usable), signing hosts (how many are degraded), the playback relay (faults in
+  the last ten minutes), the request error rate, and the instance's heap. Each
+  returns a value, a unit, a verdict and the reason it reached it.
+- **A repair ladder per symptom.** The cheapest rung runs first and the symptom
+  climbs one rung per strike: the token cache is dropped before the signer is
+  asked for a new one; the signer ranking is rebuilt from fresh evidence before
+  any host is quarantined; the plan cache goes before the rendition cache. The
+  last rung is the last rung — a fault that survives it is marked `failed` and
+  left alone with a sentence naming what an operator has to do.
+- **Recovery lowers the ladder.** Nothing stays primed after a fault clears, so a
+  bad hour cannot make the next one destructive.
+- **"Could not look" is not evidence.** A probe that times out or throws records a
+  failed reading and triggers nothing. Acting on ignorance is how a healer becomes
+  a vandal.
+- **`GET /api/admin?action=heal`** probes and reports; **`POST`** (optionally
+  `&symptom=<key>`) repairs. A read never changes the site.
+- **Blast radius is the register.** Repairs can only touch handles passed to
+  `registerHealerDependencies` — the catalogue reload, the token ladder, the
+  signer ranking, the two caches this process owns, and a read-only asset check.
+  Nothing writes, deletes, deploys or changes a credential.
+
 ## Downloading lectures for offline use
 
 > **Status: blocked upstream, not by this code.** Everything below is built and
@@ -546,7 +582,7 @@ What the panel reports, refreshed every 20 seconds:
 | Traffic | 30-minute sparkline, success rate, data requests, bytes served, errors |
 | Requests by route | which routes this instance actually served |
 | Slowest / Errors | the eight slowest samples and the last twenty 5xx |
-| Self-healing | repairs made, quarantined signers and the ladder, relay faults, budget |
+| Self-healing | the healer's verdict, six probe readings, a card per fault with its repair ladder and a **Fix now** button, budget and cache holdings, the repair ledger, and every state transition with its reason |
 | CDN | what Vercel's cache did with the responses this instance produced |
 | Deployment | commit, environment, region, Node version |
 | Runtime & data | uptime, memory, catalogue size |

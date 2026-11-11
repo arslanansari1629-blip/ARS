@@ -141,6 +141,7 @@ $("#signOutBtn")?.addEventListener("click", async () => {
 });
 
 $("#refreshBtn")?.addEventListener("click", () => load());
+$("#healSweep")?.addEventListener("click", (e) => healNow("", e.currentTarget));
 
 /* --------------------------------------------------------------- polling */
 
@@ -204,7 +205,7 @@ function render(data) {
     ["Node", data.release.node],
     ["Deployment", data.release.deployment || "—"],
   ]);
-  renderHealing(data.selfHeal);
+  renderHealing(data.heal || data.selfHeal);
   renderKv("#runtimeKv", [
     ["Uptime", duration(data.uptimeSeconds)],
     ["Resident memory", `${data.runtime.memoryMb} MB`],
@@ -364,42 +365,169 @@ function relayLine(r) {
   return total + " · mostly " + String(r.worst[0]);
 }
 
+/**
+ * The healer: probes on the left, faults on the right, the lifecycle across the
+ * top, and everything it has done in the ledger below.
+ *
+ * Two rules shape this renderer:
+ *
+ *   1. **Never claim more than was probed.** The verdict comes from the server,
+ *      computed from readings, not from "did the request succeed".
+ *   2. **"Repaired" is not "healthy".** A repainted fault still reads as a fault
+ *      until its probe passes, which is why the ladder keeps the state it
+ *      reached instead of snapping back to green on the first successful action.
+ */
 function renderHealing(h) {
   const kv = $("#healKv");
   const log = $("#healLog");
+  const verdict = $("#healVerdict");
+  const sub = $("#healSub");
   if (!kv || !log) return;
 
   if (!h) {
     kv.innerHTML = "";
-    log.innerHTML = `<p class="tiny dim">This build does not report self-healing.</p>`;
+    if (verdict) verdict.textContent = "This build does not report a healer";
+    log.innerHTML = `<p class="tiny dim">The stats route answered without a healer section.</p>`;
     return;
   }
 
-  const quarantined = (h.signers || []).filter((s) => s.quarantined);
-  // Concatenated rather than nested templates: the shipped page-module check
-  // parses these files with a simple scanner and misreads a backtick inside a
-  // `${}` expression, which fails the build for no real reason. The same scanner
-  // reads a plural noun followed by a bracket in a plain string as a function
-  // call, so the label below is worded around it.
-  const ladder = (h.signers || [])
-    .slice()
-    .sort((a, b) => b.weight - a.weight)
-    .map((s) => s.host + " " + (s.weight === 0 ? "(paused)" : Math.round(s.weight * 100) + "%"))
-    .join(" · ");
+  const counts = h.counts || {};
+  const faults = (h.symptoms || []).filter((s) => s.status !== "healthy");
+  const needsOperator = h.needsOperator || [];
 
+  if (verdict) {
+    verdict.textContent = h.verdict || "—";
+    verdict.className = needsOperator.length ? "admin-bad" : faults.length ? "admin-warn" : "admin-good";
+  }
+  if (sub) {
+    // Concatenated, not a nested template: the shipped page-module checker reads
+    // these files with a simple scanner and a `${}` inside a backtick confuses it.
+    sub.textContent =
+      String(h.probes ? h.probes.length : 0) + " probes · " +
+      String(h.symptomsKnown || 0) + " known faults · " +
+      String(h.repairedRecently || 0) + " repaired this instance · " +
+      "up " + duration(h.uptimeSeconds);
+  }
+  $("#healStamp").textContent = h.swept
+    ? "swept " + ago(Date.parse(h.at))
+    : "state only — press Sweep";
+
+  // The lifecycle strip: which step the system is standing on right now.
+  const current = needsOperator.length
+    ? "failed"
+    : counts.repairing
+      ? "repairing"
+      : counts.degraded
+        ? "degraded"
+        : counts.escalated
+          ? "escalated"
+          : counts.repaired
+            ? "repaired"
+            : "healthy";
+  document.querySelectorAll("#healFlow li").forEach((li) => {
+    li.classList.toggle("on", li.dataset.step === current);
+    li.classList.toggle("bad", li.dataset.step === current && current === "failed");
+  });
+  $("#healFlowNote").textContent =
+    current === "healthy"
+      ? "Every probe passes. A repair resets to this step the moment its fault clears — the ladder never stays primed."
+      : current === "failed"
+        ? "A repair has run out of rungs. This one needs an operator; the site has stopped trying so it cannot make things worse."
+        : "A fault is on the ladder. Each pass climbs one rung only if the previous one failed to hold it.";
+
+  // Probes: the raw readings, so the operator can disagree with the verdict.
+  const probes = h.probes || [];
+  $("#healProbes").innerHTML = probes.length
+    ? probes
+        .map((p) => {
+          const value = p.error
+            ? p.error
+            : p.seconds !== null && p.id === "token-ladder"
+              ? fmtMinutes(p.seconds)
+              : String(p.value) + (p.unit ? " " + p.unit : "");
+          const cls = p.skipped ? "is-skip" : p.ok ? "is-ok" : "is-bad";
+          const detail = p.detail || (p.skipped ? "not wired into this build" : "");
+          return `<div class="heal-probe ${cls}">
+            <span class="heal-probe-dot" aria-hidden="true"></span>
+            <div>
+              <strong>${esc(p.label)}</strong>
+              <p class="tiny dim">${esc(detail || (p.ok ? "healthy" : "failing"))}</p>
+            </div>
+            <span class="heal-probe-value">${esc(value)}</span>
+            <span class="tiny dim heal-probe-ms">${p.ms ? p.ms + " ms" : ""}</span>
+          </div>`;
+        })
+        .join("")
+    : `<p class="tiny dim">No probes have run on this instance yet.</p>`;
+  $("#healProbeStamp").textContent = h.probeAt ? "read " + ago(Date.parse(h.probeAt)) : "";
+
+  // Faults: what is wrong, how far up the ladder it has had to climb, and the
+  // one button that forces the next rung for an operator who already knows.
+  $("#healSymptoms").innerHTML = faults.length
+    ? faults
+        .map((s) => {
+          const rungs = Number(s.rungs) || 1;
+          const climbed = Math.min(Number(s.rung) || 0, rungs - 1);
+          const marks = Array.from({ length: rungs })
+            .map((_, i) => `<i class="${i <= climbed ? "on" : ""}" aria-hidden="true"></i>`)
+            .join("");
+          return `<div class="heal-symptom sev-${esc(s.severity)} st-${esc(s.status)}">
+            <div class="heal-symptom-head">
+              <strong>${esc(s.label)}</strong>
+              <span class="pill heal-state">${esc(s.status)}</span>
+            </div>
+            <p class="tiny dim">${esc(s.detail || s.blurb)}</p>
+            <div class="heal-rungs" title="Repair ladder">${marks}<span class="tiny dim">${esc(s.repairLabel)}</span></div>
+            ${
+              s.status === "failed" && s.needsOperator
+                ? `<p class="tiny heal-needs">${esc(s.needsOperator)}</p>`
+                : ""
+            }
+            <div class="heal-symptom-foot tiny dim">
+              <span>${s.firstSeen ? "seen " + ago(Date.parse(s.firstSeen)) : ""}</span>
+              <button class="btn btn-ghost btn-sm" type="button" data-heal="${esc(s.key)}">Fix now</button>
+            </div>
+          </div>`;
+        })
+        .join("")
+    : `<p class="tiny dim">Nothing is failing. The last sweep found no fault worth acting on.</p>`;
+
+  document.querySelectorAll("[data-heal]").forEach((btn) => {
+    btn.addEventListener("click", () => healNow(btn.dataset.heal, btn));
+  });
+
+  // The reactive report (`selfHeal`) arrives beside the healer, not inside it, so
+  // every row that needs it resolves it once instead of guessing per field.
+  const reactive = h.selfHeal || lastData?.selfHeal || {};
+  const ladder = reactive.signers || [];
+  const quarantined = ladder.filter((s) => s.quarantined);
   renderKv("#healKv", [
-    ["Repairs this hour", `${h.budget.usedLastHour} of ${h.budget.cap}`],
+    [
+      "Repair budget",
+      `${Math.min(h.budget?.usedLastHour ?? 0, h.budget?.cap ?? 0)} of ${h.budget?.cap ?? 0} this hour${
+        h.budget?.exhausted ? " — spent" : ""
+      }`,
+    ],
+    ["Caches held", `${h.caches?.plans ?? 0} plans · ${h.caches?.renditions ?? 0} rendition lists`],
     ["Signers quarantined", quarantined.length ? String(quarantined.length) : "none"],
-    ["Signer ladder", ladder || "no signer has answered yet"],
-    ["Relay faults, last 10 min", relayLine(h.relay)],
+    ["Signer ladder", ladder.length
+      ? ladder
+          .slice()
+          .sort((a, b) => b.weight - a.weight)
+          .map((s) => s.host + " " + (s.weight === 0 ? "(paused)" : Math.round(s.weight * 100) + "%"))
+          .join(" · ")
+      : "no signer has answered yet"],
+    ["Relay faults, last 10 min", relayLine(reactive.relay)],
   ]);
 
-  $("#healNote").textContent = h.budget.usedLastHour >= h.budget.cap
-    ? "The repair budget for this hour is spent — new faults are being logged and left alone until the window rolls over."
-    : "Repairs the site made without asking anyone. Visitors never see this list.";
+  $("#healNote").textContent =
+    h.budget && h.budget.usedLastHour >= h.budget.cap
+      ? "The repair budget for this hour is spent — new faults are being logged and left alone until the window rolls over. That is deliberate: an unbounded healer is a second outage."
+      : "Repairs the site made without asking anyone. Visitors never see this list.";
 
-  log.innerHTML = (h.repairs || []).length
-    ? h.repairs
+  const ledger = h.ledger || [];
+  log.innerHTML = ledger.length
+    ? ledger
         .map(
           (r) => `
       <div class="log-row">
@@ -410,6 +538,70 @@ function renderHealing(h) {
         )
         .join("")
     : `<p class="tiny dim">Nothing has needed repair since this instance started.</p>`;
+
+  const timeline = h.timeline || [];
+  $("#healTimelineCount").textContent = timeline.length ? "(" + timeline.length + ")" : "(none yet)";
+  $("#healTimeline").innerHTML = timeline
+    .map(
+      (t) => `<li>
+        <span class="heal-tl-when tiny dim">${esc(ago(Date.parse(t.at)))}</span>
+        <span class="heal-tl-key">${esc(t.key)}</span>
+        <span class="heal-tl-move"><i>${esc(t.from)}</i> → <b>${esc(t.to)}</b></span>
+        <span class="tiny dim">${esc(t.note || "")}</span>
+      </li>`
+    )
+    .join("");
+}
+
+/**
+ * Force one repair — the operator's "fix now".
+ *
+ * It is a POST and says so: a GET must never be able to change the site, or the
+ * page an operator reloads to look at a fault would be what repairs it.
+ */
+async function healNow(symptom, btn) {
+  const err = $("#healError");
+  if (err) err.hidden = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Repairing…";
+  }
+  try {
+    const qs = symptom
+      ? `/api/admin?action=heal&symptom=${encodeURIComponent(symptom)}`
+      : "/api/admin?action=heal&sweep=1";
+    const res = await fetch(qs, { method: "POST", headers: { "x-admin-token": token } });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+    if (data.heal) {
+      lastData = { ...(lastData || {}), heal: data.heal, selfHeal: data.selfHeal || lastData?.selfHeal };
+      renderHealing(data.heal);
+    }
+    const ran = (data.heal?.actions || []).filter((a) => a.ran && a.ok).length;
+    setStatusLine(ran ? `Repaired ${ran} fault${ran === 1 ? "" : "s"}` : "Swept — nothing needed repair");
+    load();
+  } catch (error) {
+    if (err) {
+      err.hidden = false;
+      err.textContent = error.message;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Fix now";
+    }
+  }
+}
+
+/** A short-lived note under the bar, for actions that do not warrant a toast. */
+let statusTimer = null;
+function setStatusLine(message) {
+  const el = $("#adminNote");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.add("on");
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => el.classList.remove("on"), 6000);
 }
 
 function renderLogs(data) {

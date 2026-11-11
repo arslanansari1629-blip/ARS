@@ -5,6 +5,60 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AH — a healer with a state machine, and an admin panel that shows its work
+
+**The request.** "`/admin` upgrade it and self healing system ultra advance."
+
+**The problem with the old one.** Self-healing existed, but it was *reactive and
+invisible*: a visitor's failed request reported a fault, a cache was dropped, the
+operator found out by reading a list of things that had already happened. It could
+not answer "is anything wrong right now?" without waiting for traffic, and it had
+no notion of trying harder — one cache drop, then silence, whether or not the drop
+fixed anything.
+
+**What shipped.** A healer is now a **state machine over six probes and six
+repairs**, and the panel draws every part of it:
+
+- **It looks, instead of waiting.** Probes for the catalogue index, the guest-token
+  ladder, every signing host, the playback relay, the request error rate and this
+  instance's heap. Each returns a number with a unit, a verdict and the reason — so
+  the panel can show the reading, not just a colour.
+- **Five lifecycle states**: healthy → degraded → repairing → repaired →
+  escalated → failed. A fault climbs **one rung of its repair ladder per strike**:
+  the token is re-minted from the cache first and from the signer second; the ladder
+  is re-ordered from fresh evidence first and quarantined second; the caches go
+  plans → renditions → both. Recovery is the *only* thing that lowers the rung, so
+  Monday's outage cannot hand Tuesday a sledgehammer.
+- **It stops.** "Could not look" is never evidence (a probe that times out or throws
+  triggers nothing), every repair has a cooldown and shares an hourly budget, and a
+  fault that runs out of rungs is marked **failed** and left alone with a sentence
+  saying exactly what needs an operator. Nothing loops.
+- **`GET /api/admin?action=heal`** reports; **`POST`** repairs. A GET never changes
+  the site — otherwise the page an operator reloads to look at a fault would be what
+  fixes it, and they could never see the state they were paged about.
+- **The panel** gained the lifecycle strip, the probe table, a card per fault with
+  its ladder and a **Fix now** button, the budget and cache holdings, the repair
+  ledger, and a collapsible record of every state transition with its reason. It
+  rides along with the ordinary stats poll, so watching costs no extra request.
+
+**The bugs the tests found, which is the point of writing them.**
+
+1. **A repair that quietly failed to fix anything never counted as a strike**, so
+   the ladder could not climb and the same futile action would repeat forever. A
+   returning fault is now a strike; a repair that throws is a second kind.
+2. **A timed-out probe leaked its timer**, and because the timer was `unref`'d the
+   deadline could never fire when nothing else was pending — a sweep could hang
+   until the lambda was killed.
+3. **A `failed` symptom was retried on the next sweep**, undoing the one guarantee
+   that matters. It now waits for a recovery or an operator.
+4. **The budget counted its own "budget exhausted" marker**, so a spent budget read
+   "13 of 12" — which reads as a bug in the ledger rather than a deliberate stop.
+
+**Honest limit.** The healer's memory is one instance's, like the leaderboard's:
+Vercel may run several, and each heals itself. That is the right scope for repairs —
+a cache, a token and a signer ranking are per-instance facts — but the panel says
+"this instance" everywhere it means it, rather than implying a fleet-wide view.
+
 ## Round AG — the DPP panel that only opened once
 
 **The problem.** "DPP test panel is not opening." It opened the first time and then not

@@ -3,6 +3,7 @@ import hlsHandler from "../lib/hls.mjs";
 import signHandler from "../lib/sign.mjs";
 import {
   checkCredentials,
+  requestStats,
   createSession,
   destroySession,
   getSession,
@@ -15,12 +16,14 @@ import {
   recordRequest,
   noteLog,
 } from "../lib/admin.mjs";
-import { reportPlaybackFailure, recordRelayFailure } from "../lib/selfheal.mjs";
+import { reportPlaybackFailure, recordRelayFailure, selfHealReport } from "../lib/selfheal.mjs";
 import { auditBatch, auditLecture, auditHeadline } from "../lib/audit.mjs";
 import { fetchDppList, fetchDppPaper, dppHeadline } from "../lib/dpp.mjs";
 import { readDppPaper, collectDppPapers } from "../lib/dpp-paper.mjs";
 import { fetchChapters, fetchChapterContents } from "../lib/api-data.mjs";
-import { fetchBatch } from "../lib/api-data.mjs";
+import { fetchBatch, signMap, renditionMap } from "../lib/api-data.mjs";
+import { healAction, healerReport, sweep } from "../lib/healer.mjs";
+import { wireHealer } from "../lib/healer-wire.mjs";
 
 /**
  * The API edge: the operator API, plus two media routes that share this function.
@@ -35,6 +38,9 @@ import { fetchBatch } from "../lib/api-data.mjs";
  *   GET    /api/admin?action=dpp-papers → the DPP *PDF papers* for one subject
  *   GET    /api/admin?action=dpp-paper→ one paper's questions (from the PDF)
  *   POST   /api/admin?action=rescan → re-check one lecture, on the spot
+ *   GET    /api/admin?action=heal    → the healer's state, probe readings, ledger
+ *   POST   /api/admin?action=heal    → sweep every probe and repair what is broken
+ *   POST   /api/admin?action=heal&symptom=<key> → force one repair, on the spot
  *
  *   GET    /api/hls  → `action=hls`   (rewritten here, see vercel.json)
  *   GET    /api/sign → `action=sign`  (rewritten here, see vercel.json)
@@ -200,6 +206,7 @@ export default async function handler(req, res) {
 
   /* ------------------------------------------------------------- audit */
   if (action === "audit") return auditAction(req, res, finish, params);
+  if (action === "heal") return healRoute(req, res, finish, params);
   if (action === "rescan") return rescanAction(req, res, finish, params);
 
   /* --------------------------------------------------------------- dpp */
@@ -217,7 +224,93 @@ export default async function handler(req, res) {
     selfBase: selfBase(req),
     deep: params.deep === "1",
   });
+
+  // The healer rides along with the ordinary stats poll: the panel already
+  // refreshes it every few seconds, and a second request would double the cost
+  // of watching. Probing is read-only, so a poll never changes the site.
+  wireHealer({
+    caches: { plans: signMap(), renditions: renditionMap() },
+    traffic: () => requestStats(),
+    version: process.env.BUILD_STAMP || "",
+  });
+  const heal = await sweep({ apply: false }).catch(() => null);
+  if (heal) payload.heal = { ...healerReport(), applied: false, actions: [] };
+
   return finish(200, { success: true, ...payload });
+}
+
+/* --------------------------------------------------------------- healer */
+
+/**
+ * The healer, from the operator's chair.
+ *
+ *   GET  ?action=heal                     → state only; repairs nothing
+ *   POST ?action=heal&sweep=1             → probe everything and repair faults
+ *   POST ?action=heal&symptom=<key>       → force one repair at its current rung
+ *
+ * A GET is deliberately read-only. Opening the panel to look at a fault must
+ * never be what changes the site, or an operator can never reproduce the state
+ * they were paged about.
+ */
+async function healRoute(req, res, finish, params) {
+  if (req.method === "GET") {
+    wireHealer({
+      caches: { plans: planCache(), renditions: renditionCacheHandle() },
+      traffic: () => requestStats(),
+      version: process.env.BUILD_STAMP || "",
+    });
+    // Probing on a read is fine — probes are read-only — but repairing is not.
+    await sweep({ apply: false }).catch(() => null);
+    const report = healerReport();
+    return finish(200, {
+      success: true,
+      heal: { ...report, applied: false, actions: [] },
+      // The reactive ledger too, so one call paints the whole section.
+      selfHeal: selfHealReport(),
+    });
+  }
+
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "GET, POST, OPTIONS");
+    return finish(405, { success: false, error: "Method not allowed" });
+  }
+
+  wireHealer({
+    caches: { plans: planCache(), renditions: renditionCacheHandle() },
+    traffic: () => requestStats(),
+    version: process.env.BUILD_STAMP || "",
+  });
+
+  const symptom = String(params.symptom || "").trim();
+  const sweepNow = params.sweep === "1" || (!symptom && params.sweep !== "0");
+  const out = await healAction({ sweepNow, symptom }).catch((err) => ({
+    ...healerReport(),
+    error: err?.message || "the healer threw",
+    actions: [],
+  }));
+
+  noteLog({
+    level: "info",
+    route: "admin",
+    message: `operator ran the healer${symptom ? ` (${symptom})` : ""}: ${out.actions?.length || 0} action(s)`,
+  });
+
+  return finish(200, { success: !out.error, heal: out, selfHeal: selfHealReport(), error: out.error });
+}
+
+/**
+ * The two caches the healer may empty.
+ *
+ * `lib/api-data.mjs` registers its own maps with `registerCaches` for the
+ * reactive healer; the deliberate one is handed the same maps here, through the
+ * module's exported handles rather than by reaching into it.
+ */
+function planCache() {
+  return signMap();
+}
+
+function renditionCacheHandle() {
+  return renditionMap();
 }
 
 /**
