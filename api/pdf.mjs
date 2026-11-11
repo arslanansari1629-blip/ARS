@@ -9,6 +9,7 @@ import {
   inferColumns,
   layoutLines,
   layoutLinesInColumns,
+  checkPaper,
 } from "../lib/dpp-paper.mjs";
 
 /**
@@ -234,6 +235,22 @@ async function dppRoute(req, res, params) {
   // is a geometry problem, and there is no way to diagnose one from the answers
   // alone. The text is public (it is the PDF) and the shape is bounded, so this
   // is a diagnostic, not a leak.
+  // `?check=1` answers one question: *does this paper mark correctly?* It marks a
+  // perfect attempt — every question answered with the paper's own key, which the
+  // server reads itself — and reports how many of those came back correct. Fourteen
+  // of fourteen means the options are attached to the right questions and the key
+  // is attached to the right numbers; anything less names the questions that are
+  // wrong. Without it the only way to check a deployed paper is to sit the paper by
+  // hand and compare with the printed key, which is exactly the mistake that let a
+  // green suite ship over a wrongly-marking production.
+  //
+  // It leaks nothing: the caller supplies no answers, the response carries only
+  // counts plus the text of any question that failed to mark, and the questions'
+  // own key is never in it.
+  if (params.check === "1") {
+    return json(res, 200, { success: true, url, ...checkPaper(paper) });
+  }
+
   if (params.lines === "1") {
     const layout = await describeLayout(url, {
       runs: params.runs === "1",

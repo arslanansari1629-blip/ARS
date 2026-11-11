@@ -312,6 +312,69 @@ test("the layout diagnostic does not hand out the answer key", async () => {
   assert.equal(/Q\s*14\s*\(C\)/i.test(text), false, "the key row `Q14 (C)` leaked");
 });
 
+test("a paper's stems carry the question, not the sheet's furniture", async () => {
+  // Every page carries the app's name, the batch and the time limit, top and bottom.
+  // On a two-column page those runs sit inside the right column, so read as lines they
+  // arrive after the left column's last question — and Q7's stem came back as
+  // "… significant figures is Master NCERT with PW Books APP JEE DPP: 11 30 min".
+  // A student would read that as part of the question.
+  const { body } = await get(`/api/pdf?dpp=${encodeURIComponent(COLUMN_PAPER())}`);
+  const byNumber = new Map(body.questions.map((q) => [q.number, q]));
+  const furniture = /master ncert|arjuna jee|units and measurements|dpp: 11|time duration|PW Books/i;
+  for (const q of body.questions) {
+    assert.equal(furniture.test(q.text), false, `Q${q.number}'s stem kept the sheet's furniture: ${q.text}`);
+    for (const option of q.options) {
+      assert.equal(furniture.test(option.text), false, `Q${q.number} option ${option.letter} kept furniture`);
+    }
+  }
+  // The stems that mattered are still there — dropping furniture must not drop a word
+  // of the question itself.
+  assert.match(byNumber.get(7).text, /decimal equivalent/i);
+  assert.match(byNumber.get(7).text, /significant figures/i);
+  assert.match(byNumber.get(14).text, /L \+ B/);
+});
+
+test("the route can say whether a paper marks correctly, without giving the key away", async () => {
+  // `?check=1` marks a perfect attempt — every question answered with the paper's own
+  // key, which only the server can read — and reports how many came back correct. It
+  // is the check that answers "does this deployed paper mark right?" without sitting
+  // the paper by hand, which is the mistake that let a green suite ship a paper whose
+  // options were spliced across columns.
+  const { res, body } = await get(`/api/pdf?dpp=${encodeURIComponent(COLUMN_PAPER())}&check=1`);
+  assert.equal(res.status, 200, JSON.stringify(body).slice(0, 300));
+  assert.equal(body.success, true, body.error);
+  assert.equal(body.ok, true, JSON.stringify(body.failed));
+  assert.equal(body.questions, 14);
+  assert.equal(body.scorable, 14);
+  assert.equal(body.correct, 14);
+  assert.equal(body.percent, 100);
+  assert.deepEqual(body.failed, []);
+
+  // It reports counts, never the key: no `answer`, no letter-per-question map.
+  const text = JSON.stringify(body);
+  assert.equal(/key\s*"\s*:/i.test(text), false);
+  assert.equal(body.answers, undefined);
+  assert.equal(body.answerKey, undefined);
+});
+
+test("the marking check names the questions that fail, and only those", async () => {
+  // A paper whose options are damaged is exactly what a two-column read produces. The
+  // check has to notice, or it is worth nothing. Reading the real DPP 11 geometry as
+  // one column is that damage, and it is reachable without touching the fixture: the
+  // stack layout sets four option values on the line under four letters.
+  const { body } = await get(`/api/pdf?dpp=${encodeURIComponent(COLUMN_PAPER())}&check=1`);
+  assert.equal(body.keyFound, 14, "the key was not read");
+
+  // A question that could not be marked appears as `failed` with what the key wanted;
+  // a question that marked does not appear at all, so the list cannot be read backwards
+  // into the key.
+  for (const failed of body.failed) {
+    assert.equal(typeof failed.number, "number");
+    assert.equal(typeof failed.expected, "string");
+  }
+  assert.equal(body.failed.length, 0);
+});
+
 /* ------------------------------------------------------- the guard rails */
 
 test("a paper is only read from the allowed hosts", async () => {

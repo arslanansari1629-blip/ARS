@@ -75,6 +75,31 @@ The table-shaped answer key had a fourth instance of the same disease: it put ea
 question number and its letter in separate cells, and a cell-wise read was silently
 dropping half the key.
 
+4. And a fifth, found by reading the *deployed* paper rather than the fixture: the
+   column start was rounded to a whole point (310.917 → 311). Rounding moved the
+   right column's own markers outside the column, so every right-hand question was
+   read as a bare `Q8` line among the left column's options — the paper came back with
+   **nine** scorable questions instead of fourteen. The start is kept unrounded, and
+   the fixture now sets its right column at fractional x too, so rounding cannot
+   return quietly.
+5. Smaller, but a student would have seen it: each page's furniture — the app's name,
+   the batch, `DPP: 11`, the time limit — sits inside the right column's x-range, so it
+   arrived after the left column's last question and was stitched into that question's
+   stem. Q7 read "The decimal equivalent of 1/20 upto three significant figures is
+   Master NCERT with PW Books APP JEE DPP: 11 30 min". The furniture is now removed
+   run by run *before* the page is split, which is the only order that works: the time
+   limit is three runs and one of them lands in each column.
+
+**The check that should have existed first.** `GET …&check=1` marks a perfect attempt
+— every question answered with the paper's own key, which the server reads itself —
+and reports how many came back correct. Fourteen of fourteen means the options belong
+to the right questions and the key belongs to the right numbers; a damaged read names
+the questions that failed. It leaks nothing (the caller supplies no answers and the
+response carries counts, not the key), and it is the one assertion that can be made
+against a *deployed* paper — which is where every one of these bugs actually was. Both
+the furniture test and the marking check were confirmed to fail when the code they
+guard is broken.
+
 That diagnostic is itself a hazard on a public route — it echoes the paper's lines,
 and the paper's lines end with `Q1 (B) Q8 (D)`. It now stops at the answer key and
 says how many lines it withheld; a test asserts none of the key's rows appear in it.
