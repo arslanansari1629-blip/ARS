@@ -1,4 +1,5 @@
 import { cors, json, query, badRequest } from "../lib/http.mjs";
+import { getSession } from "../lib/admin.mjs";
 import { resolvePdfUrl } from "../lib/api-data.mjs";
 import {
   readDppPaper,
@@ -45,6 +46,24 @@ const MAX_PAPER_BYTES = 12 * 1024 * 1024;
  * second half of the same guard.
  */
 const PAPER_HOSTS = ["pw.live", "cloudfront.net", "learnxpw.site", "penpencil"];
+
+/**
+ * Is the caller an operator?
+ *
+ * Only used to decide whether a *diagnostic* is answered. The practice test
+ * itself is public and stays public; what is gated is `?probe=…`, which returns
+ * the paper's raw extracted text — a page of a stranger's PDF, refetched on this
+ * deployment's bill, and nothing a student needs. It exists for the operator
+ * panel, so it asks the operator panel's own session (the `x-admin-token`
+ * header, or `?token=` for curl).
+ */
+function isOperator(req, params) {
+  try {
+    return Boolean(getSession(params.token || req.headers["x-admin-token"] || ""));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * …plus the host the dev server is pointed at.
@@ -231,7 +250,9 @@ async function dppRoute(req, res, params) {
       pages: paper.pages || 0,
       bytes: paper.bytes || 0,
       stats: paper.stats || { total: 0, answerable: 0 },
-      ...(params.probe === "extract"
+      // A diagnostic, not a feature: the raw text of a paper is only returned
+      // to a signed-in operator (see isOperator).
+      ...(params.probe === "extract" && isOperator(req, params)
         ? {
             probed: await (async () => {
               const got = await fetchPaperBytes(url);

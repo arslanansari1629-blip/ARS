@@ -392,6 +392,27 @@ test("a paper that will not read still shows how it was laid out", async () => {
   assert.equal(body.layout.pages, 1);
 });
 
+test("the raw-text diagnostic is an operator's tool, not a public one", async () => {
+  // `?probe=extract` returns a page of the paper's extracted text — added to
+  // diagnose a font-encoding failure, and useful enough to keep, but it is a
+  // window onto a stranger's PDF refetched on this deployment's bill. It is
+  // therefore answered only to a signed-in operator; the practice test itself
+  // stays public, which is the line being drawn here.
+  const anon = await get(`/api/pdf?dpp=${encodeURIComponent(SCAN())}&probe=extract`);
+  assert.equal(anon.res.status, 502, "an unreadable paper is still a 502");
+  assert.equal(anon.body.probed, undefined, "a stranger was handed the paper's raw text");
+
+  const wrong = await get(
+    `/api/pdf?dpp=${encodeURIComponent(SCAN())}&probe=extract&token=not-a-real-session`
+  );
+  assert.equal(wrong.body.probed, undefined, "a made-up token unlocked the diagnostic");
+
+  // The public half is untouched: the same paper, no probe, still answers.
+  const plain = await get(`/api/pdf?dpp=${encodeURIComponent(PAPER())}`);
+  assert.equal(plain.res.status, 200, "the practice test stopped being public");
+  assert.ok(plain.body.questions.length > 0);
+});
+
 test("the batch page lists every DPP in the batch, with a Practice button on each", async () => {
   // The papers live three levels down — subject, chapter, then the chapter's DPP tab —
   // which is five taps from a batch and says nothing about how many there are. The

@@ -18,7 +18,7 @@ import {
 import { reportPlaybackFailure, recordRelayFailure } from "../lib/selfheal.mjs";
 import { auditBatch, auditLecture, auditHeadline } from "../lib/audit.mjs";
 import { fetchDppList, fetchDppPaper, dppHeadline } from "../lib/dpp.mjs";
-import { readDppPaper } from "../lib/dpp-paper.mjs";
+import { readDppPaper, collectDppPapers } from "../lib/dpp-paper.mjs";
 import { fetchChapters, fetchChapterContents } from "../lib/api-data.mjs";
 import { fetchBatch } from "../lib/api-data.mjs";
 
@@ -298,7 +298,7 @@ async function dppPapersAction(req, res, finish, params) {
   const maxChapters = Math.max(1, Math.min(40, Number(params.chapters) || 12));
 
   const papers = await withDeadline(
-    collectDppPapers({ batch, subject, wantedChapter, maxChapters }),
+    collectDppPapers({ batch, subject, wantedChapter, maxChapters, fetchChapters, fetchChapterContents }),
     45_000
   ).catch((err) => ({ ok: false, error: err?.message || "The DPP papers timed out.", papers: [] }));
 
@@ -315,66 +315,6 @@ async function dppPapersAction(req, res, finish, params) {
   });
 }
 
-/** Walk chapters (or one) and flatten their DPP attachments into a paper list. */
-async function collectDppPapers({ batch, subject, wantedChapter, maxChapters }) {
-  const chaptersOut = await fetchChapters(batch, subject);
-  if (!chaptersOut.ok) {
-    return { ok: false, error: chaptersOut.error || "The chapter list could not be read.", papers: [] };
-  }
-  const all = chaptersOut.chapters || [];
-  // Chapters with no lectures can still carry DPPs, so only skip the ones the
-  // source itself reports as completely empty.
-  const withVideos = all.filter((c) => (Number(c.videos) || 0) > 0 || (Number(c.notes) || 0) > 0);
-  const pool = wantedChapter
-    ? all.filter((c) => c.id === wantedChapter)
-    : withVideos.length
-      ? withVideos
-      : all;
-
-  const chosen = pool.slice(0, maxChapters);
-  const papers = [];
-  const notes = [];
-
-  for (const chapter of chosen) {
-    try {
-      const out = await fetchChapterContents(batch, subject, chapter.id, "DppNotes");
-      if (!out.ok) {
-        notes.push(`${chapter.name}: ${out.error}`);
-        continue;
-      }
-      for (const item of out.items || []) {
-        for (const doc of item.docs || []) {
-          if (!doc.url) continue;
-          papers.push({
-            id: doc.pdfId || item.id,
-            title: (doc.topic || item.title || doc.name || "DPP").trim(),
-            file: doc.name || "",
-            url: doc.url,
-            date: item.date || "",
-            chapter: chapter.name,
-            chapterId: chapter.id,
-            attachmentId: doc.attachmentId || "",
-            pdfId: doc.pdfId || "",
-          });
-        }
-      }
-    } catch (err) {
-      notes.push(`${chapter.name}: ${err?.message || "could not be read"}`);
-    }
-  }
-
-  // Newest first, but keep the chapter grouping visible by sorting on date.
-  papers.sort((a, b) => String(b.date).localeCompare(String(a.date)));
-
-  return {
-    ok: true,
-    papers,
-    notes,
-    total: pool.length,
-    scanned: chosen.length,
-    truncated: pool.length > chosen.length,
-  };
-}
 
 /**
  * GET /api/admin?action=dpp-paper

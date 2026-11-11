@@ -265,6 +265,7 @@ GET  /api/pdf?dpp=<paper url>          → the paper's questions and options, no
 POST /api/pdf?dpp=<paper url>          → the marked attempt: score + per-question review
 GET  …?dpp=<paper url>&check=1         → does the paper mark correctly? counts only
 GET  …?dpp=<paper url>&probe=extract   → why a paper failed: its raw extracted text
+                                       (operator only: needs x-admin-token or &token=)
 GET  …?dpp=<paper url>&lines=1         → how the paper was laid out (key withheld)
 GET  …?dpp=<paper url>&lines=1&runs=1  → …plus one page's runs as geometry (`&page=N`)
 ```

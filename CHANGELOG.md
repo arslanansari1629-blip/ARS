@@ -5,6 +5,22 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AE — two things left owed
+
+**A diagnostic that had become a public window.** `?probe=extract` was added to
+answer one question — *why* a paper reads as control bytes — and it answers it by
+returning a page of the paper's extracted text. Left open, that is a window onto
+whatever PDF anyone names, refetched on this deployment's bill. It now asks for an
+operator session (`x-admin-token`, or `&token=` for curl) and is silent otherwise.
+The practice test beside it stays public, which is the line worth keeping straight:
+a student's route into a paper, yes; a debugging hatch into arbitrary PDFs, no.
+
+**One paper list, one implementation.** `collectDppPapers` existed twice — a copy in
+`api/admin.mjs` and the exported one in `lib/dpp-paper.mjs` used by nothing. Both
+walked chapters and flattened DPP attachments, and they had already begun to differ
+in how they filter a chapter pool. The panel now calls the shared one, so a fix to
+"which chapters carry papers" lands in one place.
+
 ## Round AD — the opening sheet
 
 **The problem.** The site had no opening. `/` dropped a visitor straight into a hero and a
