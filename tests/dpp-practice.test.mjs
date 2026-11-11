@@ -80,6 +80,7 @@ const PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper.pdf`;
 const REAL_PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-real.pdf`;
 const STACKED_PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-stacked.pdf`;
 const COLUMN_PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-columns.pdf`;
+const SCAN = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-scan.pdf`;
 
 async function get(pathname) {
   const res = await REAL_FETCH(`${BASE}${pathname}`);
@@ -373,6 +374,22 @@ test("the marking check names the questions that fail, and only those", async ()
     assert.equal(typeof failed.expected, "string");
   }
   assert.equal(body.failed.length, 0);
+});
+
+test("a paper that will not read still shows how it was laid out", async () => {
+  // The diagnostic is for the paper that came out *wrong*, and the worst case is one
+  // the reader could not read at all: "no questions were found, it may be a scanned
+  // image" is an answer that cannot be checked or argued with. The layout is attached
+  // to the failure as well, so the sheet can be looked at.
+  //
+  // The fixture upstream serves a paper with no `Q` markers, which is what a scan
+  // looks like to the reader.
+  const { res, body } = await get(`/api/pdf?dpp=${encodeURIComponent(SCAN())}&lines=1`);
+  assert.equal(res.status, 502, "this paper is supposed to be unreadable");
+  assert.equal(body.success, false);
+  assert.ok(body.layout, "the failed read has no layout");
+  assert.equal(body.layout.ok, true);
+  assert.equal(body.layout.pages, 1);
 });
 
 /* ------------------------------------------------------- the guard rails */

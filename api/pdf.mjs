@@ -218,6 +218,10 @@ async function dppRoute(req, res, params) {
     return json(res, 405, { success: false, error: "Method not allowed" });
   }
 
+  // Which diagnostic was asked for. `lines` and `runs` are needed precisely when a
+  // paper *fails* to read, so they are answered before the failure is returned.
+  const wantsLayout = params.lines === "1";
+
   const paper = await readDppPaper({ url, name, mediaBase: `${selfBase(req)}/api/media` });
   if (!paper.ok) {
     return json(res, 502, {
@@ -227,6 +231,17 @@ async function dppRoute(req, res, params) {
       pages: paper.pages || 0,
       bytes: paper.bytes || 0,
       stats: paper.stats || { total: 0, answerable: 0 },
+      // A paper nobody can read is the case where the geometry matters most — a
+      // scanned sheet and a sheet the reader got wrong look identical from the
+      // answer, so the layout is attached to the failure too.
+      ...(wantsLayout
+        ? {
+            layout: await describeLayout(url, {
+              runs: params.runs === "1",
+              dumpPage: Number(params.page) || 0,
+            }),
+          }
+        : {}),
     });
   }
 
@@ -251,7 +266,7 @@ async function dppRoute(req, res, params) {
     return json(res, 200, { success: true, url, ...checkPaper(paper) });
   }
 
-  if (params.lines === "1") {
+  if (wantsLayout) {
     const layout = await describeLayout(url, {
       runs: params.runs === "1",
       dumpPage: Number(params.page) || 0,

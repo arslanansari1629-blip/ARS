@@ -669,10 +669,28 @@ async function columnPaper() {
   return t.save();
 }
 
+/**
+ * A paper with no question markers at all — what a scan looks like to the reader.
+ *
+ * It exists for the failure path: "no questions were found, it is probably a scanned
+ * image" is the one answer that cannot be argued with from the outside, so the route
+ * attaches the layout to the failure and this is the paper that proves it.
+ */
+async function scannedPaper() {
+  const pdf = await PDFDocument.create();
+  const t = await sheet(pdf).init();
+  t.newPage();
+  t.run("Units and Measurements", { x: 209, y: 143, size: 16 });
+  t.run("The most accurate reading of the length of a fibre is", { x: 50, y: 212, size: 10.2 });
+  t.run("(A) 6 cm     (B) 6.5 cm     (C) 5.99 cm     (D) 6.0 cm", { x: 50, y: 240, size: 10.2 });
+  return t.save();
+}
+
 const files = [
   ["dpp-paper-real.pdf", questionPaper],
   ["dpp-paper-stacked.pdf", stackedPaper],
   ["dpp-paper-columns.pdf", columnPaper],
+  ["dpp-paper-scan.pdf", scannedPaper],
 ];
 
 for (const [name, build] of files) {

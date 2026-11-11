@@ -56,6 +56,7 @@ const routes = [
   { match: /dpp-paper-stacked\.pdf$/, file: "dpp-paper-stacked.pdf", type: "application/pdf" },
   // DPP 11 as the source prints it: two questions to a row, on three pages.
   { match: /dpp-paper-columns\.pdf$/, file: "dpp-paper-columns.pdf", type: "application/pdf" },
+  { match: /dpp-paper-scan\.pdf$/, file: "dpp-paper-scan.pdf", type: "application/pdf" },
 ];
 
 http
