@@ -235,7 +235,10 @@ async function dppRoute(req, res, params) {
   // alone. The text is public (it is the PDF) and the shape is bounded, so this
   // is a diagnostic, not a leak.
   if (params.lines === "1") {
-    const layout = await describeLayout(url, { runs: params.runs === "1" });
+    const layout = await describeLayout(url, {
+      runs: params.runs === "1",
+      dumpPage: Number(params.page) || 0,
+    });
     return json(res, 200, {
       success: true,
       source: "pdf",
@@ -266,7 +269,7 @@ async function dppRoute(req, res, params) {
  * the column boundaries, and the first lines of each page — enough to see why a
  * paper came out wrong, small enough to read in a browser.
  */
-async function describeLayout(url, { runs = false } = {}) {
+async function describeLayout(url, { runs = false, dumpPage = 0 } = {}) {
   const fetched = await fetchPaperBytes(url);
   if (!fetched.bytes) return { ok: false, error: fetched.error };
   const doc = await extractPdfDocument(fetched.bytes);
@@ -295,10 +298,10 @@ async function describeLayout(url, { runs = false } = {}) {
       const body = keyAt < 0 ? read : read.slice(0, keyAt);
       const lines = body.slice(0, 45).map((line) => line.text.slice(0, 110));
       if (keyAt >= 0) lines.push(`[answer key withheld: ${read.length - keyAt} lines]`);
-      // `&runs=1` dumps every run of the first page, compactly. That is how a
-      // real paper's geometry gets into the test fixtures: the paper cannot be
-      // downloaded from a sandbox, but its runs can be read back as JSON.
-      const dump = runs && index === 0
+      // `&runs=1` dumps every run of one page (`&page=1` picks which), compactly.
+      // That is how a real paper's geometry gets into the test fixtures: the paper
+      // cannot be downloaded from a sandbox, but its runs can be read back as JSON.
+      const dump = runs && index === dumpPage
         ? page
             .slice()
             // The key page's runs are geometry, not text: its `(B)` cells would
