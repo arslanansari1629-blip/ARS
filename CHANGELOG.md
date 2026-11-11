@@ -36,6 +36,10 @@ whole Physics Wallah catalogue rather than another course storefront.
 - **The front door opens it too.** The same sheet is laid over `/` on the first visit of a
   session and lifted without navigating, so the catalogue underneath keeps its scroll. It is the
   *same markup* — the home page fetches `/open` — and `/?open=1` replays it.
+- **The count is finished, not frozen.** The batch figure counts up over frames, and a
+  background tab throttles frames — so leaving early (or being suspended mid-count) settles the
+  number on the figure the catalogue reports. A frozen "12,925" on the way out would be a wrong
+  number, which is worse than no animation.
 - **A sheet, not a gate.** Hidden states are scoped to a class the module adds, so the page is the
   finished drawing without JavaScript; the front door arms itself in `<head>` with a 5s failsafe
   that gives the page back if the module never arrives; `Esc`, `Enter`, `Space`, a click and the

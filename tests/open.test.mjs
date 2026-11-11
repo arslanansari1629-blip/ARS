@@ -167,6 +167,28 @@ test("reduced motion gets the finished drawing, not a shorter animation", async 
   window.close();
 });
 
+test("a skipped sheet still ends on the real count, not a half-written one", async () => {
+  // The count-up is frames, and a background tab throttles frames. Anyone who
+  // leaves early — or whose tab was suspended mid-count — must still end on the
+  // figure the catalogue actually reports, because a frozen "8,4" is worse than
+  // no animation at all.
+  const dom = await load("/open");
+  const { window } = dom;
+  await run(dom, "/assets/open.js");
+  const doc = window.document;
+
+  const live = await (await REAL_FETCH(`${BASE}/api/batches?page=1&limit=1`)).json();
+  assert.ok(live.total > 0, "the catalogue route has no total to count to");
+
+  // Leave immediately, while the count is still climbing.
+  doc.getElementById("openGo").click();
+  await new Promise((r) => setTimeout(r, 80));
+
+  const shown = doc.getElementById("otBatches").textContent;
+  assert.equal(shown, live.total.toLocaleString("en-IN"), `the sheet settled on "${shown}"`);
+  window.close();
+});
+
 test("the sheet offers an exit that does not wait for the sequence", async () => {
   const dom = await load("/open");
   const { window } = dom;

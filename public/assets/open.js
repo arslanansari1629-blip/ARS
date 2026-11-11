@@ -94,6 +94,8 @@ function runSheet(el, leave) {
 
   let gone = false;
   let raf = 0;
+  /** Writes the sheet's final numbers, whatever point the animation reached. */
+  let settle = () => {};
 
   /* Frame scheduling is written against whatever exists. The sheet is only a
      page; a page that throws because it was rendered somewhere without
@@ -109,6 +111,13 @@ function runSheet(el, leave) {
     if (gone) return;
     gone = true;
     unframe(raf);
+    // A background tab throttles frames, so the count-up can freeze halfway.
+    // Whatever the visitor ends on, it must be the real figure.
+    try {
+      settle();
+    } catch {
+      /* nothing to settle */
+    }
     doc.classList.add("open-done");
     leave();
   };
@@ -135,6 +144,11 @@ function runSheet(el, leave) {
     for (const skel of el.querySelectorAll(".ot-skel")) skel.remove();
     if (!(total > 0)) return;
 
+    const write = (value) => {
+      target.textContent = value.toLocaleString("en-IN");
+    };
+    settle = () => write(total);
+
     const from = 0;
     const run = 620;
     const t0 = NOW();
@@ -142,7 +156,7 @@ function runSheet(el, leave) {
       const pct = Math.min(1, (NOW() - t0) / run);
       // ease-out: the figures settle rather than stopping dead
       const eased = 1 - Math.pow(1 - pct, 3);
-      target.textContent = Math.round(from + (total - from) * eased).toLocaleString("en-IN");
+      write(Math.round(from + (total - from) * eased));
       if (pct < 1 && !gone) raf = frame(step);
     };
     raf = frame(step);
