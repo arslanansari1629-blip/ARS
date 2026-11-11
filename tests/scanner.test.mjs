@@ -536,3 +536,21 @@ test("one class of fault is one row that counts its sightings", async () => {
   assert.ok(empty_[0].firstAt, "the first sighting was not kept");
   assert.ok(pass.findings.length >= 5, "the pass stopped reporting the faults themselves");
 });
+
+test("progress is stamped so another instance's panel can see it", async () => {
+  // Each function instance keeps its own scheduler, so "no slice here" is not
+  // "no slice anywhere". The stamp is the only shared evidence the cadence is
+  // running, and it has to survive a simulated cold start.
+  const site = stubSite();
+  await withSite(site, () => runSlice({ base: "https://example.test", budget: 20000, window: 2 }));
+  const first = scannerReport().sharedAt;
+  assert.ok(first, "a finished slice left no shared stamp");
+  assert.ok(Date.parse(first) <= Date.now() + 1000);
+
+  resetScanner();
+  resetScheduler();
+  assert.equal(scannerReport().sharedAt, "", "the fresh instance already claims progress");
+
+  await restoreSchedulerState();
+  assert.equal(scannerReport().sharedAt, first, "the stamp did not survive the cold start");
+});

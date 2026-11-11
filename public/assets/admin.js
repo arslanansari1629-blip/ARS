@@ -685,11 +685,14 @@ function renderScanner(scan) {
       inProcOn ? "on" : inProc.lastTickAt ? "warn" : "off",
       inProcOn ? "✓" : "·",
       "On traffic",
+      // Every function instance keeps its own copy of the scheduler, so "no
+      // slice here" is not "no slice anywhere": the catalogue route may have run
+      // one a minute ago on a different instance. Saying "idle" would be a lie,
+      // and saying "running" would be an unverifiable claim — so the row names
+      // the instance and what the cadence actually depends on.
       inProcOn
-        ? "Last slice " + ago(tickAge) + " · " + String(scan.slices || 0) + " slice" + (Number(scan.slices) === 1 ? "" : "s") + " this instance"
-        : inProc.lastTickAt
-          ? "Last slice " + ago(tickAge) + " — quiet, so nothing has needed scanning"
-          : "Waiting for the next visitor: a slice runs at most once every " + Math.round(Number(scan.cadenceMs || 0) / 60000) + " minutes",
+        ? "Last slice " + ago(tickAge) + " · " + String(scan.slices || 0) + " slice" + (Number(scan.slices) === 1 ? "" : "s") + " on this instance"
+        : "No slice on this instance yet. Slices run on whichever instance takes the first catalogue request after each " + Math.round(Number(scan.cadenceMs || 0) / 60000) + " minutes — this box is only what the panel's own instance has seen.",
       inProc.detail || ""
     )
   );
@@ -717,9 +720,15 @@ function renderScanner(scan) {
   );
   $("#scanClock").innerHTML = rows.join("");
 
-  $("#scanClockNote").textContent = last
-    ? "· " + String(scan.lastDecision || "no tick yet")
-    : "";
+  // The one line that can be checked from anywhere: when *any* instance last
+  // wrote its progress to the store. It is the only shared evidence that the
+  // cadence is running, so it is shown separately from this instance's own count.
+  const shared = scan.scanner && scan.scanner.sharedAt ? Date.parse(scan.scanner.sharedAt) : 0;
+  $("#scanClockNote").textContent = shared
+    ? "· last progress written " + ago(shared) + (scan.store === "memory" ? " (this instance only)" : " (shared store)")
+    : last
+      ? "· " + String(scan.lastDecision || "no tick yet")
+      : "";
 
   // --- findings: what, where, and who is expected to fix it ----------------
   $("#scanCount").textContent = open.length ? "(" + open.length + " open)" : "(none open)";
