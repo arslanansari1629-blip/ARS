@@ -116,6 +116,7 @@ $("#loginForm")?.addEventListener("submit", async (e) => {
     $("#adminPass").value = "";
     showPanel();
     await load();
+    loadAudit();
     startPolling();
   } catch (error) {
     showGate(`Could not reach the server: ${error.message}`);
@@ -461,6 +462,502 @@ $("#logTabs")?.addEventListener("click", (e) => {
   if (lastData) renderLogs(lastData);
 });
 
+/* ----------------------------------------------------------------- audit */
+
+/**
+ * The content audit.
+ *
+ * Every other block on this panel describes the server. This one describes the
+ * *content*, which is the only thing a student actually notices: of the lectures
+ * in a batch, which ones do not play, and why.
+ *
+ * An audit is minutes of upstream work, so the panel does not wait for it in a
+ * single request: it starts one, then polls the same route for progress. That
+ * also means the answer survives a page reload — the server keeps the last
+ * report — and the panel can say how old it is.
+ */
+
+const AUDIT_STATE_LABELS = {
+  plays: "plays",
+  pending: "pending",
+  "no-stream": "no stream",
+  broken: "broken",
+  unknown: "unknown",
+};
+
+/** Order the rows worst-first: what needs work should not be below the fold. */
+const AUDIT_ORDER = { broken: 0, "no-stream": 0, unknown: 1, pending: 2, plays: 3 };
+
+/** Attribute-safe text. `esc` handles text nodes; this handles `title="…"`. */
+const escAttr = (value) => String(value ?? "").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+let auditState = null;
+let auditPoll = null;
+
+function auditFmt(ms) {
+  if (!Number.isFinite(ms)) return "";
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+}
+
+function renderAudit(audit, meta = {}) {
+  auditState = audit;
+  const totalsBox = $("#auditTotals");
+  const rowsBox = $("#auditRows");
+  const notesBox = $("#auditNotes");
+  const stamp = $("#auditStamp");
+
+  if (!audit) {
+    stamp.textContent = "never run";
+    totalsBox.innerHTML = "";
+    rowsBox.innerHTML = `<p class="audit-empty">No audit has run on this server instance yet. Paste a batch id and run one.</p>`;
+    notesBox.innerHTML = "";
+    return;
+  }
+
+  if (!audit.ok) {
+    stamp.textContent = "last run failed";
+    totalsBox.innerHTML = "";
+    rowsBox.innerHTML = `<p class="audit-empty">${esc(audit.error || "The audit failed.")}</p>`;
+    notesBox.innerHTML = "";
+    return;
+  }
+
+  const t = audit.totals || {};
+  const when = audit.checkedAt ? ago(audit.checkedAt) : "";
+  stamp.textContent = `${audit.name || audit.batch} · ${when}${audit.ms ? ` · ${auditFmt(audit.ms)}` : ""}`;
+
+  // Six tiles, in the order they matter. `pending` is deliberately not red: it
+  // is the expected state for a live class, and colouring it red would train an
+  // operator to ignore red.
+  const tiles = [
+    ["plays", t.plays, "playing"],
+    ["pending", t.pending, "not published"],
+    ["no-stream", t["no-stream"], "refused"],
+    ["broken", t.broken, "no video"],
+    ["unknown", t.unknown, "unreadable"],
+  ].filter(([, n]) => n !== undefined);
+
+  totalsBox.innerHTML = tiles
+    .map(
+      ([state, n, label]) => `
+      <div class="audit-total is-${state}">
+        <strong>${Number(n || 0).toLocaleString()}</strong>
+        <span>${esc(label)}</span>
+      </div>`
+    )
+    .join("");
+
+  // Worst-first, and *stable*: a re-render every 1.5 s must not shuffle rows
+  // under the operator's cursor, so ties keep their original order.
+  const rows = (audit.lectures || [])
+    .map((lecture, index) => ({ lecture, index }))
+    .sort(
+      (a, b) =>
+        (AUDIT_ORDER[a.lecture.state] ?? 9) - (AUDIT_ORDER[b.lecture.state] ?? 9) ||
+        a.index - b.index
+    )
+    .map((row) => row.lecture);
+
+  rowsBox.innerHTML = rows.length
+    ? rows
+        .map(
+          (l) => `
+      <div class="audit-row" data-id="${esc(l.id)}">
+        <span class="audit-state ${esc(l.state)}">${esc(AUDIT_STATE_LABELS[l.state] || l.state)}</span>
+        <span class="audit-title" title="${escAttr(l.title || l.id)}">${esc(l.title || l.id)}</span>
+        <span class="audit-detail" title="${escAttr(l.detail || l.chapterName || "")}">${esc(
+          l.detail || l.chapterName || ""
+        )}</span>
+        <button class="audit-rescan" type="button"
+          data-batch="${escAttr(l.batch || audit.batch)}"
+          data-subject="${escAttr(l.subject || "")}"
+          data-id="${escAttr(l.id)}"
+          data-title="${escAttr(l.title || "")}"
+          aria-label="Re-check ${escAttr(l.title || l.id)}">re-check</button>
+      </div>`
+        )
+        .join("")
+    : `<p class="audit-empty">No lectures came back for this batch.</p>`;
+
+  notesBox.innerHTML = (audit.notes || [])
+    .map((n) => `<li>${esc(n)}</li>`)
+    .join("");
+}
+
+/** Re-check one row without re-running the whole batch. */
+async function rescan(row, btn) {
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "…";
+  try {
+    const res = await fetch("/api/admin?action=rescan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-token": token },
+      body: JSON.stringify({
+        batch: row.dataset.batch,
+        subject: row.dataset.subject,
+        id: row.dataset.id,
+        title: row.dataset.title,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      token = "";
+      sessionStorage.removeItem(TOKEN_KEY);
+      showGate("Your session ended. Sign in again.");
+      return;
+    }
+    if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+
+    // Patch the row in place rather than re-rendering: a re-render would lose
+    // the operator's scroll position halfway down a long list.
+    const lecture = data.lecture || {};
+    if (auditState && Array.isArray(auditState.lectures)) {
+      const at = auditState.lectures.findIndex((l) => l.id === lecture.id);
+      if (at >= 0) auditState.lectures[at] = { ...auditState.lectures[at], ...lecture };
+    }
+    renderAudit(auditState, { keepScroll: true });
+  } catch (error) {
+    btn.textContent = "failed";
+    btn.title = error.message;
+    setTimeout(() => {
+      btn.textContent = original;
+    }, 2000);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$("#auditRows")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".audit-rescan");
+  if (!btn) return;
+  rescan(btn.closest(".audit-row"), btn);
+});
+
+/** Poll the audit route while a sweep is running on the server. */
+function startAuditPolling() {
+  stopAuditPolling();
+  auditPoll = setInterval(async () => {
+    try {
+      const res = await fetch("/api/admin?action=audit", { headers: { "x-admin-token": token } });
+      if (res.status === 401) return stopAuditPolling();
+      const data = await res.json();
+      if (!data.success) return;
+      const bar = $("#auditProgress");
+      if (data.running && data.progress) {
+        const { done, total, last } = data.progress;
+        bar.hidden = false;
+        $("#auditBarFill").style.width = `${Math.round((done / Math.max(1, total)) * 100)}%`;
+        $("#auditProgressText").textContent =
+          `Checked ${done} of ${total}` + (last ? ` — ${last}` : "");
+      } else {
+        bar.hidden = true;
+        stopAuditPolling();
+        if (data.audit) renderAudit(data.audit);
+      }
+    } catch {
+      /* a poll failing is not worth a message; the next one may succeed */
+    }
+  }, 1500);
+}
+
+function stopAuditPolling() {
+  if (auditPoll) clearInterval(auditPoll);
+  auditPoll = null;
+}
+
+$("#auditForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const batch = $("#auditBatch").value.trim();
+  const limit = Number($("#auditLimit").value) || 40;
+  const err = $("#auditError");
+  const btn = $("#auditRun");
+
+  if (!batch) {
+    err.textContent = "Paste a batch id first.";
+    err.hidden = false;
+    return;
+  }
+
+  err.hidden = true;
+  btn.disabled = true;
+  btn.textContent = "Auditing…";
+  $("#auditProgress").hidden = false;
+  $("#auditBarFill").style.width = "0%";
+  $("#auditProgressText").textContent = "Starting…";
+  startAuditPolling();
+
+  try {
+    const res = await fetch("/api/admin?action=audit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-token": token },
+      body: JSON.stringify({ batch, limit }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      token = "";
+      sessionStorage.removeItem(TOKEN_KEY);
+      showGate("Your session ended. Sign in again.");
+      return;
+    }
+    if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
+    renderAudit(data.audit);
+  } catch (error) {
+    err.textContent = error.message;
+    err.hidden = false;
+  } finally {
+    stopAuditPolling();
+    $("#auditProgress").hidden = true;
+    btn.disabled = false;
+    btn.textContent = "Run audit";
+  }
+});
+
+/** Ask once on load for the last report, so a reload does not start over. */
+async function loadAudit() {
+  if (!token) return;
+  try {
+    const res = await fetch("/api/admin?action=audit", { headers: { "x-admin-token": token } });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success) return;
+    if (data.running) {
+      $("#auditProgress").hidden = false;
+      startAuditPolling();
+    }
+    renderAudit(data.audit);
+  } catch {
+    /* the panel still works without a previous audit */
+  }
+}
+
+/* ------------------------------------------------------------------- dpp */
+
+/**
+ * The DPP panel.
+ *
+ * The papers are real but the *questions* are not always readable: Physics
+ * Wallah serves the index to a guest and the paper to a paid session. So the
+ * list is the primary object here and opening a paper is a best effort — when
+ * it is locked the panel says exactly that, rather than showing an empty test.
+ */
+
+let dppPage = 1;
+
+function dppError(message) {
+  const box = $("#dppError");
+  if (!box) return;
+  box.textContent = message || "";
+  box.hidden = !message;
+}
+
+const dppQ = (value) => encodeURIComponent(String(value || "").trim());
+
+function fmtMinutes(min) {
+  const n = Number(min);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return n >= 60 ? `${Math.round((n / 60) * 10) / 10} h` : `${n} min`;
+}
+
+/** Load the subjects of a batch into the picker. `subjects[].id` is the key. */
+async function loadDppSubjects() {
+  const batch = $("#dppBatch").value.trim();
+  const picker = $("#dppSubject");
+  if (!batch) {
+    dppError("Paste a batch id first.");
+    return;
+  }
+  dppError("");
+  picker.disabled = true;
+  picker.innerHTML = `<option value="">Loading subjects…</option>`;
+  try {
+    const res = await fetch(`/api/batch?id=${dppQ(batch)}`);
+    const data = await res.json();
+    const subjects = Array.isArray(data.subjects) ? data.subjects : [];
+    if (!subjects.length) {
+      picker.innerHTML = `<option value="">No subjects in this batch</option>`;
+      dppError("That batch has no subjects — check the id.");
+      return;
+    }
+    // Built in a helper rather than a nested template: a second backtick inside
+    // `${…}` trips the page-module checker, which strips literals line-blind.
+    const optionLabel = (s) => {
+      const count = Number(s.lectureCount) || 0;
+      const suffix = count ? ` · ${count} lectures` : "";
+      return `${s.name || s.slug || "Subject"}${suffix}`;
+    };
+    picker.innerHTML =
+      `<option value="">Choose a subject…</option>` +
+      subjects
+        .map((s) => `<option value="${esc(s.id || "")}">${esc(optionLabel(s))}</option>`)
+        .join("");
+  } catch (err) {
+    picker.innerHTML = `<option value="">Could not load subjects</option>`;
+    dppError(err?.message || "The batch could not be read.");
+  } finally {
+    picker.disabled = false;
+  }
+}
+
+async function loadDpps(page = 1) {
+  const batch = $("#dppBatch").value.trim();
+  const subject = $("#dppSubject").value;
+  if (!batch) return dppError("Paste a batch id first.");
+  if (!subject) return dppError("Choose a subject first.");
+
+  dppPage = Math.max(1, Number(page) || 1);
+  dppError("");
+  $("#dppRun").disabled = true;
+  $("#dppRun").textContent = "Reading…";
+  try {
+    const res = await fetch(
+      `/api/admin?action=dpp&batch=${dppQ(batch)}&subject=${dppQ(subject)}&page=${dppPage}`,
+      { headers: { "x-admin-token": token } }
+    );
+    const data = await res.json();
+    if (!data.success) {
+      $("#dppList").innerHTML = "";
+      $("#dppHeadline").textContent = "";
+      $("#dppPager").hidden = true;
+      $("#dppStamp").textContent = "read failed";
+      dppError(data.error || "The DPP list could not be read.");
+      return;
+    }
+    renderDpps(data);
+  } catch (err) {
+    dppError(err?.message || "The DPP list could not be read.");
+  } finally {
+    $("#dppRun").disabled = false;
+    $("#dppRun").textContent = "List DPPs";
+  }
+}
+
+function renderDpps(data) {
+  const items = data.items || [];
+  $("#dppStamp").textContent = `${data.subject || "subject"} · page ${data.page || 1} of ${
+    data.pages || 1
+  }`;
+  $("#dppHeadline").textContent = data.headline || "";
+
+  $("#dppList").innerHTML = items.length
+    ? items
+        .map(
+          (item) => `
+      <li>
+        <button class="dpp-row" type="button" data-id="${escAttr(item.id)}" data-name="${escAttr(
+          item.name
+        )}">
+          <span class="dpp-serial">${esc(item.serial || item.displayOrder || "")}</span>
+          <span class="dpp-name" title="${escAttr(item.name)}">${esc(item.name)}</span>
+          <span class="dpp-meta">${item.questions ? `${Number(item.questions)} Q` : ""}${
+            item.minutes ? ` · ${esc(fmtMinutes(item.minutes))}` : ""
+          }</span>
+        </button>
+      </li>`
+        )
+        .join("")
+    : `<li class="dpp-empty">No DPPs on this page.</li>`;
+
+  $("#dppPager").hidden = (data.pages || 1) <= 1;
+  $("#dppPageInfo").textContent = `${data.total || 0} papers · page ${data.page || 1}/${
+    data.pages || 1
+  }`;
+  $("#dppPrev").disabled = (data.page || 1) <= 1;
+  $("#dppNext").disabled = (data.page || 1) >= (data.pages || 1);
+}
+
+async function openDpp(id, name) {
+  const paper = $("#dppPaper");
+  const body = $("#dppPaperBody");
+  paper.hidden = false;
+  document.querySelector(".admin-dpp-body")?.classList.add("has-paper");
+  $("#dppPaperName").textContent = name || "DPP";
+  $("#dppPaperMeta").textContent = "Reading the paper…";
+  body.innerHTML = "";
+
+  try {
+    const res = await fetch(`/api/admin?action=dpp-paper&id=${dppQ(id)}`, {
+      headers: { "x-admin-token": token },
+    });
+    const data = await res.json();
+    if (data.locked) {
+      $("#dppPaperMeta").textContent = "locked";
+      body.innerHTML = `<p class="dpp-locked-note">${esc(
+        data.error ||
+          "This paper needs a paid Physics Wallah session. Its questions cannot be shown to a guest."
+      )}</p>`;
+      return;
+    }
+    if (!data.success) {
+      $("#dppPaperMeta").textContent = "could not read";
+      body.innerHTML = `<p class="dpp-locked-note">${esc(
+        data.error || "The paper could not be read."
+      )}</p>`;
+      return;
+    }
+    const questions = data.questions || [];
+    $("#dppPaperMeta").textContent = [
+      `${questions.length} question${questions.length === 1 ? "" : "s"}`,
+      data.minutes ? fmtMinutes(data.minutes) : "",
+      data.totalMarks ? `${data.totalMarks} marks` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+    body.innerHTML = questions.length
+      ? questions.map(renderQuestion).join("")
+      : `<p class="dpp-locked-note">The paper came back empty. That is a data problem at the source, not a failure here.</p>`;
+  } catch (err) {
+    $("#dppPaperMeta").textContent = "could not read";
+    body.innerHTML = `<p class="dpp-locked-note">${esc(
+      err?.message || "The paper could not be read."
+    )}</p>`;
+  }
+}
+
+function renderQuestion(q) {
+  const options = (q.options || [])
+    .map(
+      (opt, i) => `
+      <li class="dpp-option${opt.correct ? " is-correct" : ""}">
+        <span class="dpp-option-key">${esc(String.fromCharCode(65 + i))}</span>
+        <span>${esc(opt.text)}</span>
+      </li>`
+    )
+    .join("");
+  return `
+    <article class="dpp-question">
+      <p class="dpp-question-text"><span class="dpp-question-num">${esc(q.number || "")}.</span>${esc(
+        q.text
+      )}</p>
+      ${options ? `<ul class="dpp-options">${options}</ul>` : ""}
+      ${q.answer ? `<p class="dpp-solution">${esc(q.answer)}</p>` : ""}
+    </article>`;
+}
+
+function closeDpp() {
+  $("#dppPaper").hidden = true;
+  document.querySelector(".admin-dpp-body")?.classList.remove("has-paper");
+}
+
+$("#dppLoadSubjects")?.addEventListener("click", loadDppSubjects);
+$("#dppForm")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  loadDpps(1);
+});
+$("#dppPrev")?.addEventListener("click", () => loadDpps(dppPage - 1));
+$("#dppNext")?.addEventListener("click", () => loadDpps(dppPage + 1));
+$("#dppPaperClose")?.addEventListener("click", closeDpp);
+$("#dppList")?.addEventListener("click", (e) => {
+  const row = e.target.closest(".dpp-row");
+  if (!row) return;
+  $("#dppList")
+    .querySelectorAll('.dpp-row[aria-current="true"]')
+    .forEach((el) => el.removeAttribute("aria-current"));
+  row.setAttribute("aria-current", "true");
+  openDpp(row.dataset.id, row.dataset.name);
+});
+
 /* ------------------------------------------------------------------ boot */
 
 // An existing token may still be valid: check before showing the gate, so a
@@ -478,6 +975,7 @@ if (token) {
       }
       showPanel();
       load();
+      loadAudit();
       startPolling();
     });
 } else {

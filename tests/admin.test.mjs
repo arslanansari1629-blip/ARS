@@ -238,9 +238,156 @@ test("the panel renders its gate and its blocks from the shipped module", async 
     "heroStats",
     "refreshBtn",
     "signOutBtn",
+    "auditBlock",
+    "auditForm",
+    "auditBatch",
+    "auditTotals",
+    "auditRows",
+    "auditStamp",
+    "auditLegend",
+    "dppBlock",
+    "dppForm",
+    "dppBatch",
+    "dppSubject",
+    "dppList",
+    "dppPaper",
+    "dppPager",
   ]) {
     assert.ok(html.includes(`id="${hook}"`), `the panel is missing #${hook}`);
   }
+});
+
+test("the audit surface requires a session and refuses nonsense politely", async () => {
+  // An anonymous caller must not be able to make the server sweep a batch: the
+  // audit is hundreds of upstream reads and a free denial-of-service otherwise.
+  const anonGet = await fetch(`${BASE}/api/admin?action=audit`);
+  assert.equal(anonGet.status, 401, "the last audit is readable without a session");
+
+  const anonPost = await fetch(`${BASE}/api/admin?action=audit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ batch: "698ad3519549b300a5e1cc6a", limit: 2 }),
+  });
+  assert.equal(anonPost.status, 401, "an anonymous caller started a sweep");
+
+  const anonRescan = await fetch(`${BASE}/api/admin?action=rescan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ batch: "b", subject: "s", id: "l" }),
+  });
+  assert.equal(anonRescan.status, 401, "an anonymous caller re-checked a lecture");
+
+  const { body: auth } = await signIn();
+
+  // Nothing has run yet on a cold server, and the panel is told so rather than
+  // being handed a half-built report.
+  const first = await fetch(`${BASE}/api/admin?action=audit`, {
+    headers: { "x-admin-token": auth.token },
+  });
+  assert.equal(first.status, 200);
+  const state = await first.json();
+  assert.equal(state.success, true);
+  assert.equal(typeof state.running, "boolean", "the panel cannot tell whether a sweep is live");
+
+  // A sweep with no batch is a mistake, not a crash.
+  const noBatch = await fetch(`${BASE}/api/admin?action=audit`, {
+    method: "POST",
+    headers: { "x-admin-token": auth.token, "Content-Type": "application/json" },
+    body: JSON.stringify({ limit: 3 }),
+  });
+  assert.equal(noBatch.status, 400, "a sweep ran without a batch id");
+
+  // The limit is clamped, not trusted: an unbounded value would walk the whole
+  // catalogue inside a 50 s function.
+  const huge = await fetch(`${BASE}/api/admin?action=audit`, {
+    method: "POST",
+    headers: { "x-admin-token": auth.token, "Content-Type": "application/json" },
+    body: JSON.stringify({ batch: "does-not-exist", limit: 999999 }),
+  });
+  assert.equal(huge.status, 200);
+  const hugeBody = await huge.json();
+  assert.equal(hugeBody.success, true);
+  assert.ok(hugeBody.audit, "the sweep returned no report");
+  assert.ok(hugeBody.audit.totals.lectures <= 200, `the limit was not clamped: ${hugeBody.audit.totals.lectures}`);
+  // An unknown batch is reported as an empty sweep, not as a site outage.
+  assert.ok(Array.isArray(hugeBody.audit.notes), "the report has no notes channel");
+
+  await fetch(`${BASE}/api/admin?action=logout`, {
+    method: "POST",
+    headers: { "x-admin-token": auth.token },
+  });
+});
+
+test("the DPP panel lists papers behind a session and explains a locked one", async () => {
+  const { body: auth } = await signIn();
+  const headers = { "x-admin-token": auth.token };
+
+  // Anonymous callers get nothing: the DPP routes are operator surface too.
+  for (const action of ["dpp", "dpp-paper"]) {
+    const anon = await fetch(`${BASE}/api/admin?action=${action}&batch=b&subject=s&id=t`);
+    assert.equal(anon.status, 401, `${action} answered without a session`);
+  }
+
+  // Missing inputs are a 400 with a sentence, not a 500.
+  const noBatch = await fetch(`${BASE}/api/admin?action=dpp`, { headers });
+  assert.equal(noBatch.status, 400);
+  assert.match((await noBatch.json()).error, /batch and subject/i);
+
+  // A real subject of the fixture batch, by its batch-subject id.
+  const batch = await (await fetch(`${BASE}/api/batch?id=6a6b461cce4ac4e9ab51ee98`)).json();
+  const subject = (batch.subjects || [])[0];
+  assert.ok(subject, "the fixture batch has no subjects to ask about");
+
+  const list = await fetch(
+    `${BASE}/api/admin?action=dpp&batch=6a6b461cce4ac4e9ab51ee98&subject=${encodeURIComponent(subject.id)}`,
+    { headers }
+  );
+  assert.equal(list.status, 200, "the DPP list route is not mounted");
+  const body = await list.json();
+  assert.equal(body.success, true, body.error);
+  assert.ok(Array.isArray(body.items) && body.items.length > 0, "no papers came back");
+  // The row shape is nested; a reader that stops a level up returns blank names.
+  assert.match(body.items[0].name, /DPP/, "the paper name was not mapped");
+  assert.ok(body.items[0].questions > 0, "the question count was not mapped");
+  assert.ok(body.items[0].id, "the paper has no id to open");
+  assert.match(body.headline, /papers?/, "the list has no headline");
+  assert.ok(body.total >= body.items.length, "the total count was lost");
+
+  // A slug resolves to the subject instead of silently returning nothing.
+  const bySlug = await fetch(
+    `${BASE}/api/admin?action=dpp&batch=6a6b461cce4ac4e9ab51ee98&subject=${encodeURIComponent(subject.slug)}`,
+    { headers }
+  );
+  assert.equal(bySlug.status, 200);
+  assert.ok((await bySlug.json()).items.length > 0, "a subject slug returned no papers");
+
+  // A subject that is not in the batch is named as such.
+  const wrong = await fetch(
+    `${BASE}/api/admin?action=dpp&batch=6a6b461cce4ac4e9ab51ee98&subject=not-a-subject-slug`,
+    { headers }
+  );
+  assert.equal(wrong.status, 404);
+  assert.match((await wrong.json()).error, /not part of this batch/i);
+
+  // The paper itself: the fixture answers 401 like PW does, and the panel must
+  // be told "locked", not "broken".
+  const paper = await fetch(`${BASE}/api/admin?action=dpp-paper&id=${encodeURIComponent(body.items[0].id)}`, {
+    headers,
+  });
+  assert.equal(paper.status, 200);
+  const paperBody = await paper.json();
+  assert.equal(paperBody.locked, true, "an unreadable paper was not reported as locked");
+  assert.match(paperBody.error, /paid student session/i);
+  assert.equal(paperBody.questions.length, 0);
+
+  // No id at all is the caller's mistake.
+  const noId = await fetch(`${BASE}/api/admin?action=dpp-paper`, { headers });
+  assert.equal(noId.status, 400);
+
+  await fetch(`${BASE}/api/admin?action=logout`, {
+    method: "POST",
+    headers,
+  });
 });
 
 test("repeated bad passwords trip a cooldown", async () => {
@@ -307,6 +454,24 @@ test("the panel paints live numbers once signed in", async () => {
     client: { ip: "127.0.0.1", ua: "node" },
   };
 
+  // A saved audit from an earlier sweep, in the shape `api/admin.mjs` returns.
+  const previousAudit = {
+    ok: true,
+    batch: "698ad3519549b300a5e1cc6a",
+    name: "Arjuna JEE 2027",
+    checkedAt: new Date(Date.now() - 90_000).toISOString(),
+    ms: 41_000,
+    totals: { lectures: 40, healthy: false, plays: 31, pending: 8, "no-stream": 1, broken: 0, unknown: 0 },
+    notes: ["Units and Measurement: Physics Wallah no longer serves this section at the address the catalogue points to."],
+    truncated: false,
+    headline: "31/40 playing · 8 not published yet · 1 refused by the signer",
+    lectures: [
+      { id: "lec-pending", title: "Live class 14", state: "pending", detail: 'The source marks this lecture "Not Ready" — it has not published the recording yet.', chapterName: "Units and Measurement" },
+      { id: "lec-nostream", title: "Units and Measurement 07", state: "no-stream", detail: "The recording exists but every signing host refused it.", chapterName: "Units and Measurement" },
+      { id: "lec-plays", title: "Units and Measurement 01", state: "plays", detail: "480 · 5 renditions", chapterName: "Units and Measurement" },
+    ],
+  };
+
   const calls = [];
   globalThis.window = window;
   globalThis.document = window.document;
@@ -319,8 +484,13 @@ test("the panel paints live numbers once signed in", async () => {
     const url = String(input);
     calls.push({ url, init });
     if (url.includes("/api/admin")) {
-      // The boot path asks `whoami` first, then fetches stats.
-      const body = url.includes("action=whoami") ? { success: true, signedIn: true } : sample;
+      // The boot path asks `whoami` first, then fetches stats, then asks whether
+      // there is a previous audit to paint.
+      const body = url.includes("action=whoami")
+        ? { success: true, signedIn: true }
+        : url.includes("action=audit")
+          ? { success: true, running: false, progress: null, audit: previousAudit }
+          : sample;
       return { ok: true, status: 200, json: async () => body };
     }
     return nativeFetch(url.startsWith("http") ? url : `${BASE}${url}`, init);
@@ -356,6 +526,39 @@ test("the panel paints live numbers once signed in", async () => {
   assert.match(doc.getElementById("releaseKv").textContent, /c86836a/);
   assert.match(doc.getElementById("tokenBox").textContent, /vidcloud relay/);
   assert.match(doc.getElementById("runtimeKv").textContent, /14,201 batches/);
+
+  // The content audit: a saved sweep is painted on boot, without the operator
+  // having to press anything.
+  const totals = doc.getElementById("auditTotals").textContent.replace(/\s+/g, " ");
+  assert.match(totals, /31/, "the playing total was not painted");
+  assert.match(totals, /8/, "the pending total was not painted");
+  assert.ok(doc.querySelectorAll("#auditTotals .audit-total").length >= 5, "some states were dropped");
+
+  const auditRows = doc.querySelectorAll("#auditRows .audit-row");
+  assert.equal(auditRows.length, 3, `expected 3 audit rows, got ${auditRows.length}`);
+  // Worst first: an operator reads the top of the list, not the middle.
+  assert.match(auditRows[0].textContent, /no stream|refused/i, "the worst lecture is not first");
+  assert.equal(auditRows[0].getAttribute("data-id"), "lec-nostream", "rows were not sorted worst-first");
+  assert.match(auditRows[2].textContent, /Units and Measurement 01/, "a playing lecture sorted ahead of a fault");
+
+  // `pending` means "the source has not published it", which is nobody's bug.
+  // It must not wear a fault colour, or operators learn to ignore red.
+  const pendingRow = doc.querySelector('#auditRows .audit-row[data-id="lec-pending"] .audit-state');
+  assert.ok(pendingRow, "the pending lecture has no state chip");
+  assert.equal(pendingRow.classList.contains("pending"), true);
+  assert.equal(pendingRow.classList.contains("broken"), false, "pending was painted as broken");
+  const pendingTile = doc.querySelector('#auditTotals .audit-total.is-pending');
+  assert.ok(pendingTile, "there is no pending tile");
+  assert.equal(
+    pendingTile.classList.contains("is-broken"),
+    false,
+    "the pending tile is styled as a failure"
+  );
+
+  assert.match(doc.getElementById("auditStamp").textContent, /Arjuna/, "the audit stamp lost the batch name");
+  assert.match(doc.getElementById("auditNotes").textContent, /no longer serves this section/);
+  // Every row can be re-checked on its own.
+  assert.equal(doc.querySelectorAll("#auditRows .audit-rescan").length, 3, "some rows cannot be re-checked");
 
   // Signing out must clear the token and go back to the gate.
   doc.getElementById("signOutBtn").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));

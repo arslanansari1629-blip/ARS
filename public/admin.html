@@ -131,6 +131,101 @@
         <div class="admin-kv" id="runtimeKv"></div>
       </section>
 
+
+      <!-- DPP test panel: the practice papers behind each lecture -->
+      <section class="card pad-md admin-block admin-dpp" id="dppBlock" style="grid-column:1/-1">
+        <div class="row between mb-2">
+          <h3>DPP tests</h3>
+          <span class="tiny dim" id="dppStamp">no subject loaded</span>
+        </div>
+        <p class="tiny dim mb-2">
+          Daily Practice Problems for one subject. Pick a batch, then a subject, and
+          the papers open in the list below. A paper that Physics Wallah will not
+          serve to a guest is marked <em>locked</em>, not hidden.
+        </p>
+
+        <form class="admin-dpp-form" id="dppForm">
+          <label class="field">
+            <span>Batch id</span>
+            <input id="dppBatch" name="batch" type="text" spellcheck="false" autocapitalize="none"
+              placeholder="698ad3519549b300a5e1cc6a" required />
+          </label>
+          <label class="field grow">
+            <span>Subject</span>
+            <select id="dppSubject" name="subject" required>
+              <option value="">Load the batch first…</option>
+            </select>
+          </label>
+          <button class="btn btn-ghost btn-sm" id="dppLoadSubjects" type="button">Load subjects</button>
+          <button class="btn btn-primary btn-sm" id="dppRun" type="submit">List DPPs</button>
+        </form>
+
+        <p class="admin-error" id="dppError" role="alert" hidden></p>
+        <p class="tiny dim" id="dppHeadline"></p>
+
+        <div class="admin-dpp-body">
+          <ol class="admin-dpp-list" id="dppList"></ol>
+          <div class="admin-dpp-paper" id="dppPaper" hidden>
+            <div class="row between mb-2">
+              <h4 id="dppPaperName">—</h4>
+              <button class="btn btn-ghost btn-sm" id="dppPaperClose" type="button">Close</button>
+            </div>
+            <p class="tiny dim" id="dppPaperMeta"></p>
+            <div id="dppPaperBody"></div>
+          </div>
+        </div>
+
+        <div class="admin-dpp-pager" id="dppPager" hidden>
+          <button class="btn btn-ghost btn-sm" id="dppPrev" type="button">Previous</button>
+          <span class="tiny dim" id="dppPageInfo"></span>
+          <button class="btn btn-ghost btn-sm" id="dppNext" type="button">Next</button>
+        </div>
+      </section>
+
+      <!-- content audit: the one thing every other page cannot tell you -->
+      <section class="card pad-md admin-block admin-audit" id="auditBlock" style="grid-column:1/-1">
+        <div class="row between mb-2">
+          <h3>Content audit</h3>
+          <span class="tiny dim" id="auditStamp">never run</span>
+        </div>
+        <p class="tiny dim mb-2">
+          Walks a batch and reports which lectures do not play, and why. Counts
+          come from the same resolver the player uses.
+        </p>
+
+        <form class="admin-audit-form" id="auditForm">
+          <label class="field grow">
+            <span>Batch id</span>
+            <input id="auditBatch" name="batch" type="text" spellcheck="false"
+              autocapitalize="none" placeholder="698ad3519549b300a5e1cc6a" required />
+          </label>
+          <label class="field admin-audit-limit">
+            <span>Lectures</span>
+            <input id="auditLimit" name="limit" type="number" min="1" max="200" value="40" />
+          </label>
+          <button class="btn btn-primary btn-sm" id="auditRun" type="submit">Run audit</button>
+        </form>
+
+        <p class="admin-error" id="auditError" role="alert" hidden></p>
+
+        <div class="admin-audit-progress" id="auditProgress" hidden>
+          <div class="audit-bar"><span id="auditBarFill"></span></div>
+          <p class="tiny dim" id="auditProgressText" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="audit-totals" id="auditTotals"></div>
+        <div class="admin-audit-rows" id="auditRows"></div>
+        <ul class="audit-notes tiny dim" id="auditNotes"></ul>
+
+        <p class="tiny dim" id="auditLegend">
+          <strong>plays</strong> a signed stream resolves ·
+          <strong>pending</strong> the source has not published it yet, nothing to fix ·
+          <strong>no-stream</strong> the recording exists but no signing host would serve it ·
+          <strong>broken</strong> the entry has no video and no explanation ·
+          <strong>unknown</strong> the schedule could not be read
+        </p>
+      </section>
+
       <!-- self-healing: visible here and nowhere else on the site -->
       <section class="card pad-md admin-block">
         <h3 class="mb-2">Self-healing</h3>

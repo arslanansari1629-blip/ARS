@@ -37,6 +37,10 @@ function stripLiterals(src) {
   let out = "";
   let i = 0;
   const n = src.length;
+  // The last significant character, used to tell a regex literal from a divide.
+  // `/[&<>"']/` used to be read as the start of a string, which swallowed the
+  // rest of the file and produced phantom "undefined call" errors.
+  let prev = "";
   while (i < n) {
     const c = src[i];
     const next = src[i + 1];
@@ -48,6 +52,28 @@ function stripLiterals(src) {
       i += 2;
       while (i < n && !(src[i] === "*" && src[i + 1] === "/")) i++;
       i += 2;
+      continue;
+    }
+    // Regex literal: a `/` in a position where a value may start.
+    if (c === "/" && (prev === "" || /[=(,:;[{!&|?+\-*%<>~^]|\breturn|\btypeof|\bcase/.test(prev))) {
+      i++;
+      let inClass = false;
+      while (i < n) {
+        if (src[i] === "\\") {
+          i += 2;
+          continue;
+        }
+        if (src[i] === "[") inClass = true;
+        else if (src[i] === "]") inClass = false;
+        else if (src[i] === "/" && !inClass) {
+          i++;
+          break;
+        } else if (src[i] === "\n") break;
+        i++;
+      }
+      while (i < n && /[a-z]/i.test(src[i])) i++;
+      out += "/RE/";
+      prev = "/";
       continue;
     }
     if (c === '"' || c === "'" || c === "`") {
@@ -62,6 +88,7 @@ function stripLiterals(src) {
       continue;
     }
     out += c;
+    if (!/\s/.test(c)) prev = c;
     i++;
   }
   return out;

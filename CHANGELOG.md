@@ -5,6 +5,48 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AA — the admin panel now audits content and reads DPPs
+
+**The problem.** The panel could tell an operator that the site was up, how fast it
+answered and what had just failed. It could not answer the two questions anyone
+actually asks about a lecture site: *which lectures do not play, and why* — and
+*are the DPP papers there, with their questions?* Both were guesswork.
+
+**What changed.**
+
+- **A content audit.** `GET /api/admin?action=audit` returns the last sweep, and
+  `POST` starts one (`{batch, limit, subject?, chapter?}`, 409 if one is already
+  running, a 50 s deadline). `lib/audit.mjs` walks the batch and puts every lecture
+  in one of five states — `plays`, `pending`, `no-stream`, `broken`, `unknown` —
+  using the same resolver the player uses, so a green row means a real signed stream
+  resolved rather than a URL that merely existed.
+- **`pending` is not a fault.** When the schedule carries no video URL it also
+  carries `videoStatus` ("Not Ready"), and that is reported as *not published yet*
+  and left uncoloured. Before the audit read that field it counted every live class
+  as broken, which is how a panel trains an operator to ignore red.
+- Rows are ordered worst-first and each has a **re-check** button
+  (`POST ?action=rescan`) that re-resolves one lecture fresh and patches the row in
+  place instead of losing the scroll position.
+- **A DPP panel.** `GET /api/admin?action=dpp&batch=&subject=` lists the Daily
+  Practice Problems for one subject and `?action=dpp-paper&id=` opens one. The list
+  is keyed on the *batch-subject document id*, and a subject slug is resolved to it
+  rather than quietly returning an empty list. A paper Physics Wallah will not serve
+  to a guest is reported as **locked** with the reason, not as an empty test.
+- `lib/dpp.mjs` strips Physics Wallah's HTML and decodes the maths entities that
+  appear in real physics questions (`&deg;`, `&radic;`, `&omega;`, …) before the
+  panel renders them as text.
+
+No new serverless function: both features are actions on `api/admin.mjs`, so the
+deployment stays inside the plan's 12-function limit.
+
+**Fixed on the way through.** `scripts/check-modules.mjs` did not skip regex
+literals, so `/[&<>"']/` in `admin.js` was read as an unterminated string, swallowed
+the rest of the file and reported a phantom undefined call. Attribute values in the
+audit and DPP rows now go through `escAttr` — a title containing a quote used to
+break the row's markup.
+
+---
+
 ## Round Z — the catalogue filters were filtering twenty rows
 
 **The problem.** The catalogue is 14,201 batches across 711 pages, and every

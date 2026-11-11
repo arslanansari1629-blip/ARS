@@ -38,6 +38,10 @@ const routes = [
   { match: /\/Schedule\?/, file: "schedule.json" },
   { match: /Type=announcement/, file: "announcements.json" },
   { match: /Type=details/, file: "batch.json" },
+  // DPP index. The paper itself is deliberately *not* fixtured: a guest session
+  // gets a 401 from PW, so the fixture returns the same 401 the live API does
+  // and the locked-paper path is what the UI is tested against.
+  { match: /new-dpp-list/, file: "dpp-list.json" },
 ];
 
 http
@@ -45,6 +49,16 @@ http
     const url = new URL(req.url, "http://localhost");
     const route = routes.find((r) => r.match.test(req.url));
     res.setHeader("Access-Control-Allow-Origin", "*");
+
+    // A DPP *paper* is not fixtured on purpose: PW answers 401 to a guest, so the
+    // fixture does too and the UI's locked-paper path is what exercise covers.
+    // This has to run before the route lookup, or the unmatched path 404s and the
+    // test reads "not found" instead of "locked".
+    if (/test-service\/tests\/[0-9a-f]{24}\/questions/i.test(url.pathname)) {
+      res.statusCode = 401;
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify({ success: false, message: "Unauthorised Access", code: 401 }));
+    }
 
     if (!route) {
       res.statusCode = 404;
