@@ -280,11 +280,41 @@ async function describeLayout(url) {
         .map((it) => ({ x: Math.round(it.x), y: Math.round(it.y), str: String(it.str).trim() }))
         .filter((r) => /^Q\s*\d+\b/.test(r.str))
         .map((r) => ({ x: r.x, y: r.y, q: (r.str.match(/^Q\s*(\d+)/) || [])[1] }));
+      // The runs of the first question on the page, with their geometry: when a
+      // paper's options come out wrong this is the only view that explains it.
+      const firstMarker = page
+        .map((it) => ({ it, q: /^Q\s*\d+\b/.test(String(it.str).trim()) }))
+        .find((r) => r.q);
+      let band = null;
+      if (firstMarker && index === 0) {
+        const yTop = Number(firstMarker.it.y) + 2;
+        const nextMarker = page
+          .filter((it) => /^Q\s*\d+\b/.test(String(it.str).trim()))
+          .map((it) => Number(it.y))
+          .filter((y) => y < yTop - 10)
+          .sort((a, b) => b - a)[0];
+        const yBottom = Number.isFinite(nextMarker) ? nextMarker + 40 : yTop - 140;
+        band = page
+          .filter((it) => {
+            const y = Number(it.y);
+            return y <= yTop && y >= yBottom;
+          })
+          .sort((a, b) => b.y - a.y || a.x - b.x)
+          .slice(0, 40)
+          .map((it) => ({
+            s: String(it.str).slice(0, 26),
+            x: Math.round(it.x),
+            y: Math.round(it.y),
+            w: Math.round(Number(it.width) || 0),
+            f: Math.round((Number(it.fontSize) || 0) * 10) / 10,
+          }));
+      }
+
       const columns = inferColumns(page);
       const lines = (columns.length > 1 ? layoutLinesInColumns(page, columns) : layoutLines(page))
         .slice(0, 45)
         .map((line) => line.text.slice(0, 110));
-      return { index, runs: page.length, markers, columns, lines };
+      return { index, runs: page.length, markers, columns, band, lines };
     }),
   };
 }
