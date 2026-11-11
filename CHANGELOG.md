@@ -5,6 +5,46 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AB — the DPP panel actually runs a paper
+
+**The problem.** Round AA shipped a DPP panel that could *list* papers but not
+open one. The list was real — PW serves the DPP index to a guest — but every
+questions route (`/tests/<id>/questions`, `get-test`, `start-test`) answers 401
+without a paid student session, on all five allowlisted hosts. A panel that says
+"locked" is honest, but it is not a test panel.
+
+**The way through.** The interactive quiz is locked; the *paper* is not. Every
+DPP is also a PDF on `static.pw.live`, guest-readable, and it contains the
+questions, the four options and the answer key. So the panel reads the PDF.
+
+- **`lib/dpp-paper.mjs`** downloads a paper, extracts its text with `unpdf`,
+  splits it into questions and options, and reads the answer key — which ships in
+  two shapes (a `Q1 (B)` list and a `| Q1 | (B) |` table), both handled.
+- **`?action=dpp-papers`** walks a subject's chapters and returns one PDF entry per
+  lecture, attributed to its chapter. **`?action=dpp-paper&url=`** reads one paper
+  and returns the parsed questions. Everything is proxied through this origin:
+  the browser never talks to PW, and the CDN request is retried through
+  `/api/media` when it refuses a bare server fetch.
+- **The panel runs it as a test.** A countdown from the paper's own time limit,
+  radio options, a live "N of M answered", and on submit: score, percentage,
+  the right answer marked green, a wrong pick marked red, and every option locked.
+  Answers are not in the DOM until submit. Running out of time submits.
+- A question whose options could not be recovered is shown but **not scored**, and
+  says so — a paper is never quietly shorter than it is.
+
+**Two real bugs found on the way.**
+
+- `unpdf` *detaches* the buffer it parses, so a paper that had just been read
+  reported itself as 0 bytes. `extractPdfText` now copies before parsing, and a
+  test pins it.
+- `fetchChapterContents` read only `res.data.data`, but PW's current `/v2/…contents`
+  route (and the fixture) wrap the rows twice. The second spelling produced an
+  empty chapter with no error — the same class of bug the audit hit.
+
+No new serverless function: three actions on `api/admin.mjs`. 249 tests pass.
+
+---
+
 ## Round AA — the admin panel now audits content and reads DPPs
 
 **The problem.** The panel could tell an operator that the site was up, how fast it

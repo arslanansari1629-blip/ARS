@@ -24,10 +24,14 @@ const routes = [
   { match: /\/searchBatch/, file: "catalog.json" },
   { match: /SubjectInfo/, file: "chapters.json" },
   {
-    match: /TopicInfo/,
+    // The modern contents route the site actually uses: `/v2/batches/…/contents`.
+    match: /\/v2\/batches\/.*\/contents|TopicInfo/,
     // 6a6b461cce4ac4e9ab51ee98 → "unkeyed" notes: attachments arrive with an
     // empty `key` and are only resolvable through GetPdf (regression case).
     file: (url) => {
+      // The DPP papers list: `DppNotes` returns the item shape the admin panel
+      // reads, with one attachment whose URL is the served PDF fixture.
+      if (/ContentType=DppNotes|contentType=DppNotes/i.test(url)) return "dpp-papers.json";
       if (!/ContentType=notes/i.test(url)) return "videos.json";
       return /TopicId=6a6b461cce4ac4e9ab51ee98/.test(url)
         ? "notes-unkeyed.json"
@@ -42,6 +46,9 @@ const routes = [
   // gets a 401 from PW, so the fixture returns the same 401 the live API does
   // and the locked-paper path is what the UI is tested against.
   { match: /new-dpp-list/, file: "dpp-list.json" },
+  // The DPP *paper* PDF. Unlike the quiz, a paper is guest-readable, so the
+  // fixture serves a real one and the whole extract-and-run path is testable.
+  { match: /dpp-paper\.pdf$/, file: "dpp-paper.pdf", type: "application/pdf" },
 ];
 
 http
@@ -68,9 +75,17 @@ http
 
     const name = typeof route.file === "function" ? route.file(req.url) : route.file;
     try {
-      const buf = await readFile(path.join(FIX, name));
+      let buf = await readFile(path.join(FIX, name));
+      // Some fixtures point at *this* server (the DPP paper PDF). The port is not
+      // known ahead of time — CI, a local run and the tests each pick their own —
+      // so the JSON carries a placeholder and it is filled in here.
+      if (/\.json$/.test(name)) {
+        buf = Buffer.from(
+          buf.toString("utf8").replaceAll("{FIXTURE_BASE}", `http://127.0.0.1:${PORT}`)
+        );
+      }
       res.statusCode = 200;
-      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Content-Type", route.type || "application/json");
       res.end(buf);
     } catch (err) {
       res.statusCode = 500;

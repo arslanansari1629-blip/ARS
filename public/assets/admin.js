@@ -958,6 +958,319 @@ $("#dppList")?.addEventListener("click", (e) => {
   openDpp(row.dataset.id, row.dataset.name);
 });
 
+/* ----------------------------------------------------- dpp papers & test */
+
+/**
+ * The papers, and the test runner.
+ *
+ * The quiz list above needs a paid student session, so it is mostly a catalogue.
+ * The *papers* do not: PW serves one PDF per lecture to a guest, with the
+ * questions and the answer key inside. `?action=dpp-paper&url=` reads that PDF
+ * here (through this origin, never the browser's) and this code runs it as a
+ * scored, timed test — answers stay off the page until submit.
+ */
+
+let dppPaperList = [];
+const dppTest = {
+  paper: null,
+  answers: new Map(),
+  startedAt: 0,
+  endsAt: 0,
+  timer: null,
+  submitted: false,
+};
+
+function dppPapersError(message) {
+  const box = $("#dppPapersError");
+  if (!box) return;
+  box.textContent = message || "";
+  box.hidden = !message;
+}
+
+async function loadDppPapers() {
+  const batch = $("#dppBatch").value.trim();
+  const subject = $("#dppSubject").value;
+  if (!batch) return dppPapersError("Paste a batch id first.");
+  if (!subject) return dppPapersError("Choose a subject first.");
+
+  dppPapersError("");
+  const btn = $("#dppPapersLoad");
+  btn.disabled = true;
+  btn.textContent = "Finding papers…";
+  try {
+    const res = await fetch(
+      `/api/admin?action=dpp-papers&batch=${dppQ(batch)}&subject=${dppQ(subject)}`,
+      { headers: { "x-admin-token": token } }
+    );
+    const data = await res.json();
+    if (!data.success) {
+      dppPaperList = [];
+      $("#dppPapers").innerHTML = "";
+      $("#dppPapersStamp").textContent = "";
+      dppPapersError(data.error || "The papers could not be listed.");
+      return;
+    }
+    dppPaperList = data.papers || [];
+    renderDppPapers(data);
+  } catch (err) {
+    dppPapersError(err?.message || "The papers could not be listed.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Load papers";
+  }
+}
+
+function renderDppPapers(data) {
+  const papers = data.papers || [];
+  $("#dppPapersStamp").textContent = data.headline ? `· ${data.headline}` : "";
+
+  if (!papers.length) {
+    $("#dppPapers").innerHTML = `<li class="dpp-empty">${
+      (data.notes || []).length
+        ? esc(data.notes[0])
+        : "No DPP papers in the chapters scanned."
+    }</li>`;
+    return;
+  }
+
+  $("#dppPapers").innerHTML = papers
+    .map(
+      (paper, index) => `
+      <li>
+        <button class="dpp-row" type="button" data-index="${index}">
+          <span class="dpp-serial">${esc(paper.chapter ? paper.chapter.slice(0, 2) : "")}</span>
+          <span class="dpp-name" title="${escAttr(paper.title)}">${esc(paper.title)}</span>
+          <span class="dpp-meta">${esc(paper.chapter)}</span>
+        </button>
+      </li>`
+    )
+    .join("");
+}
+
+/** Open one paper and read it into a runnable test. */
+async function openDppPaper(index) {
+  const paper = dppPaperList[index];
+  if (!paper) return;
+  const block = $("#dppTestBlock");
+
+  block.hidden = false;
+  $("#dppTestTitle").textContent = paper.title;
+  $("#dppTestMeta").textContent = "Reading the paper…";
+  $("#dppTestQuestions").innerHTML = "";
+  $("#dppTestResult").hidden = true;
+  $("#dppTestResult").innerHTML = "";
+  $("#dppTestClock").textContent = "—";
+  // Guarded: not every environment that renders the panel has layout (jsdom
+  // does not), and scrolling is a courtesy, not part of reading the paper.
+  block.scrollIntoView?.({ behavior: "smooth", block: "start" });
+
+  try {
+    const res = await fetch(
+      `/api/admin?action=dpp-paper&url=${dppQ(paper.url)}&name=${dppQ(paper.title)}`,
+      { headers: { "x-admin-token": token } }
+    );
+    const data = await res.json();
+    if (!data.success) {
+      $("#dppTestMeta").textContent = "could not read";
+      $("#dppTestQuestions").innerHTML = `<p class="dpp-locked-note">${esc(
+        data.error || "The paper could not be read."
+      )}</p>`;
+      return;
+    }
+    startDppTest(data, paper);
+  } catch (err) {
+    $("#dppTestMeta").textContent = "could not read";
+    $("#dppTestQuestions").innerHTML = `<p class="dpp-locked-note">${esc(
+      err?.message || "The paper could not be read."
+    )}</p>`;
+  }
+}
+
+function startDppTest(paper, meta) {
+  dppTest.paper = paper;
+  dppTest.answers = new Map();
+  dppTest.submitted = false;
+
+  const runnable = (paper.questions || []).filter((q) => !q.textOnly);
+  const stats = paper.stats || { total: 0, answerable: runnable.length };
+  $("#dppTestMeta").textContent = [
+    `${stats.total} question${stats.total === 1 ? "" : "s"}`,
+    `${runnable.length} answerable`,
+    paper.duration ? `${paper.duration} min` : "",
+    paper.pages ? `${paper.pages} page${paper.pages === 1 ? "" : "s"}` : "",
+    meta?.chapter || "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  $("#dppTestQuestions").innerHTML = (paper.questions || [])
+    .map((question, index) => renderTestQuestion(question, index))
+    .join("");
+
+  $("#dppTestSubmit").disabled = runnable.length === 0;
+  updateTestProgress();
+
+  // The clock is the paper's own time limit, not an invented one.
+  const minutes = Number(paper.duration) || 0;
+  if (minutes > 0) {
+    dppTest.startedAt = Date.now();
+    dppTest.endsAt = dppTest.startedAt + minutes * 60_000;
+    startTestClock();
+  } else {
+    dppTest.endsAt = 0;
+    $("#dppTestClock").textContent = "no limit";
+  }
+}
+
+function renderTestQuestion(question, index) {
+  const options = (question.options || [])
+    .map(
+      (option, optIndex) => `
+      <label class="dpp-option dpp-choice">
+        <input type="radio" name="q-${index}" value="${escAttr(option.letter)}"
+          data-question="${index}" data-letter="${escAttr(option.letter)}" />
+        <span class="dpp-option-key">${esc(option.letter)}</span>
+        <span>${esc(option.text)}</span>
+      </label>`
+    )
+    .join("");
+
+  return `
+    <article class="dpp-question" id="dpp-q-${index}" data-index="${index}">
+      <p class="dpp-question-text"><span class="dpp-question-num">Q${esc(
+        question.number
+      )}</span>${esc(question.text)}</p>
+      ${
+        options
+          ? `<div class="dpp-options">${options}</div>`
+          : `<p class="dpp-solution">This question's options could not be recovered from the PDF, so it is not scored.</p>`
+      }
+      <p class="dpp-question-note tiny"></p>
+    </article>`;
+}
+
+function updateTestProgress() {
+  const total = (dppTest.paper?.questions || []).filter((q) => !q.textOnly).length;
+  const answered = dppTest.answers.size;
+  $("#dppTestProgress").textContent = `${answered} of ${total} answered`;
+}
+
+function startTestClock() {
+  clearInterval(dppTest.timer);
+  const tick = () => {
+    const left = Math.max(0, dppTest.endsAt - Date.now());
+    const minutes = Math.floor(left / 60000);
+    const seconds = Math.floor((left % 60000) / 1000);
+    const clock = $("#dppTestClock");
+    if (!clock) return;
+    clock.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    clock.classList.toggle("is-low", left <= 60000);
+    // Running out of time submits, which is what a real paper does.
+    if (!left && !dppTest.submitted) submitDppTest();
+  };
+  tick();
+  dppTest.timer = setInterval(tick, 1000);
+}
+
+function stopTestClock() {
+  clearInterval(dppTest.timer);
+  dppTest.timer = null;
+}
+
+function submitDppTest() {
+  if (dppTest.submitted || !dppTest.paper) return;
+  dppTest.submitted = true;
+  stopTestClock();
+
+  const questions = dppTest.paper.questions || [];
+  let correct = 0;
+  let wrong = 0;
+  let skipped = 0;
+
+  questions.forEach((question, index) => {
+    const row = document.getElementById(`dpp-q-${index}`);
+    if (!row) return;
+    const chosen = dppTest.answers.get(index) || "";
+    const note = row.querySelector(".dpp-question-note");
+
+    row.querySelectorAll("input[type=radio]").forEach((input) => {
+      input.disabled = true;
+      const letter = input.getAttribute("data-letter");
+      const label = input.closest("label");
+      if (letter === question.answer) label.classList.add("is-correct");
+      if (letter === chosen && chosen !== question.answer) label.classList.add("is-wrong");
+      if (letter === chosen) input.checked = true;
+    });
+
+    if (!question.answer) {
+      note.textContent = "No answer in the paper's key for this question.";
+      note.className = "dpp-question-note tiny dim";
+      return;
+    }
+    if (!chosen) {
+      skipped += 1;
+      note.textContent = `Not answered · answer is ${question.answer}`;
+      note.className = "dpp-question-note tiny dim";
+      return;
+    }
+    if (chosen === question.answer) {
+      correct += 1;
+      note.textContent = "Correct";
+      note.className = "dpp-question-note tiny is-ok";
+    } else {
+      wrong += 1;
+      note.textContent = `Wrong · answer is ${question.answer}`;
+      note.className = "dpp-question-note tiny is-bad";
+    }
+  });
+
+  const scored = correct + wrong + skipped;
+  const percent = scored ? Math.round((correct / scored) * 100) : 0;
+  const box = $("#dppTestResult");
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="dpp-score">
+      <div class="dpp-score-main">
+        <strong>${correct}</strong>
+        <span>of ${scored} correct</span>
+      </div>
+      <div class="dpp-score-detail">
+        <span class="is-ok">${correct} correct</span>
+        <span class="is-bad">${wrong} wrong</span>
+        <span class="dim">${skipped} skipped</span>
+        <span class="dim">${percent}%</span>
+      </div>
+    </div>`;
+  $("#dppTestSubmit").disabled = true;
+  $("#dppTestProgress").textContent = `submitted · ${percent}%`;
+}
+
+function closeDppTest() {
+  stopTestClock();
+  dppTest.paper = null;
+  dppTest.answers = new Map();
+  dppTest.submitted = false;
+  $("#dppTestBlock").hidden = true;
+}
+
+$("#dppPapersLoad")?.addEventListener("click", loadDppPapers);
+$("#dppPapers")?.addEventListener("click", (e) => {
+  const row = e.target.closest(".dpp-row");
+  if (!row) return;
+  openDppPaper(Number(row.dataset.index));
+});
+$("#dppTestForm")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  submitDppTest();
+});
+$("#dppTestClose")?.addEventListener("click", closeDppTest);
+$("#dppTestQuestions")?.addEventListener("change", (e) => {
+  const input = e.target.closest("input[type=radio]");
+  if (!input) return;
+  dppTest.answers.set(Number(input.dataset.question), input.value);
+  updateTestProgress();
+});
+
 /* ------------------------------------------------------------------ boot */
 
 // An existing token may still be valid: check before showing the gate, so a

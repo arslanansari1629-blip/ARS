@@ -6328,6 +6328,60 @@ body.side-rail .side-brand:hover .brand-img {
   .admin-dpp-paper { border-left: 0; padding-left: 0; border-top: 1px solid var(--rule); padding-top: 0.75rem; }
 }
 
+/* ---- DPP papers & the test runner --------------------------------------- */
+
+.admin-dpp-papers { margin-top: 0.5rem; border-top: 1px solid var(--rule); padding-top: 0.75rem; }
+.admin-dpp-paper-list { max-height: 18rem; }
+
+.admin-dpp-run { border: 1px solid var(--blue); }
+
+.admin-dpp-clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  font-weight: 650;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  min-width: 4.2rem;
+  text-align: center;
+}
+
+.admin-dpp-clock.is-low { color: var(--danger); border-color: var(--danger); }
+
+.dpp-choice {
+  cursor: pointer;
+  padding: 0.2rem 0.35rem;
+  border-radius: 6px;
+  align-items: baseline;
+}
+
+.dpp-choice:hover { background: var(--hover, rgba(0, 0, 0, 0.03)); }
+.dpp-choice input { margin: 0 0.15rem 0 0; accent-color: var(--blue); }
+.dpp-choice.is-correct { color: var(--ok); font-weight: 600; background: rgba(15, 122, 88, 0.08); }
+.dpp-choice.is-wrong { color: var(--danger); font-weight: 600; background: rgba(176, 35, 43, 0.07); }
+
+.dpp-question-note { margin: 0.3rem 0 0; }
+.dpp-question-note.is-ok { color: var(--ok); }
+.dpp-question-note.is-bad { color: var(--danger); }
+
+.admin-dpp-result { margin-top: 1rem; }
+.dpp-score {
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.dpp-score-main { display: flex; align-items: baseline; gap: 0.4rem; }
+.dpp-score-main strong { font-size: 1.9rem; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ok); }
+.dpp-score-main span { color: var(--ink-3); font-size: 0.8rem; }
+
+.dpp-score-detail { display: flex; gap: 0.9rem; font-size: 0.82rem; }
+.dpp-score-detail .is-ok { color: var(--ok); }
+.dpp-score-detail .is-bad { color: var(--danger); }
+
 .admin-note {
   margin: 0;
   text-align: center;

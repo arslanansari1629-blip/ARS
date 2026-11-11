@@ -23,6 +23,16 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const children = [];
 
 /**
+ * The real `fetch`, captured at load time.
+ *
+ * Several tests replace `globalThis.fetch` with a stub to drive the panel against
+ * a fixed `sample` payload. Being module-level, that stub outlives the test that
+ * installed it — so a later test that needs the real server must not read
+ * `globalThis.fetch` and hope.
+ */
+const REAL_FETCH = globalThis.fetch.bind(globalThis);
+
+/**
  * The credentials never appear in this repository, not even in a test: the
  * source is public, so a fixture would publish them. Assertions that need a
  * *known* pair use throwaway values exported into the dev server's environment;
@@ -252,6 +262,11 @@ test("the panel renders its gate and its blocks from the shipped module", async 
     "dppList",
     "dppPaper",
     "dppPager",
+    "dppPapers",
+    "dppPapersLoad",
+    "dppTestBlock",
+    "dppTestQuestions",
+    "dppTestClock",
   ]) {
     assert.ok(html.includes(`id="${hook}"`), `the panel is missing #${hook}`);
   }
@@ -390,25 +405,74 @@ test("the DPP panel lists papers behind a session and explains a locked one", as
   });
 });
 
-test("repeated bad passwords trip a cooldown", async () => {
-  // Runs last: the cooldown is per client address and outlives a single request.
-  let limited = false;
-  let lastStatus = 0;
-  for (let i = 0; i < 8; i += 1) {
-    const attempt = await signIn(TEST_USER, `wrong-${i}`);
-    lastStatus = attempt.status;
-    if (attempt.status === 429) {
-      limited = true;
-      assert.match(attempt.body.error, /Try again in \d+ minute/i);
-      break;
-    }
-  }
-  assert.ok(limited, `repeated bad passwords are not rate limited (last status ${lastStatus})`);
+test("the DPP paper proxy reads a real PDF and returns a runnable test", async () => {
+  const { body: auth } = await signIn();
+  const headers = { "x-admin-token": auth.token };
 
-  // Even the correct password is refused while the cooldown is active: the point
-  // of a cooldown is to stop guessing, not just to stop wrong guesses.
-  const correct = await signIn();
-  assert.equal(correct.status, 429, "the cooldown let a correct password through");
+  // Anonymous callers cannot make the server download a PDF.
+  const anon = await fetch(`${BASE}/api/admin?action=dpp-papers&batch=b&subject=s`);
+  assert.equal(anon.status, 401, "the papers route answered without a session");
+
+  // The papers behind a subject: real PDF URLs, one per DPP.
+  const batch = await (await fetch(`${BASE}/api/batch?id=6a6b461cce4ac4e9ab51ee98`)).json();
+  const subject = (batch.subjects || [])[0];
+  const list = await fetch(
+    `${BASE}/api/admin?action=dpp-papers&batch=6a6b461cce4ac4e9ab51ee98&subject=${encodeURIComponent(subject.id)}`,
+    { headers }
+  );
+  assert.equal(list.status, 200, "the papers route is not mounted");
+  const papers = await list.json();
+  assert.equal(papers.success, true, papers.error);
+  assert.ok(papers.papers.length > 0, "no DPP papers came back");
+  const paper = papers.papers[0];
+  assert.match(paper.url, /\.pdf$/, "the paper has no PDF url");
+  assert.ok(paper.title, "the paper has no title");
+  assert.ok(paper.chapter, "the paper is not attributed to a chapter");
+  assert.match(papers.headline, /paper/, "the papers list has no headline");
+
+  // And the proxy turns that PDF into questions with a key.
+  const read = await fetch(`${BASE}/api/admin?action=dpp-paper&url=${encodeURIComponent(paper.url)}`, {
+    headers,
+  });
+  assert.equal(read.status, 200, "the paper proxy could not read the fixture PDF");
+  const body = await read.json();
+  assert.equal(body.success, true, body.error);
+  assert.equal(body.source, "pdf", "the panel cannot tell a paper from a locked quiz");
+  assert.ok(body.questions.length >= 2, `only ${body.questions.length} questions were recovered`);
+  assert.equal(body.stats.answerable, body.questions.filter((q) => !q.textOnly).length);
+
+  const q1 = body.questions[0];
+  assert.equal(q1.number, 1);
+  assert.ok(q1.options.length === 4, "the options were not recovered");
+  assert.equal(q1.options[1].letter, "B");
+  assert.equal(q1.answer, "B");
+  assert.equal(q1.answerIndex, 1);
+  assert.equal(q1.textOnly, false);
+
+  // The quiz route still reports a locked paper honestly.
+  const quiz = await fetch(`${BASE}/api/admin?action=dpp-paper&id=6aec1d4a8cc8bedf60f3081c`, {
+    headers,
+  });
+  const quizBody = await quiz.json();
+  assert.equal(quizBody.source, "quiz");
+  assert.equal(quizBody.locked, true, "a quiz the guest cannot read was not reported locked");
+
+  // A URL that is not a PDF is refused without trying to parse it.
+  const bogus = await fetch(
+    `${BASE}/api/admin?action=dpp-paper&url=${encodeURIComponent("http://127.0.0.1:4285/not-a-pdf")}`,
+    { headers }
+  );
+  assert.notEqual(bogus.status, 200, "a non-PDF URL was accepted");
+  assert.match((await bogus.json()).error, /not a PDF|404|answered/i);
+
+  // A relative URL never reaches the network.
+  const relative = await fetch(
+    `${BASE}/api/admin?action=dpp-paper&url=${encodeURIComponent("/etc/passwd")}`,
+    { headers }
+  );
+  assert.equal(relative.status, 400, "a relative url was accepted");
+
+  await fetch(`${BASE}/api/admin?action=logout`, { method: "POST", headers });
 });
 
 test("the panel paints live numbers once signed in", async () => {
@@ -480,6 +544,8 @@ test("the panel paints live numbers once signed in", async () => {
   window.sessionStorage.setItem("arsvibe.admin.token", "test-token");
 
   const nativeFetch = globalThis.fetch;
+  // Restored in the `finally` at the end of this test: a stub that outlives its
+  // test silently poisons every later test that needs the network.
   globalThis.fetch = async (input, init = {}) => {
     const url = String(input);
     calls.push({ url, init });
@@ -567,6 +633,8 @@ test("the panel paints live numbers once signed in", async () => {
   assert.equal(window.sessionStorage.getItem("arsvibe.admin.token"), null, "the token survived sign out");
 
   dom.window.close();
+  // Hand the real network back to whatever test runs next.
+  globalThis.fetch = nativeFetch;
 });
 
 test("the mounted media routes answer instead of crashing", async () => {
@@ -607,4 +675,134 @@ test("the mounted media routes answer instead of crashing", async () => {
   const stream = await fetch(`${BASE}/api/stream`);
   assert.notEqual(stream.status, 500, "/api/stream crashed after mounting the HLS gateway");
   assert.match(stream.headers.get("content-type") || "", /application\/json/);
+});
+
+test("the DPP test runner scores a real paper and shows the key", async () => {
+  const { register } = await import("node:module");
+  const { JSDOM } = await import("jsdom");
+  register("./loader.mjs", import.meta.url);
+
+  const html = await (await fetch(`${BASE}/admin.html`)).text();
+  const dom = new JSDOM(html, { url: `${BASE}/admin.html`, pretendToBeVisual: true });
+  const { window } = dom;
+  const doc = window.document;
+
+  globalThis.window = window;
+  globalThis.document = doc;
+  globalThis.CustomEvent = window.CustomEvent;
+  globalThis.sessionStorage = window.sessionStorage;
+
+  const { body: auth } = await signIn();
+  window.sessionStorage.setItem("arsvibe.admin.token", auth.token);
+
+  // The panel talks to the running dev server, which is pointed at the fixture
+  // upstream — a real PDF for the paper, so this exercises the whole path:
+  // papers → proxy → extract → run → score.
+  globalThis.fetch = (input, init) =>
+    REAL_FETCH(String(input).startsWith("http") ? input : `${BASE}${input}`, init);
+
+  await import(`/assets/admin.js?v=runner-${Date.now()}`);
+  await new Promise((r) => setTimeout(r, 400));
+
+  const click = (id) => doc.getElementById(id).dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+  // Wait for a condition rather than sleeping: a fixed delay loses a race with
+  // the dev server whenever the rest of the suite has warmed it differently.
+  const until = async (check, what, ms = 8000) => {
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline) {
+      if (check()) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.fail(`timed out waiting for ${what}`);
+  };
+
+  doc.getElementById("dppBatch").value = "6a6b461cce4ac4e9ab51ee98";
+  click("dppLoadSubjects");
+  await until(() => doc.getElementById("dppSubject").options.length > 2, "the subject picker");
+  const picker = doc.getElementById("dppSubject");
+  picker.value = picker.options[1].value;
+
+  click("dppPapersLoad");
+  await until(
+    () => doc.querySelectorAll("#dppPapers .dpp-row").length > 0,
+    `the DPP paper list (error: ${doc.getElementById("dppPapersError").textContent || "none"}; ` +
+      `stamp: ${doc.getElementById("dppPapersStamp").textContent || "empty"})`
+  );
+  const rows = doc.querySelectorAll("#dppPapers .dpp-row");
+  assert.ok(rows.length > 0, "no DPP papers were listed");
+  assert.match(doc.getElementById("dppPapersStamp").textContent, /paper/);
+
+  rows[0].dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await until(
+    () => doc.querySelectorAll("#dppTestQuestions input[type=radio]").length > 0,
+    "the paper to be read into questions"
+  );
+
+  // A runnable test, not a "locked" notice.
+  assert.equal(doc.getElementById("dppTestBlock").hidden, false, "the runner did not open");
+  assert.match(doc.getElementById("dppTestMeta").textContent, /question/, "the runner has no question count");
+  assert.notEqual(doc.getElementById("dppTestMeta").textContent, "could not read");
+  assert.match(doc.getElementById("dppTestClock").textContent, /^\d{2}:\d{2}$/, "the clock did not start");
+
+  const radios = doc.querySelectorAll("#dppTestQuestions input[type=radio]");
+  assert.equal(radios.length, 8, `expected 2 questions x 4 options, got ${radios.length}`);
+  assert.ok(doc.getElementById("dppTestQuestions").textContent.includes("most accurate reading"));
+
+  // Answers are hidden until submit: no option is marked correct yet.
+  assert.equal(doc.querySelectorAll(".dpp-choice.is-correct").length, 0, "the key leaked before submit");
+
+  // Q1 correct (B), Q2 wrong (A).
+  const answer = (q, letter) => {
+    const input = doc.querySelector(`input[data-question="${q}"][data-letter="${letter}"]`);
+    input.checked = true;
+    input.dispatchEvent(new window.Event("change", { bubbles: true }));
+  };
+  answer(0, "B");
+  answer(1, "A");
+  assert.match(doc.getElementById("dppTestProgress").textContent, /2 of 2 answered/);
+
+  doc.getElementById("dppTestForm").dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
+  await until(() => doc.getElementById("dppTestResult").hidden === false, "the score");
+
+  const result = doc.getElementById("dppTestResult");
+  assert.equal(result.hidden, false, "submitting showed no score");
+  const score = result.textContent.replace(/\s+/g, " ");
+  assert.match(score, /1 of 2 correct/, `the score is wrong: ${score}`);
+  assert.match(score, /50%/);
+  assert.match(doc.getElementById("dpp-q-0").querySelector(".dpp-question-note").textContent, /Correct/);
+  assert.match(doc.getElementById("dpp-q-1").querySelector(".dpp-question-note").textContent, /answer is B/);
+  assert.ok(doc.querySelector(".dpp-choice.is-correct"), "the right answer is not highlighted");
+  assert.ok(doc.querySelector(".dpp-choice.is-wrong"), "the wrong choice is not highlighted");
+  // Nothing is answerable after submitting, and the clock stops.
+  assert.equal([...doc.querySelectorAll("#dppTestQuestions input")].every((i) => i.disabled), true);
+  assert.equal(doc.getElementById("dppTestSubmit").disabled, true);
+
+  // Signing out stops the panel's poller. Without it, the 20 s interval keeps the
+  // Node process alive and the whole suite hangs after the last assertion — the
+  // panel runs in this process, not in the window.
+  click("signOutBtn");
+  await new Promise((r) => setTimeout(r, 150));
+  dom.window.close();
+});
+
+test("repeated bad passwords trip a cooldown", async () => {
+  // Runs last: the cooldown is per client address and outlives a single request.
+  let limited = false;
+  let lastStatus = 0;
+  for (let i = 0; i < 8; i += 1) {
+    const attempt = await signIn(TEST_USER, `wrong-${i}`);
+    lastStatus = attempt.status;
+    if (attempt.status === 429) {
+      limited = true;
+      assert.match(attempt.body.error, /Try again in \d+ minute/i);
+      break;
+    }
+  }
+  assert.ok(limited, `repeated bad passwords are not rate limited (last status ${lastStatus})`);
+
+  // Even the correct password is refused while the cooldown is active: the point
+  // of a cooldown is to stop guessing, not just to stop wrong guesses.
+  const correct = await signIn();
+  assert.equal(correct.status, 429, "the cooldown let a correct password through");
 });

@@ -175,6 +175,21 @@
           </div>
         </div>
 
+        <!-- the papers themselves: guest-readable PDFs with an answer key -->
+        <div class="admin-dpp-papers" id="dppPapersWrap">
+          <div class="row between mb-2 mt-3">
+            <h4>DPP papers <span class="tiny dim" id="dppPapersStamp"></span></h4>
+            <button class="btn btn-ghost btn-sm" id="dppPapersLoad" type="button">Load papers</button>
+          </div>
+          <p class="tiny dim mb-2">
+            One PDF per lecture. These are the papers Physics Wallah serves to a
+            guest, with the questions and the answer key inside — pick one to run it
+            as a test.
+          </p>
+          <p class="admin-error" id="dppPapersError" role="alert" hidden></p>
+          <ol class="admin-dpp-list admin-dpp-paper-list" id="dppPapers"></ol>
+        </div>
+
         <div class="admin-dpp-pager" id="dppPager" hidden>
           <button class="btn btn-ghost btn-sm" id="dppPrev" type="button">Previous</button>
           <span class="tiny dim" id="dppPageInfo"></span>
@@ -224,6 +239,26 @@
           <strong>broken</strong> the entry has no video and no explanation ·
           <strong>unknown</strong> the schedule could not be read
         </p>
+      </section>
+
+      <!-- DPP test runner: scored, timed, no answers until submit -->
+      <section class="card pad-md admin-block admin-dpp-run" id="dppTestBlock" hidden style="grid-column:1/-1">
+        <div class="row between mb-2">
+          <h3 id="dppTestTitle">DPP test</h3>
+          <div class="row gap-sm">
+            <span class="admin-dpp-clock" id="dppTestClock" role="timer" aria-live="off">30:00</span>
+            <button class="btn btn-ghost btn-sm" id="dppTestClose" type="button">Close</button>
+          </div>
+        </div>
+        <p class="tiny dim" id="dppTestMeta"></p>
+        <form id="dppTestForm">
+          <div id="dppTestQuestions"></div>
+          <div class="row between mt-3">
+            <button class="btn btn-primary btn-sm" id="dppTestSubmit" type="submit">Submit test</button>
+            <span class="tiny dim" id="dppTestProgress" role="status" aria-live="polite">0 answered</span>
+          </div>
+        </form>
+        <div class="admin-dpp-result" id="dppTestResult" hidden></div>
       </section>
 
       <!-- self-healing: visible here and nowhere else on the site -->

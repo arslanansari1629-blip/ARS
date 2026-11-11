@@ -18,6 +18,8 @@ import {
 import { reportPlaybackFailure, recordRelayFailure } from "../lib/selfheal.mjs";
 import { auditBatch, auditLecture, auditHeadline } from "../lib/audit.mjs";
 import { fetchDppList, fetchDppPaper, dppHeadline } from "../lib/dpp.mjs";
+import { readDppPaper } from "../lib/dpp-paper.mjs";
+import { fetchChapters, fetchChapterContents } from "../lib/api-data.mjs";
 import { fetchBatch } from "../lib/api-data.mjs";
 
 /**
@@ -29,8 +31,9 @@ import { fetchBatch } from "../lib/api-data.mjs";
  *   GET    /api/admin?action=whoami → is this token still valid?
  *   POST   /api/admin?action=audit  → walk a batch and find lectures that do not play
  *   GET    /api/admin?action=audit  → the last audit this instance ran
- *   GET    /api/admin?action=dpp      → DPP papers for one batch subject
- *   GET    /api/admin?action=dpp-paper→ one paper's questions
+ *   GET    /api/admin?action=dpp      → DPP quiz list for one batch subject
+ *   GET    /api/admin?action=dpp-papers → the DPP *PDF papers* for one subject
+ *   GET    /api/admin?action=dpp-paper→ one paper's questions (from the PDF)
  *   POST   /api/admin?action=rescan → re-check one lecture, on the spot
  *
  *   GET    /api/hls  → `action=hls`   (rewritten here, see vercel.json)
@@ -201,6 +204,7 @@ export default async function handler(req, res) {
 
   /* --------------------------------------------------------------- dpp */
   if (action === "dpp") return dppAction(req, res, finish, params);
+  if (action === "dpp-papers") return dppPapersAction(req, res, finish, params);
   if (action === "dpp-paper") return dppPaperAction(req, res, finish, params);
 
   if (req.method !== "GET") {
@@ -269,20 +273,157 @@ async function dppAction(req, res, finish, params) {
 }
 
 /**
- * GET /api/admin?action=dpp-paper&id=<testId>
+ * GET /api/admin?action=dpp-papers&batch=&subject=[&chapter=]
  *
- * A locked paper answers 200 with `locked: true`: the panel's job is to explain
- * who can open it, not to dress a 401 up as a server fault.
+ * The DPP *papers*: one PDF per lecture, guest-readable, with the questions and
+ * the answer key inside. This is what the panel runs tests against, because the
+ * interactive quiz list (`?action=dpp`) needs a paid student session.
+ *
+ * Without a chapter it walks the subject's chapters and collects every DPP, in
+ * the chapter order the source uses, bounded so one call cannot walk a whole
+ * batch inside a 60 s function.
+ */
+async function dppPapersAction(req, res, finish, params) {
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET, OPTIONS");
+    return finish(405, { success: false, error: "Method not allowed" });
+  }
+  const batch = String(params.batch || "").trim();
+  const subject = String(params.subject || "").trim();
+  if (!batch || !subject) {
+    return finish(400, { success: false, error: "batch and subject are required." });
+  }
+
+  const wantedChapter = String(params.chapter || "").trim();
+  const maxChapters = Math.max(1, Math.min(40, Number(params.chapters) || 12));
+
+  const papers = await withDeadline(
+    collectDppPapers({ batch, subject, wantedChapter, maxChapters }),
+    45_000
+  ).catch((err) => ({ ok: false, error: err?.message || "The DPP papers timed out.", papers: [] }));
+
+  return finish(papers.ok ? 200 : 502, {
+    success: papers.ok,
+    batch,
+    subject,
+    ...papers,
+    headline: papers.ok
+      ? `${papers.papers.length} paper${papers.papers.length === 1 ? "" : "s"}${
+          papers.truncated ? ` (first ${papers.papers.length} of ${papers.total} chapters)` : ""
+        }`
+      : papers.error,
+  });
+}
+
+/** Walk chapters (or one) and flatten their DPP attachments into a paper list. */
+async function collectDppPapers({ batch, subject, wantedChapter, maxChapters }) {
+  const chaptersOut = await fetchChapters(batch, subject);
+  if (!chaptersOut.ok) {
+    return { ok: false, error: chaptersOut.error || "The chapter list could not be read.", papers: [] };
+  }
+  const all = chaptersOut.chapters || [];
+  // Chapters with no lectures can still carry DPPs, so only skip the ones the
+  // source itself reports as completely empty.
+  const withVideos = all.filter((c) => (Number(c.videos) || 0) > 0 || (Number(c.notes) || 0) > 0);
+  const pool = wantedChapter
+    ? all.filter((c) => c.id === wantedChapter)
+    : withVideos.length
+      ? withVideos
+      : all;
+
+  const chosen = pool.slice(0, maxChapters);
+  const papers = [];
+  const notes = [];
+
+  for (const chapter of chosen) {
+    try {
+      const out = await fetchChapterContents(batch, subject, chapter.id, "DppNotes");
+      if (!out.ok) {
+        notes.push(`${chapter.name}: ${out.error}`);
+        continue;
+      }
+      for (const item of out.items || []) {
+        for (const doc of item.docs || []) {
+          if (!doc.url) continue;
+          papers.push({
+            id: doc.pdfId || item.id,
+            title: (doc.topic || item.title || doc.name || "DPP").trim(),
+            file: doc.name || "",
+            url: doc.url,
+            date: item.date || "",
+            chapter: chapter.name,
+            chapterId: chapter.id,
+            attachmentId: doc.attachmentId || "",
+            pdfId: doc.pdfId || "",
+          });
+        }
+      }
+    } catch (err) {
+      notes.push(`${chapter.name}: ${err?.message || "could not be read"}`);
+    }
+  }
+
+  // Newest first, but keep the chapter grouping visible by sorting on date.
+  papers.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  return {
+    ok: true,
+    papers,
+    notes,
+    total: pool.length,
+    scanned: chosen.length,
+    truncated: pool.length > chosen.length,
+  };
+}
+
+/**
+ * GET /api/admin?action=dpp-paper
+ *
+ * Two kinds of paper, and the panel asks for whichever it has:
+ *
+ *   ?url=<pdf>          the DPP PDF — guest-readable, so this *works*
+ *   ?id=<testId>        the interactive quiz — paid-session only, reported locked
+ *
+ * The PDF path is the one that runs a test: `lib/dpp-paper.mjs` downloads the
+ * paper, extracts its text and splits out questions, options and the answer key.
+ * Everything is relayed through this origin so the browser never talks to PW.
  */
 async function dppPaperAction(req, res, finish, params) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET, OPTIONS");
     return finish(405, { success: false, error: "Method not allowed" });
   }
-  const id = String(params.id || "").trim();
-  if (!id) return finish(400, { success: false, error: "id is required." });
 
-  const paper = await withDeadline(fetchDppPaper({ testId: id }), 20_000).catch((err) => ({
+  const url = String(params.url || "").trim();
+  if (url) {
+    if (!/^https?:\/\//i.test(url)) {
+      return finish(400, { success: false, error: "url must be absolute." });
+    }
+    const mediaBase = `${selfBase(req)}/api/media`;
+    const paper = await withDeadline(
+      readDppPaper({ url, name: String(params.name || ""), mediaBase }),
+      45_000
+    ).catch((err) => ({
+      ok: false,
+      error: err?.message || "The paper took too long to read.",
+      questions: [],
+      stats: { total: 0, answerable: 0 },
+    }));
+
+    return finish(paper.ok ? 200 : 502, {
+      success: paper.ok,
+      // `source: "pdf"` tells the panel it may run the test: the questions are
+      // the paper's own, not a quiz that would 401 on the first click.
+      source: "pdf",
+      locked: false,
+      ...paper,
+    });
+  }
+
+  const id = String(params.id || "").trim();
+  if (!id) return finish(400, { success: false, error: "url or id is required." });
+
+  const quiz = await withDeadline(fetchDppPaper({ testId: id }), 20_000).catch((err) => ({
     ok: false,
     locked: false,
     error: err?.message || "The paper timed out.",
@@ -290,9 +431,10 @@ async function dppPaperAction(req, res, finish, params) {
   }));
 
   return finish(200, {
-    success: paper.ok,
-    locked: Boolean(paper.locked),
-    ...paper,
+    success: quiz.ok,
+    source: "quiz",
+    locked: Boolean(quiz.locked),
+    ...quiz,
   });
 }
 
