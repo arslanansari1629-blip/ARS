@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ArsVibe — Physics Wallah, opened up</title>
+<meta name="description" content="The opening sheet of ArsVibe: every Physics Wallah batch, subject, class note and DPP, drawn onto one page." />
+<meta name="theme-color" content="#eef1f5" />
+<meta name="robots" content="noindex" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ArsVibe" />
+<meta property="og:title" content="ArsVibe — Physics Wallah, opened up" />
+<meta property="og:description" content="Every Physics Wallah batch, subject, class note and DPP, drawn onto one page." />
+<meta property="og:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<link rel="modulepreload" href="/assets/open.js" />
+<link rel="preload" href="/assets/logo.svg" as="image" type="image/svg+xml" />
+<link rel="preconnect" href="https://static.pw.live" crossorigin />
+<link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/open" />
+<meta property="og:url" content="https://arsvibe-pw-sepia.vercel.app/open" />
+</head>
+<body data-page="open" class="open-body">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!--
+  The opening sheet.
+
+  It is drawn, not filmed: the site's own rules, its one blue, and its mono
+  figures, set in motion once. Five beats — the plate, the wordmark, the
+  catalogue, the stamp — then the sheet is torn away and the catalogue is
+  underneath.
+
+  Three structural rules, because an opening page that hides the site is worse
+  than no opening page:
+    · nothing is hidden by the animation alone. Hidden states are scoped to
+      `.open-js`, a class the module adds. With no JavaScript, or with reduced
+      motion, the page is the finished drawing and the "Open the site" link is
+      the first thing in reach.
+    · the handover is a real link to /, pressed by the page when the beats end,
+      so a missed timer or a backgrounded tab cannot strand anyone.
+    · every number on it is read from the catalogue; the shipped 14,201 is the
+      floor, not decoration.
+-->
+<main id="main" class="open" data-page="open">
+  <div class="open-sheet" id="openSheet">
+    <div class="open-grid" aria-hidden="true"></div>
+    <div class="open-rule open-rule-h" aria-hidden="true"></div>
+    <div class="open-rule open-rule-v" aria-hidden="true"></div>
+    <span class="open-corner tl" aria-hidden="true"></span>
+    <span class="open-corner tr" aria-hidden="true"></span>
+    <span class="open-corner bl" aria-hidden="true"></span>
+    <span class="open-corner br" aria-hidden="true"></span>
+
+    <!-- 01 — the plate. A trace of the mark: the set-square, its play-triangle
+         crossbar, then the plate the two sit on. Same geometry as logo.svg. -->
+    <svg class="open-mark" viewBox="0 0 64 64" width="120" height="120" aria-hidden="true" focusable="false">
+      <rect class="om-plate" x="1" y="1" width="62" height="62" rx="6" />
+      <path class="om-frame" d="M8 1h40l15 15v40a7 7 0 0 1-7 7H8a7 7 0 0 1-7-7V8a7 7 0 0 1 7-7Z" />
+      <path class="om-apex" d="M15.5 48 27.4 18.6a3.4 3.4 0 0 1 6.3 0L45.6 48" />
+      <path class="om-play" d="M25.9 43.4h13.4L32.6 36z" />
+    </svg>
+
+    <!-- 02 — the wordmark, letterspaced as the header lockup sets it. -->
+    <h1 class="open-word">
+      <span class="open-word-main">ArsVibe</span>
+      <span class="open-word-sub">Physics Wallah</span>
+    </h1>
+
+    <!-- 03 — the catalogue drawing itself: one dot per step the site opens,
+         joined by a rule. The batch count is read live and counts up; the rest
+         say only what is true of every batch, subject and paper. -->
+    <ol class="open-tree" id="openTree">
+      <li class="ot-row"><span class="ot-dot"></span><span class="ot-label">Batches</span><span class="ot-count" id="otBatches">14,201</span></li>
+      <li class="ot-row"><span class="ot-dot"></span><span class="ot-label">Subjects</span><span class="ot-count">every batch</span></li>
+      <li class="ot-row"><span class="ot-dot"></span><span class="ot-label">Chapters</span><span class="ot-count">every subject</span></li>
+      <li class="ot-row"><span class="ot-dot"></span><span class="ot-label">Notes &amp; DPPs</span><span class="ot-count">PDF, inline</span></li>
+      <li class="ot-row"><span class="ot-dot"></span><span class="ot-label">DPP tests</span><span class="ot-count">timed, marked</span></li>
+    </ol>
+
+    <!-- 04 — the title block, as on a real drawing. -->
+    <dl class="open-stamp">
+      <div><dt>Sheet</dt><dd>AV-01</dd></div>
+      <div><dt>Rev</dt><dd>2026</dd></div>
+      <div><dt>Scale</dt><dd>1 : 1</dd></div>
+    </dl>
+
+    <div class="open-sweep" aria-hidden="true"></div>
+    <div class="open-veil" aria-hidden="true"></div>
+
+    <div class="open-meta">
+      <span class="open-status" id="openStatus">Drawing the catalogue</span>
+      <a class="open-skip" href="/" id="openGo">Open the site <span aria-hidden="true">→</span></a>
+      <span class="open-progress" aria-hidden="true"><span class="open-progress-bar" id="openProgress"></span></span>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="/assets/open.js"></script>
+<script type="module" src="/assets/offline-boot.js"></script>
+</body>
+</html>

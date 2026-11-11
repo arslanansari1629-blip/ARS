@@ -118,6 +118,7 @@ public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
   dpp.html           attempt a DPP paper and read the analysis
   viewer.html login.html dashboard.html library.html favourites.html 404.html
+  open.html          the opening sheet — the title sequence (noindex)
   admin.html         the operator panel (noindex, its own plate)
   assets/            arsvibe.css (the whole design system) · app.js · data.js · page modules
 data/batches.json.gz complete batch catalogue (13,631 upstream → 14,201 with the full list)
@@ -154,6 +155,34 @@ PW_UPSTREAM_BASE=http://127.0.0.1:4010 npm run dev
 In production no such override is set: `PW_UPSTREAM_BASE` is unset, so requests go to the real
 PW API. If a deployment's region is blocked upstream, the API answers `{ needsProxy: true }` and
 the browser transparently falls back to the public CORS relay — the UI keeps showing live data.
+
+## The opening sheet (`/open`)
+
+The site opens itself the way a drawing is made: the plate traces, the wordmark letterspaces
+in, the catalogue draws row by row with the live batch count, the title block is stamped into
+the corner, a sweep crosses, and the sheet lifts.
+
+```bash
+/open              the sequence as its own page; ends with a real navigation to /
+/                  the same sheet, laid over the front door (once per session)
+/?open=1           replay it on the front door
+```
+
+* **One implementation, two mountings.** `assets/open.js` runs the sheet standalone and, on the
+  home page, fetches the same markup from `/open` into a shell that ships with the page. There is
+  no second copy to drift.
+* **Nothing is hidden by the animation.** Hidden states are scoped to `.open-js`, which the module
+  adds; the HTML itself is the finished drawing. The home page arms itself from an inline script in
+  `<head>` so the hero never flashes first, and a 5s failsafe removes the class *and* the empty
+  shell if the module never arrives.
+* **Any exit works at any moment** — the "Open the site" link, `Esc`/`Enter`/`Space`, a click, or
+  the end of the sequence. The listeners are removed when the sheet goes, so the catalogue keeps
+  its keys.
+* **Reduced motion gets the drawing, still.** No shortened animation, no auto-navigation; the
+  exit is focused. The beats themselves are CSS delays (see "The opening sheet" at the end of
+  `arsvibe.css`), so `DURATION` in `open.js` only decides how long the finished drawing stays up.
+* **Occasional, not a gate.** Once per session (`sessionStorage`), and the nav keeps an
+  "Opening" link for anyone who wants it again.
 
 ## The API proxy (`/api/pw`)
 

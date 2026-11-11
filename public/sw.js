@@ -37,6 +37,9 @@ const SHELL_ASSETS = [
   "/assets/shell.mjs",
   "/assets/ui.js",
   "/assets/data.js",
+  // The opening sheet: /open is cached as a document (below), and the front
+  // door fills itself from it on the first visit of a session.
+  "/assets/open.js",
   "/assets/logo.svg",
   "/assets/icon.svg",
   // The fallback page has to be here, not merely cached when someone happens to

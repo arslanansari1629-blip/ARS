@@ -18,12 +18,38 @@
 <link rel="modulepreload" href="/assets/app.js" />
 <link rel="modulepreload" href="/assets/data.js" />
 <link rel="modulepreload" href="/assets/client-api.js" />
+<link rel="modulepreload" href="/assets/open.js" />
 <link rel="preconnect" href="https://static.pw.live" crossorigin />
 <link rel="dns-prefetch" href="https://static.pw.live" />
 <link rel="stylesheet" href="/assets/arsvibe.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
 <link rel="manifest" href="/manifest.webmanifest" />
+<script>
+/* The front door's opening sheet, armed before the first paint so the catalogue
+   never flashes underneath it. Everything about it is reversible: open.js owns
+   the sheet, and this failsafe un-arms the page after 5s if that module never
+   arrives (old browser, blocked module, offline). */
+(function () {
+  try {
+    if (sessionStorage.getItem("arsvibe.open.played") === "1") return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (/[?&]open\b/.test(location.search)) return;
+    var root = document.documentElement;
+    root.classList.add("intro-armed");
+    // Failsafe: if open.js never arrives (old browser, blocked module, a thrown
+    // error), give the page back and take the empty shell away with it. The
+    // sheet must never be the reason the catalogue cannot be reached.
+    setTimeout(function () {
+      root.classList.remove("intro-armed");
+      var shell = document.getElementById("intro");
+      if (shell) shell.remove();
+    }, 5000);
+  } catch (e) {
+    /* no storage: straight to the catalogue */
+  }
+})();
+</script>
 <link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/" />
 <meta property="og:url" content="https://arsvibe-pw-sepia.vercel.app/" />
 <script type="application/ld+json">
@@ -71,6 +97,7 @@
     </button>
     <nav class="nav-links" id="navLinks">
       <a href="/" data-page="home">Home</a>
+      <a href="/open" data-page="open">Opening</a>
       <a href="/batches.html" data-page="batches">Batches</a>
       <a href="/batches.html#dpp-tests" data-page="dpp-tests">DPP Tests</a>
       <a href="/favourites.html" data-page="favourites">Favourites</a>
@@ -82,6 +109,12 @@
   </div>
 </header>
 
+<div class="open open-intro open-intro-pending" id="intro" aria-hidden="true">
+  <div class="open-sheet" id="introSheet">
+    <div class="open-grid">Loading the opening sheet…</div>
+  </div>
+</div>
+
 <main id="main">
   <section class="hero">
     <div class="shell hero-grid">
@@ -89,7 +122,7 @@
         <span class="eyebrow">
           <span class="dot"></span> Live catalogue · synced from ArsVibe PW
         </span>
-        <h1>
+        <h1 class="hero-title">
           Every <span class="gradient-text">Physics Wallah</span> batch,<br />
           notes &amp; DPPs in one place.
         </h1>
@@ -255,6 +288,7 @@
 </footer>
 
 <script type="module" src="/assets/home.js"></script>
+<script type="module" src="/assets/open.js"></script>
 <script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
   <script type="module" src="/assets/offline-boot.js"></script>

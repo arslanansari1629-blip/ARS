@@ -5,6 +5,34 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AD — the opening sheet
+
+**The problem.** The site had no opening. `/` dropped a visitor straight into a hero and a
+search box, which is efficient and says nothing about what this thing is — a drawing of the
+whole Physics Wallah catalogue rather than another course storefront.
+
+**What shipped.**
+
+- **`/open`** — a title sequence in the site's own language: the plate traces itself on, the
+  wordmark letterspaces in, the catalogue draws row by row while the live batch count counts up,
+  the title block is stamped into the corner, a sweep crosses the sheet, and it lifts to the
+  catalogue. Four seconds, once.
+- **The front door opens it too.** The same sheet is laid over `/` on the first visit of a
+  session and lifted without navigating, so the catalogue underneath keeps its scroll. It is the
+  *same markup* — the home page fetches `/open` — and `/?open=1` replays it.
+- **A sheet, not a gate.** Hidden states are scoped to a class the module adds, so the page is the
+  finished drawing without JavaScript; the front door arms itself in `<head>` with a 5s failsafe
+  that gives the page back if the module never arrives; `Esc`, `Enter`, `Space`, a click and the
+  visible "Open the site" link all leave at any moment; and `prefers-reduced-motion` gets the
+  still drawing with the exit in focus rather than a faster animation.
+
+**The bug this round was really about.** An opening page fails in one of two ways: it is a gate,
+or it flashes. The first pass was both — the overlay's markup only existed after a fetch, so the
+hero appeared for a moment first, and the beat schedule lived in JS while the CSS carried its own
+delays, so the sheet lifted on one clock and finished drawing on another. The shell now ships
+with the page (invisible until filled), the beats are CSS delays only, and a test asserts the last
+beat is over before the sheet lifts.
+
 ## Round AC — DPP practice: answer a paper, submit, read the analysis
 
 **The problem.** Round AB made the *operator's* panel run a paper. A student still

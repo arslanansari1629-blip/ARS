@@ -7464,3 +7464,793 @@ body.side-rail .side-brand:hover .brand-img {
   background: var(--surface, #fff);
 }
 .dpp-tests-notice h2 { margin: 0.15rem 0 0.3rem; }
+
+/* ==========================================================================
+   The opening sheet — a title sequence drawn on the site's own paper
+   --------------------------------------------------------------------------
+   One page, one showing: /open. It is the home page's language taken to its
+   conclusion — the same drafting grid, the same one blue, the same mono
+   figures — set in motion once and then torn off.
+
+   Everything animated here is additive. Each hidden state is scoped to
+   `.open-js` (added by the module) so the page is the finished drawing with
+   JavaScript off, and `.open-beat-N` on <html> is the only thing that ever
+   advances the sequence. That keeps the CSS declarative: the JS says *when*,
+   never *what*.
+   ========================================================================== */
+
+.open-body {
+  background: var(--paper);
+}
+
+.open {
+  position: relative;
+  display: block;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: 0;
+  overflow: hidden;
+}
+
+.open-sheet {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  justify-items: center;
+  gap: 0;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  text-align: center;
+  cursor: pointer;
+}
+
+/* The drawing surface: the site's own 24/120px grid, ruled to the sheet's
+   margins, with crop marks in the corners instead of a border. */
+.open-grid {
+  position: absolute;
+  inset: clamp(0.7rem, 2.4vw, 1.4rem);
+  border: 1px solid var(--rule);
+  background-image:
+    repeating-linear-gradient(0deg, var(--grid-minor) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, var(--grid-minor) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(0deg, var(--grid-major) 0 1px, transparent 1px 120px),
+    repeating-linear-gradient(90deg, var(--grid-major) 0 1px, transparent 1px 120px);
+  background-position: center;
+  pointer-events: none;
+  transform-origin: center;
+}
+
+.open-js .open-grid {
+  animation: open-draw-grid 820ms var(--ease) both;
+}
+
+@keyframes open-draw-grid {
+  from {
+    opacity: 0;
+    clip-path: inset(0 50% 0 50%);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* The two axes: centre lines, drawn out from the middle. */
+.open-rule {
+  position: absolute;
+  background: var(--rule-2);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.open-rule-h {
+  left: clamp(0.7rem, 2.4vw, 1.4rem);
+  right: clamp(0.7rem, 2.4vw, 1.4rem);
+  top: 50%;
+  height: 1px;
+  transform: scaleX(0);
+}
+
+.open-rule-v {
+  top: clamp(0.7rem, 2.4vw, 1.4rem);
+  bottom: clamp(0.7rem, 2.4vw, 1.4rem);
+  left: 50%;
+  width: 1px;
+  transform: scaleY(0);
+}
+
+.open-js .open-rule-h {
+  animation: open-axis-x 900ms var(--ease) 0ms forwards;
+}
+
+.open-js .open-rule-v {
+  animation: open-axis-y 900ms var(--ease) 0ms forwards;
+}
+
+@keyframes open-axis-x {
+  to {
+    opacity: 0.34;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes open-axis-y {
+  to {
+    opacity: 0.34;
+    transform: scaleY(1);
+  }
+}
+
+/* Crop marks: four Ls, one per corner, each growing in from its own corner. */
+.open-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: var(--blue);
+  border-style: solid;
+  border-width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.open-corner.tl { top: clamp(0.7rem, 2.4vw, 1.4rem); left: clamp(0.7rem, 2.4vw, 1.4rem); border-top-width: 1px; border-left-width: 1px; }
+.open-corner.tr { top: clamp(0.7rem, 2.4vw, 1.4rem); right: clamp(0.7rem, 2.4vw, 1.4rem); border-top-width: 1px; border-right-width: 1px; }
+.open-corner.bl { bottom: clamp(0.7rem, 2.4vw, 1.4rem); left: clamp(0.7rem, 2.4vw, 1.4rem); border-bottom-width: 1px; border-left-width: 1px; }
+.open-corner.br { bottom: clamp(0.7rem, 2.4vw, 1.4rem); right: clamp(0.7rem, 2.4vw, 1.4rem); border-bottom-width: 1px; border-right-width: 1px; }
+
+.open-js .open-corner {
+  animation: open-mark-in 380ms var(--ease) 0ms forwards;
+}
+
+.open-js .open-corner.tr { animation-delay: 60ms; }
+.open-js .open-corner.bl { animation-delay: 120ms; }
+.open-js .open-corner.br { animation-delay: 180ms; }
+
+@keyframes open-mark-in {
+  to {
+    opacity: 0.75;
+  }
+}
+
+/* ---- 01 — the plate ---------------------------------------------------- */
+
+.open-mark {
+  position: relative;
+  width: clamp(78px, 15vw, 112px);
+  height: auto;
+  margin-bottom: clamp(0.9rem, 2.4vw, 1.5rem);
+  overflow: visible;
+}
+
+.om-plate {
+  fill: var(--blue);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.om-frame,
+.om-apex,
+.om-play {
+  fill: none;
+  stroke: #fff;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  stroke-dasharray: var(--len, 400);
+  stroke-dashoffset: var(--len, 400);
+}
+
+.om-frame {
+  --len: 232;
+  stroke-width: 1.1;
+  stroke-opacity: 0.5;
+}
+
+.om-apex {
+  --len: 72;
+  stroke-width: 5.2;
+}
+
+.om-play {
+  fill: #fff;
+  stroke: none;
+  opacity: 0;
+}
+
+.open-js .om-plate {
+  animation: open-plate-in 480ms var(--ease) 0ms forwards;
+}
+
+.open-js .om-frame {
+  animation: open-trace 620ms var(--ease) 120ms forwards;
+}
+
+.open-js .om-apex {
+  animation: open-trace 560ms var(--ease) 240ms forwards;
+}
+
+.open-js .om-play {
+  animation: open-play-in 320ms var(--ease) 660ms forwards;
+}
+
+@keyframes open-plate-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82) rotate(-6deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes open-trace {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes open-play-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- 02 — the wordmark ------------------------------------------------- */
+
+.open-word {
+  position: relative;
+  margin: 0 var(--s-2) clamp(1.1rem, 3vw, 1.8rem);
+  line-height: 1;
+}
+
+.open-word-main {
+  display: block;
+  font-size: clamp(2.1rem, 7vw, 3.6rem);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  color: var(--ink);
+}
+
+.open-word-sub {
+  display: block;
+  margin-top: 0.55rem;
+  font-family: var(--mono);
+  font-size: clamp(0.62rem, 1.6vw, 0.78rem);
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  /* The letterspacing is built, not typed, so it can be built up on screen. */
+  text-indent: 0.42em;
+  white-space: nowrap;
+}
+
+.open-js .open-word-main,
+.open-js .open-word-sub {
+  opacity: 0;
+}
+
+.open-js .open-word-main {
+  transform: translateY(10px);
+  clip-path: inset(0 100% 0 0);
+  animation: open-word-in 660ms var(--ease) 60ms forwards;
+}
+
+.open-js .open-word-sub {
+  transform: translateY(6px);
+  animation: open-sub-in 560ms var(--ease) 380ms forwards;
+}
+
+@keyframes open-word-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes open-sub-in {
+  from {
+    letter-spacing: 0.05em;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    letter-spacing: 0.42em;
+  }
+}
+
+/* ---- 03 — the catalogue ------------------------------------------------ */
+
+.open-tree {
+  position: relative;
+  display: grid;
+  gap: 0;
+  width: min(100%, 420px);
+  margin: 0 0 clamp(1.2rem, 3vw, 1.9rem);
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+/* The rule the rows hang from: one blue line, drawn down as the rows land. */
+.open-tree::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.85em;
+  bottom: 0.85em;
+  width: 1px;
+  background: var(--blue);
+  opacity: 0.28;
+  transform: scaleY(0);
+  transform-origin: top;
+}
+
+.open-js .open-tree::before {
+  animation: open-trunk 760ms var(--ease) 0ms forwards;
+}
+
+@keyframes open-trunk {
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.ot-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.15rem;
+  padding-left: 0;
+  border-bottom: 1px dashed var(--hair);
+}
+
+.ot-row:last-child {
+  border-bottom: 0;
+}
+
+.ot-dot {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--blue);
+  border-radius: 50%;
+  background: var(--paper);
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.ot-label {
+  font-size: 0.86rem;
+  color: var(--ink-2);
+}
+
+.ot-count {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.ot-skel {
+  display: inline-block;
+  width: 3.2em;
+  height: 0.62em;
+  border-radius: 1px;
+  background: rgba(13, 26, 43, 0.08);
+}
+
+.open-js .ot-row {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.open-js .ot-row:nth-child(1) { animation: open-row-in 380ms var(--ease) 60ms forwards; }
+.open-js .ot-row:nth-child(2) { animation: open-row-in 380ms var(--ease) 220ms forwards; }
+.open-js .ot-row:nth-child(3) { animation: open-row-in 380ms var(--ease) 380ms forwards; }
+.open-js .ot-row:nth-child(4) { animation: open-row-in 380ms var(--ease) 540ms forwards; }
+.open-js .ot-row:nth-child(5) { animation: open-row-in 380ms var(--ease) 700ms forwards; }
+
+.open-js .ot-row .ot-dot {
+  animation: open-dot-in 340ms var(--ease) 120ms forwards;
+}
+
+.open-js .ot-row:nth-child(2) .ot-dot { animation-delay: 280ms; }
+.open-js .ot-row:nth-child(3) .ot-dot { animation-delay: 440ms; }
+.open-js .ot-row:nth-child(4) .ot-dot { animation-delay: 600ms; }
+.open-js .ot-row:nth-child(5) .ot-dot { animation-delay: 760ms; }
+
+@keyframes open-row-in {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes open-dot-in {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---- 04 — the title block ---------------------------------------------- */
+
+.open-stamp {
+  position: absolute;
+  right: calc(clamp(0.7rem, 2.4vw, 1.4rem) + 0.9rem);
+  bottom: calc(clamp(0.7rem, 2.4vw, 1.4rem) + 2.7rem);
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 0.6rem;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--blue);
+  background: rgba(248, 250, 252, 0.86);
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: left;
+}
+
+.open-stamp div {
+  display: contents;
+}
+
+.open-stamp dt {
+  opacity: 0.7;
+}
+
+.open-stamp dd {
+  margin: 0;
+  color: var(--ink);
+  letter-spacing: 0.06em;
+}
+
+.open-js .open-stamp {
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+  animation: open-stamp-in 400ms var(--ease) 0ms forwards;
+}
+
+@keyframes open-stamp-in {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* The sweep: one pass of light across the finished sheet, the way a plotter
+   re-reads a drawing. Clipped to the sheet, never over the text meaning. */
+.open-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 36%,
+    rgba(47, 107, 255, 0.07) 46%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(47, 107, 255, 0.07) 54%,
+    transparent 64%
+  );
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.open-js .open-sweep {
+  animation: open-sweep 900ms var(--ease) 160ms forwards;
+}
+
+@keyframes open-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* The veil that lifts: the sheet is what leaves, not the page. */
+.open-veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--paper);
+  opacity: 0;
+}
+
+.open-js .open-veil {
+  animation: open-veil-close 480ms var(--ease) 3200ms forwards;
+}
+
+@keyframes open-veil-close {
+  to {
+    opacity: 1;
+  }
+}
+
+/* ---- the meta line: what it is doing, and the way out ------------------- */
+
+.open-meta {
+  position: absolute;
+  left: calc(clamp(0.7rem, 2.4vw, 1.4rem) + 0.9rem);
+  bottom: calc(clamp(0.7rem, 2.4vw, 1.4rem) + 0.9rem);
+  right: calc(clamp(0.7rem, 2.4vw, 1.4rem) + 0.9rem);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: left;
+}
+
+.open-status {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.open-skip {
+  margin-left: auto;
+  color: var(--blue);
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 160ms var(--ease);
+}
+
+.open-skip:hover,
+.open-skip:focus-visible {
+  border-bottom-color: var(--blue);
+}
+
+.open-progress {
+  display: block;
+  width: min(22vw, 120px);
+  height: 2px;
+  background: var(--hair-2);
+  overflow: hidden;
+}
+
+.open-progress-bar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--blue);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+/* ---- the still sheet: reduced motion, and the last frame of a replay ---- */
+
+.open-quiet .open-sheet,
+.open-quiet .open-mark,
+.open-quiet .open-word,
+.open-quiet .open-tree,
+.open-quiet .open-stamp,
+.open-quiet .open-veil,
+.open-quiet .open-grid,
+.open-quiet .open-rule,
+.open-quiet .open-corner,
+.open-done .open-sheet {
+  animation: none !important;
+}
+
+.open-quiet .om-plate,
+.open-quiet .om-play,
+.open-quiet .open-word-main,
+.open-quiet .open-word-sub,
+.open-quiet .ot-row,
+.open-quiet .ot-dot,
+.open-quiet .open-corner,
+.open-quiet .open-rule,
+.open-quiet .open-stamp {
+  opacity: 1 !important;
+  transform: none !important;
+  clip-path: none !important;
+}
+
+.open-quiet .om-frame,
+.open-quiet .om-apex {
+  stroke-dashoffset: 0 !important;
+  opacity: 1 !important;
+}
+
+.open-quiet .open-rule {
+  opacity: 0.5 !important;
+}
+
+.open-quiet .open-tree::before {
+  animation: none !important;
+  transform: scaleY(1) !important;
+}
+
+/* Reduced motion is not a degraded sheet: it is the finished drawing, still.
+   This comes last so it wins over both the beat classes and the keyframes. */
+@media (prefers-reduced-motion: reduce) {
+  .open-sheet,
+  .open-js .open-sheet,
+  .open-mark,
+  .open-js .open-mark,
+  .open-word,
+  .open-js .open-word-main,
+  .open-js .open-word-sub,
+  .open-js .ot-row,
+  .open-js .ot-row .ot-dot,
+  .open-js .open-stamp,
+  .open-js .open-grid,
+  .open-js .open-rule-h,
+  .open-js .open-rule-v,
+  .open-js .open-corner,
+  .open-js .open-tree::before,
+  .open-js .om-plate,
+  .open-js .om-frame,
+  .open-js .om-apex,
+  .open-js .om-play,
+  .open-js .open-sweep,
+  .open-js .open-veil {
+    animation: none !important;
+  }
+
+  .open-js .om-plate,
+  .open-js .om-play,
+  .open-js .open-word-main,
+  .open-js .open-word-sub,
+  .open-js .ot-row,
+  .open-js .ot-row .ot-dot,
+  .open-js .open-rule,
+  .open-js .open-corner,
+  .open-js .open-stamp {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+
+  .open-js .om-frame,
+  .open-js .om-apex {
+    stroke-dashoffset: 0 !important;
+  }
+
+  .open-js .open-rule {
+    opacity: 0.34 !important;
+    transform: none !important;
+  }
+
+  .open-js .open-tree::before {
+    transform: scaleY(1) !important;
+  }
+
+  .open-progress-bar {
+    transform: scaleX(1) !important;
+  }
+}
+
+/* A finished sheet does not fade: the handover is a navigation. */
+@media (max-width: 620px) {
+  .open-sheet {
+    padding-block: 2rem 3.2rem;
+  }
+
+  .open-stamp {
+    display: none;
+  }
+
+  .open-meta {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+  }
+
+  .open-progress {
+    order: 3;
+    width: 100%;
+  }
+}
+
+/* Print: the opening sheet as the sheet it is. */
+@media print {
+  .open-meta,
+  .open-sweep,
+  .open-veil {
+    display: none !important;
+  }
+}
+
+/* ==========================================================================
+   The opening sheet, mounted over the front door
+   --------------------------------------------------------------------------
+   Same sheet, same module; here it is an overlay rather than a page. The class
+   that hides the catalogue is on <html> and is set by an inline failsafe before
+   the first paint, so there is never a flash of the hero before the sheet — and
+   the failsafe removes it again if open.js never arrives.
+   ========================================================================== */
+
+.intro-armed {
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.intro-armed > body {
+  /* Held under the sheet, not merely covered by it: a screen reader should not
+     be reading the hero while the title sequence is playing. */
+  visibility: hidden;
+}
+
+.open-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: block;
+  overflow: hidden;
+  background: var(--paper);
+  padding: 0;
+}
+
+/* The shell ships with the home page and is filled from /open. It is invisible
+   (and takes no clicks) until the sheet is in it, so a failed fetch leaves the
+   catalogue exactly as it would have been. */
+.open-intro-pending {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.open-intro-pending .open-grid {
+  /* The shell paints the paper and the grid before the sheet arrives, so the
+     hero is never visible for a frame. The label is in the markup for anyone
+     reading the served HTML; the sheet replaces it a moment later. */
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: center;
+  padding-top: 46vh;
+}
+
+.open-intro .open-sheet {
+  height: 100%;
+  min-height: 100%;
+  cursor: pointer;
+}
+
+/* Visible again the instant the sheet is dealt with — including when the sheet
+   has already gone and only its class is left behind. */
+html:not(.intro-armed) > body {
+  visibility: visible;
+}
+
+.open-leaving {
+  animation: open-intro-lift 560ms var(--ease) forwards;
+  pointer-events: none;
+}
+
+@keyframes open-intro-lift {
+  from {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+  to {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0.65;
+  }
+}

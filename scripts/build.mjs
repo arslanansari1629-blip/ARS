@@ -16,6 +16,7 @@ const API = path.join(ROOT, "api");
 
 const REQUIRED_PAGES = [
   "index.html",
+  "open.html",
   "offline.html",
   "batches.html",
   "batch.html",

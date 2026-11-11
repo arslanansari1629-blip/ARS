@@ -30,6 +30,7 @@ const GLOBALS = new Set([
   "performance", "navigator", "crypto", "atob", "btoa", "queueMicrotask", "globalThis",
   "Uint8Array", "MediaSource", "HTMLElement", "Node", "Element", "getComputedStyle",
   "Image", "Audio", "matchMedia", "TextEncoder", "TextDecoder", "requestIdleCallback",
+  "DOMParser", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame",
 ]);
 
 /** Remove comments and string/template literals so only real code is scanned. */
