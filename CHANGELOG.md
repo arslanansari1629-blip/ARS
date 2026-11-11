@@ -53,13 +53,31 @@ left and then down the right, and the questions are re-sorted into the paper's o
 numbering. Both readers run, the one that recovers more scorable questions wins,
 and the response names it in `parser`.
 
+3. And a third, which the column reader did not fix on its own: the gutter was put
+   at the **midpoint** between the two columns' markers — x=170 for columns starting
+   at 29 and 311. But the left column sets its options **two to a line**, so option
+   `(B)` begins at x=165 and its value at x=181. The boundary ran straight through
+   the middle of a question: `(B)` stayed left, its value went right, and Q2 came
+   back with options A and C only. Again nothing threw. The gutter is now the
+   columns' own **start** positions, and a run belongs to the last column that
+   starts at or before it, so a value that sits a little to the right of its own
+   letter stays with its question.
+
 `lib/dpp-paper.mjs` is tested against three fixtures that reproduce the real DPP 11
 geometry — single column, stacked values, and the two-column sheet whose expected
-marking is the real paper's own key (14 of 14). The two-column test fails outright
-if the column reader is removed, which was checked rather than assumed. The
-table-shaped answer key had a third instance of the same disease: it put each
+marking is the real paper's own key (14 of 14). The two-column fixture is not drawn
+to look like the paper: its runs are the paper's own, **measured** — read back from
+the deployed route with `?lines=1&runs=1` — including the two-options-to-a-line
+left column, the 12.3pt values between 10.2pt letters, the 8.7pt superscripts, and
+the 548x900pt sheet. The test fails outright if the column reader is removed *and*
+if the gutter is moved back to the midpoint; both were checked rather than assumed.
+The table-shaped answer key had a fourth instance of the same disease: it put each
 question number and its letter in separate cells, and a cell-wise read was silently
 dropping half the key.
+
+That diagnostic is itself a hazard on a public route — it echoes the paper's lines,
+and the paper's lines end with `Q1 (B) Q8 (D)`. It now stops at the answer key and
+says how many lines it withheld; a test asserts none of the key's rows appear in it.
 
 The practice page also had two bugs of its own, both found by driving it rather
 than reading it: the failure branch called a `const` helper declared below it, so

@@ -245,13 +245,42 @@ test("a two-column paper keeps each question's options in its own question", asy
     "2.75 and 2.74",
     "2.74 and 2.73",
     "2.75 and 2.73",
-    "2.74 2.74",
+    "2.74 and 2.74",
   ]);
   assert.deepEqual(byNumber.get(7).options.map((o) => o.text), [
     "0.0500",
     "0.05000",
     "0.0050",
-    "5.0 x 10",
+    "5.0 × 10",
+  ]);
+
+  // Q2 is the question a midpoint gutter breaks. The left column prints two
+  // options to a line, so `(B)` sits at x=165 and its value `4` at x=181 — past
+  // the midpoint between the columns (170). Splitting there leaves Q2 with
+  // options A and C only, and the *right* half of its options appears in Q9.
+  assert.deepEqual(byNumber.get(2).options.map((o) => `${o.letter}:${o.text}`), [
+    "A:5",
+    "B:4",
+    "C:2",
+    "D:3",
+  ]);
+  assert.deepEqual(byNumber.get(3).options.map((o) => `${o.letter}:${o.text}`), [
+    "A:4",
+    "B:5",
+    "C:7",
+    "D:3",
+  ]);
+  // No question may borrow another's options: every option list is complete and
+  // four-strong, and each question's own option values appear exactly once.
+  for (const q of body.questions) {
+    assert.equal(q.options.length, 4, `Q${q.number} has ${q.options.length} options`);
+  }
+  // Q12 is printed in full on both sides of the page break; it must read once.
+  assert.deepEqual(byNumber.get(12).options.map((o) => o.text), [
+    "3 5.53 × 10",
+    "3 5.52 × 10",
+    "3 5.54 × 10",
+    "3 5.5 × 10",
   ]);
   // The stems are not spliced either: Q3's stem does not carry Q9's wording.
   assert.match(byNumber.get(3).text, /0\.0006032/);
@@ -263,6 +292,24 @@ test("a two-column paper keeps each question's options in its own question", asy
   });
   assert.equal(marked.body.result.correct, 14, JSON.stringify(marked.body.review.map((r) => [r.number, r.outcome])));
   assert.equal(marked.body.result.percent, 100);
+});
+
+test("the layout diagnostic does not hand out the answer key", async () => {
+  // `?lines=1` is a debugging aid on a *public* route, and it echoes the paper's
+  // lines back. The paper's lines end with `Q1 (B) Q8 (D)`. Anyone can append the
+  // flag, so the key has to be cut out of it, not merely omitted from the JSON
+  // structure that the practice page reads.
+  const { res, body } = await get(`/api/pdf?dpp=${encodeURIComponent(COLUMN_PAPER())}&lines=1`);
+  assert.equal(res.status, 200);
+  assert.equal(body.layout.ok, true);
+
+  const text = JSON.stringify(body.layout);
+  assert.match(text, /answer key withheld/, "the diagnostic did not say it withheld the key");
+  // The real key: 1 B, 8 D, 2 B, 9 B, 3 A, 4 B, 5 C, 6 A, 11 A, 7 A, 12 B, 13 B, 14 C.
+  // None of the key's own rows may appear, in either the table shape or a list.
+  assert.equal(/Q\s*1\s*\(B\)/i.test(text), false, "the key row `Q1 (B)` leaked");
+  assert.equal(/Q\s*8\s*\(D\)/i.test(text), false, "the key row `Q8 (D)` leaked");
+  assert.equal(/Q\s*14\s*\(C\)/i.test(text), false, "the key row `Q14 (C)` leaked");
 });
 
 /* ------------------------------------------------------- the guard rails */

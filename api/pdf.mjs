@@ -280,46 +280,30 @@ async function describeLayout(url, { runs = false } = {}) {
         .map((it) => ({ x: Math.round(it.x), y: Math.round(it.y), str: String(it.str).trim() }))
         .filter((r) => /^Q\s*\d+\b/.test(r.str))
         .map((r) => ({ x: r.x, y: r.y, q: (r.str.match(/^Q\s*(\d+)/) || [])[1] }));
-      // The runs of the first question on the page, with their geometry: when a
-      // paper's options come out wrong this is the only view that explains it.
-      const firstMarker = page
-        .map((it) => ({ it, q: /^Q\s*\d+\b/.test(String(it.str).trim()) }))
-        .find((r) => r.q);
-      let band = null;
-      if (firstMarker && index === 0) {
-        const yTop = Number(firstMarker.it.y) + 2;
-        const nextMarker = page
-          .filter((it) => /^Q\s*\d+\b/.test(String(it.str).trim()))
-          .map((it) => Number(it.y))
-          .filter((y) => y < yTop - 10)
-          .sort((a, b) => b - a)[0];
-        const yBottom = Number.isFinite(nextMarker) ? nextMarker + 40 : yTop - 140;
-        band = page
-          .filter((it) => {
-            const y = Number(it.y);
-            return y <= yTop && y >= yBottom;
-          })
-          .sort((a, b) => b.y - a.y || a.x - b.x)
-          .slice(0, 40)
-          .map((it) => ({
-            s: String(it.str).slice(0, 26),
-            x: Math.round(it.x),
-            y: Math.round(it.y),
-            w: Math.round(Number(it.width) || 0),
-            f: Math.round((Number(it.fontSize) || 0) * 10) / 10,
-          }));
-      }
-
       const columns = inferColumns(page);
-      const lines = (columns.length > 1 ? layoutLinesInColumns(page, columns) : layoutLines(page))
-        .slice(0, 45)
-        .map((line) => line.text.slice(0, 110));
+      // The lines are read from the paper *up to its answer key*. Everything from
+      // the key onwards is replaced by one line, because this route is public and
+      // the whole point of the practice page is that the key is withheld until the
+      // student submits — a diagnostic that echoes `Q1 (B) Q8 (D)` would hand it
+      // over to anyone who appends `&lines=1`.
+      const read = columns.length > 1 ? layoutLinesInColumns(page, columns) : layoutLines(page);
+      const keyY = read.reduce(
+        (at, line) => (at === null && /answer\s*key/i.test(line.text) ? line.y : at),
+        null
+      );
+      const keyAt = read.findIndex((line) => /answer\s*key/i.test(line.text));
+      const body = keyAt < 0 ? read : read.slice(0, keyAt);
+      const lines = body.slice(0, 45).map((line) => line.text.slice(0, 110));
+      if (keyAt >= 0) lines.push(`[answer key withheld: ${read.length - keyAt} lines]`);
       // `&runs=1` dumps every run of the first page, compactly. That is how a
       // real paper's geometry gets into the test fixtures: the paper cannot be
       // downloaded from a sandbox, but its runs can be read back as JSON.
       const dump = runs && index === 0
         ? page
             .slice()
+            // The key page's runs are geometry, not text: its `(B)` cells would
+            // spell the answers out just as plainly as the lines above.
+            .filter((it) => keyY === null || (Number(it.y) || 0) > keyY)
             .sort((a, b) => b.y - a.y || a.x - b.x)
             .map((it) => [
               String(it.str).slice(0, 60),
@@ -330,7 +314,7 @@ async function describeLayout(url, { runs = false } = {}) {
             ])
         : undefined;
 
-      return { index, runs: page.length, markers, columns, band, ...(dump ? { dump } : {}), lines };
+      return { index, runs: page.length, markers, columns, ...(dump ? { dump } : {}), lines };
     }),
   };
 }

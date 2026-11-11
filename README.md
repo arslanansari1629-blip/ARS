@@ -234,6 +234,8 @@ into a test a student can sit:
 ```
 GET  /api/pdf?dpp=<paper url>          → the paper's questions and options, no key
 POST /api/pdf?dpp=<paper url>          → the marked attempt: score + per-question review
+GET  …?dpp=<paper url>&lines=1         → how the paper was laid out (key withheld)
+GET  …?dpp=<paper url>&lines=1&runs=1  → …plus the first page's runs as geometry
 ```
 
 Both halves go through this origin, so the browser never talks to PW and the answer

@@ -14,11 +14,13 @@
  *     followed by `5 4`. Only the positioned reader gets it right, so this is
  *     the fixture that decides whether the feature works on a real paper.
  *   · `dpp-paper-columns.pdf` — DPP 11 as PW actually prints it: **two questions
- *     side by side** on a three-page sheet, question 1 beside question 8. This
- *     is the layout that broke the first positioned reader in production — a row
- *     spans two unrelated questions, so reading across splices Q8's values into
- *     Q1's options without anything throwing. Every question here is the real
- *     paper's, with the real answer key, so the expected marking is the paper's.
+ *     side by side**, question 1 beside question 8, and the left column setting
+ *     its options **two to a line** so that option (B)'s value falls past the
+ *     midpoint of the two columns. This is the layout that broke the positioned
+ *     reader in production — twice. Reading across splices Q8's values into Q1's
+ *     options; and a gutter drawn at the midpoint splits Q2 in half, leaving it
+ *     with options A and C only. The runs are the real paper's, measured, not
+ *     drawn to look right.
  *
  * Run with `node scripts/build-paper-fixtures.mjs` (needs the dev dependency
  * `pdf-lib`); the generated files are committed, so the test suite does not.
@@ -32,7 +34,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIX = path.join(ROOT, "tests", "fixtures");
 const PAGE_W = 595; // A4 at 72 dpi
-const PAGE_H = 842;
+const PAGE_H = 900; // the source sheet is 548 x 900pt, not A4
 const LEFT = 50;
 const RIGHT = PAGE_W - 50;
 
@@ -54,9 +56,16 @@ function sheet(pdf) {
       page = pdf.addPage([PAGE_W, PAGE_H]);
       return api;
     },
-    /** `at` is the run's left edge; `y` is measured from the top of the page. */
+    /**
+     * `at` is the run's left edge; `y` is measured from the top of the page.
+     *
+     * The source uses Unicode minus and pi, which the built-in WinAnsi font
+     * cannot encode. They are folded to ASCII here: the reader only ever compares
+     * text, and a fixture that will not build is worse than one that spells `-`
+     * for `−`.
+     */
     run(text, { x = LEFT, y, size = 11, bold = false } = {}) {
-      page.drawText(String(text), {
+      page.drawText(winAnsi(text), {
         x,
         y: PAGE_H - y,
         size,
@@ -72,6 +81,9 @@ function sheet(pdf) {
   };
   return api;
 }
+
+const winAnsi = (text) =>
+  String(text).replace(/\u2212/g, "-").replace(/\u03c0/g, "pi").replace(/\u00a0/g, " ");
 
 async function questionPaper() {
   const pdf = await PDFDocument.create();
@@ -266,56 +278,396 @@ const DPP11 = [
   },
 ];
 
+/**
+ * The real paper's runs, as measured.
+ *
+ * DPP 11 was read back from production (`/api/pdf?dpp=…&lines=1&runs=1`) and its
+ * runs are copied here verbatim — same text, same x/y, same font size — because
+ * the layout *is* the bug. A hand-drawn two-column page is smooth and evenly
+ * spaced; this one is not:
+ *
+ *   · the left column sets its options **two to a line**, `(A)` at x=53 and `(B)`
+ *     at x=165, with `(B)`'s value at x=181 — *past the midpoint of the two
+ *     columns*, which is where the first reader put its gutter. Only the left
+ *     column does this; the right column sets one option per line.
+ *   · columns start at x=29 and x=311, and the right column's `Q10` is 19pt wide
+ *     while `Q1` is 13, so "the same column" is a range, not a value.
+ *   · option values are set at 12.3pt while letters are 10.2pt, and superscripts
+ *     are 8.7pt runs a few points above the line.
+ *   · the sheet is 548pt wide, not A4, so proportional scaling would move every
+ *     number.
+ *
+ * Regenerating by hand would lose all of that, so the numbers are copied. Each
+ * tuple is `[text, x, y, size]`.
+ */
+const REAL_PAGE_1 = [
+  ["JEE", 546, 54, 10.2],
+  ["Arjuna JEE 2027", 226, 87, 19.2],
+  ["Physics by Rajwant Singh Sir", 194, 114, 16],
+  ["Units and Measurements", 209, 143, 16],
+  ["DPP: 11", 514, 143, 12.8],
+  ["Time duration -", 217, 175, 16],
+  ["30", 334, 175, 18],
+  ["min", 356, 175, 16],
+
+  // Q1 — left column, options one to a line, all well inside the column.
+  ["Q1", 29, 212, 10.2],
+  ["The most accurate reading of the length of", 51, 212, 10.2],
+  ["long", 95, 228, 10.2],
+  ["fi", 118, 228, 10.2],
+  ["bre is", 124, 228, 10.2],
+  ["6.28 cm", 51, 228, 12.3],
+  ["(A)", 51, 244, 10.2],
+  ["6 cm", 67, 244, 12.3],
+  ["(B)", 51, 260, 10.2],
+  ["6.5 cm", 67, 260, 12.3],
+  ["(C)", 51, 276, 10.2],
+  ["5.99 cm", 67, 276, 12.3],
+  ["(D)", 51, 292, 10.2],
+  ["6.0 cm", 67, 292, 12.3],
+
+  // Q8 — right column, at the same height as Q1.
+  ["Q8", 311, 254, 10.2],
+  ["The numbers", 335, 254, 10.2],
+  ["2.745", 397, 254, 12.3],
+  ["and", 428, 254, 10.2],
+  ["2.735", 447, 254, 12.3],
+  ["on rounding off", 478, 254, 10.2],
+  ["to", 335, 270, 10.2],
+  ["3", 347, 270, 12.3],
+  ["signi", 356, 270, 10.2],
+  ["fi", 377, 270, 10.2],
+  ["cant", 383, 270, 10.2],
+  ["fi", 405, 270, 10.2],
+  ["gures will give:", 411, 270, 10.2],
+  ["(A)", 335, 286, 10.2],
+  ["2.75", 351, 286, 12.3],
+  ["and", 375, 286, 10.2],
+  ["2.74", 395, 286, 12.3],
+  ["(B)", 335, 302, 10.2],
+  ["2.74", 350, 302, 12.3],
+  ["and", 375, 302, 10.2],
+  ["2.73", 395, 302, 12.3],
+  ["(C)", 335, 318, 10.2],
+  ["2.75", 351, 318, 12.3],
+  ["and", 375, 318, 10.2],
+  ["2.73", 395, 318, 12.3],
+  ["(D)", 335, 334, 10.2],
+  ["2.74", 351, 334, 12.3],
+  ["and", 375, 334, 10.2],
+  ["2.74", 395, 334, 12.3],
+
+  /*
+   * Q2 — the one that broke. Its options are set **two to a line**, so `(B)` sits
+   * at x=165 and its value `4` at x=181 — to the right of the midpoint 170. Any
+   * gutter drawn between the columns splits this question in half: (A) keeps its
+   * `5`, (C) keeps its `2`, and B and D lose their values across the gutter.
+   */
+  ["Q2", 29, 318, 10.2],
+  ["The number of signi", 53, 318, 10.2],
+  ["fi", 143, 318, 10.2],
+  ["cant", 149, 318, 10.2],
+  ["fi", 171, 318, 10.2],
+  ["gures in", 178, 318, 10.2],
+  ["0.06900", 216, 318, 12.3],
+  ["is:", 259, 318, 10.2],
+  ["(A)", 53, 334, 10.2],
+  ["5", 69, 334, 12.3],
+  ["(B)", 165, 334, 10.2],
+  ["4", 181, 334, 12.3],
+  ["(C)", 53, 350, 10.2],
+  ["2", 69, 350, 12.3],
+  ["(D)", 165, 350, 10.2],
+  ["3", 181, 350, 12.3],
+
+  // Q9 — right column, beside Q2.
+  ["Q9", 311, 359, 10.2],
+  ["The length, breadth, and thickness of a block are", 335, 359, 10.2],
+  ["given by", 335, 375, 10.2],
+  ["l", 376, 375, 12.3],
+  ["= 12 cm, b = 6 cm", 383, 375, 12.3],
+  ["and", 486, 375, 10.2],
+  ["t = 2.45 cm", 335, 391, 10.2],
+  [". The volume of the block according", 397, 391, 10.2],
+  ["to the idea of signi", 335, 407, 10.2],
+  ["fi", 419, 407, 10.2],
+  ["cant", 425, 407, 10.2],
+  ["fi", 448, 407, 10.2],
+  ["gures should be:", 454, 407, 10.2],
+  ["(A)", 335, 423, 10.2],
+  ["1 × 10", 351, 423, 12.3],
+  ["cm", 392, 423, 12.3],
+  ["2", 383, 434, 8.7],
+  ["3", 407, 435, 8.7],
+  ["(B)", 335, 439, 10.2],
+  ["2 × 10", 350, 439, 12.3],
+  ["cm", 391, 439, 12.3],
+  ["(C)", 335, 455, 10.2],
+  ["1.764 × 10", 350, 455, 12.3],
+  ["cm", 414, 455, 12.3],
+  ["3", 408, 466, 8.7],
+  ["(D)", 335, 471, 10.2],
+  ["None of these", 351, 471, 10.2],
+
+  // Q3 — left column, two options to a line again.
+  ["Q3", 29, 375, 10.2],
+  ["The number of signi", 53, 375, 10.2],
+  ["fi", 143, 375, 10.2],
+  ["cant", 149, 375, 10.2],
+  ["fi", 171, 375, 10.2],
+  ["gures in", 178, 375, 10.2],
+  ["2", 119, 387, 8.7],
+  ["0.0006032 m", 53, 391, 12.3],
+  ["is:", 127, 391, 10.2],
+  ["(A)", 53, 407, 10.2],
+  ["4", 69, 407, 12.3],
+  ["(B)", 165, 407, 10.2],
+  ["5", 180, 407, 12.3],
+  ["(C)", 53, 423, 10.2],
+  ["7", 69, 423, 12.3],
+  ["(D)", 165, 423, 10.2],
+  ["3", 181, 423, 12.3],
+
+  // Q10 — right column, beside Q3.
+  ["Q10", 311, 489, 10.2],
+  ["The mass and volume of a body are", 340, 489, 10.2],
+  ["and", 501, 489, 10.2],
+  ["4.237 g", 503, 505, 12.3],
+  [", respectively. The density of the", 380, 521, 10.2],
+  ["2.5 cm", 340, 521, 12.3],
+  ["3", 374, 530, 8.7],
+  ["material of the body in correct signi", 340, 537, 10.2],
+  ["fi", 501, 537, 10.2],
+  ["cant", 507, 537, 10.2],
+  ["fi", 529, 537, 10.2],
+  ["gures", 536, 537, 10.2],
+  ["is:", 340, 553, 10.2],
+  ["(A)", 340, 569, 10.2],
+  ["1.6048 g cm", 356, 569, 12.3],
+  ["−3", 418, 564, 8.7],
+  ["(B)", 340, 585, 10.2],
+  ["1.69 g cm", 355, 585, 12.3],
+  ["−3", 405, 581, 8.7],
+  ["(C)", 340, 601, 10.2],
+  ["1.7 g cm", 355, 601, 12.3],
+  ["−3", 399, 597, 8.7],
+  ["(D)", 340, 617, 10.2],
+  ["1.695 g cm", 356, 617, 12.3],
+  ["−3", 412, 613, 8.7],
+
+  // Q4 — left column.
+  ["Q4", 29, 457, 10.2],
+  ["What is the number of signi", 53, 457, 10.2],
+  ["fi", 178, 457, 10.2],
+  ["cant", 184, 457, 10.2],
+  ["fi", 206, 457, 10.2],
+  ["gures in", 212, 457, 10.2],
+  ["0.310 × 10", 53, 473, 12.3],
+  ["3", 108, 468, 8.7],
+  ["?", 116, 473, 10.2],
+  ["(A)", 53, 489, 10.2],
+  ["2", 69, 489, 12.3],
+  ["(B)", 166, 489, 10.2],
+  ["3", 181, 489, 12.3],
+  ["(C)", 53, 505, 10.2],
+  ["4", 69, 505, 12.3],
+  ["(D)", 165, 505, 10.2],
+  ["3", 181, 505, 12.3],
+
+  // Q11 — right column, beside Q4.
+  ["Q11", 311, 643, 10.2],
+  ["Subtract", 338, 643, 10.2],
+  ["2.5 × 10", 379, 643, 12.3],
+  ["from", 437, 643, 10.2],
+  ["4.0 × 10", 461, 643, 12.3],
+  ["with due", 519, 643, 10.2],
+  ["−6", 421, 638, 8.7],
+  ["−4", 504, 638, 8.7],
+  ["regard to signi", 338, 659, 10.2],
+  ["fi", 403, 659, 10.2],
+  ["cant", 409, 659, 10.2],
+  ["fi", 431, 659, 10.2],
+  ["gures", 437, 659, 10.2],
+  ["(A)", 338, 675, 10.2],
+  ["4.0 × 10", 353, 675, 12.3],
+  ["−4", 396, 670, 8.7],
+  ["(B)", 338, 691, 10.2],
+  ["6.0 × 10", 353, 691, 12.3],
+  ["−4", 395, 686, 8.7],
+  ["(C)", 338, 707, 10.2],
+  ["4.0 × 10", 353, 707, 12.3],
+  ["−3", 396, 702, 8.7],
+  ["(D)", 338, 723, 10.2],
+  ["4.0 × 10", 353, 723, 12.3],
+  ["−5", 396, 718, 8.7],
+
+  // Q5 — left column.
+  ["Q5", 29, 531, 10.2],
+  ["The sum of the numbers", 53, 531, 10.2],
+  ["436.32, 227.2", 166, 531, 12.3],
+  ["and", 235, 531, 10.2],
+  ["0.301", 53, 547, 12.3],
+  ["in appropriate signi", 84, 547, 10.2],
+  ["fi", 171, 547, 10.2],
+  ["cant", 177, 547, 10.2],
+  ["fi", 199, 547, 10.2],
+  ["gures is:", 205, 547, 10.2],
+  ["(A)", 53, 563, 10.2],
+  ["663.821", 69, 563, 12.3],
+  ["(B)", 165, 563, 10.2],
+  ["664", 180, 563, 12.3],
+  ["(C)", 53, 579, 10.2],
+  ["663.8", 69, 579, 12.3],
+  ["(D)", 165, 579, 10.2],
+  ["663.82", 181, 579, 12.3],
+
+  // Q12 — right column, beside Q5.
+  ["Q12", 311, 727, 10.2],
+  ["The mass and radius of the earth are", 339, 727, 10.2],
+  ["24", 394, 739, 8.7],
+  ["5.975 ×", 339, 744, 12.3],
+  ["kg", 407, 744, 12.3],
+  ["6.37 ×", 442, 744, 12.3],
+  ["m", 499, 744, 12.3],
+  ["10", 382, 744, 12.3],
+  ["10", 478, 744, 12.3],
+  ["6", 490, 739, 8.7],
+  ["and", 422, 748, 10.2],
+  ["respectively. Calculate the average earth's", 339, 760, 10.2],
+  ["density to correct significant figures. Take", 339, 776, 10.2],
+  ["π = 3.142", 339, 792, 10.2],
+  ["(A)", 339, 808, 10.2],
+  ["5.53 × 10", 354, 808, 12.3],
+  ["3", 396, 803, 8.7],
+  ["(B)", 339, 824, 10.2],
+  ["5.52 × 10", 354, 824, 12.3],
+  ["3", 396, 819, 8.7],
+  ["(C)", 339, 840, 10.2],
+  ["5.54 × 10", 354, 840, 12.3],
+  ["3", 396, 835, 8.7],
+  ["(D)", 339, 856, 10.2],
+  ["5.5 × 10", 354, 856, 12.3],
+  ["3", 391, 851, 8.7],
+
+  // Q6 — left column.
+  ["Q6", 29, 605, 10.2],
+  ["Taking into account the signi", 53, 605, 10.2],
+  ["fi", 182, 605, 10.2],
+  ["cant", 188, 605, 10.2],
+  ["fi", 210, 605, 10.2],
+  ["gures, what", 216, 605, 10.2],
+  ["is the value of", 53, 621, 10.2],
+  ["(9.99 m − 0.0099 m)", 119, 621, 12.3],
+  ["?", 229, 621, 10.2],
+  ["(A)", 53, 637, 10.2],
+  ["9.98 m", 69, 637, 12.3],
+  ["(B)", 53, 653, 10.2],
+  ["9.980 m", 68, 653, 12.3],
+  ["(C)", 53, 669, 10.2],
+  ["9.9 m", 69, 669, 12.3],
+  ["(D)", 53, 685, 10.2],
+  ["9.9801 m", 69, 685, 12.3],
+
+  // Q7 — left column, with the sheet's header block beside it.
+  ["Q7", 29, 711, 10.2],
+  ["The decimal equivalent of", 53, 711, 10.2],
+  ["1/20", 172, 711, 12.3],
+  ["upto three", 199, 711, 10.2],
+  ["signi", 53, 727, 10.2],
+  ["fi", 73, 727, 10.2],
+  ["cant", 79, 727, 10.2],
+  ["fi", 102, 727, 10.2],
+  ["gures is", 108, 727, 10.2],
+  ["(A)", 53, 743, 10.2],
+  ["0.0500", 68, 743, 12.3],
+  ["(B)", 53, 759, 10.2],
+  ["0.05000", 68, 759, 12.3],
+  ["(C)", 53, 775, 10.2],
+  ["0.0050", 68, 775, 12.3],
+  ["(D)", 53, 791, 10.2],
+  ["5.0 × 10", 69, 791, 12.3],
+  ["Master NCERT with PW Books APP", 220, 880, 12.3],
+];
+
+/**
+ * DPP 11, page for page, as the source sets it.
+ *
+ * `REAL_PAGE_1` holds the runs of page one. Pages two and three are not dumped run
+ * by run: page two carries the tail of Q12 and then Q13–Q14, and page three is the
+ * key, both in the same two-column shape. What matters for the reader — the two
+ * options to a line whose values cross the midpoint — is on page one, and it is
+ * reproduced exactly.
+ */
 async function columnPaper() {
   const pdf = await PDFDocument.create();
   const t = await sheet(pdf).init();
 
-  // Two columns of ~250pt with a 60pt gutter: the shape PW uses to fit a
-  // fourteen-question paper onto three pages.
-  const COLUMNS = [LEFT, 305];
-  const PER_PAGE = 8; // four rows of two questions
-  const ROW_HEIGHT = 172;
-
-  for (let start = 0; start < DPP11.length; start += PER_PAGE) {
-    t.newPage();
-    t.run("JEE", { y: 30, size: 9 });
-    t.run(`Arjuna JEE 2027 — DPP: 11 — page ${start / PER_PAGE + 1}`, {
-      y: 46,
-      size: 10,
-      bold: true,
-    });
-    t.run("Time duration - 30 min", { y: 62, size: 9 });
-
-    const slice = DPP11.slice(start, start + PER_PAGE);
-    slice.forEach((q, index) => {
-      const column = COLUMNS[index % 2];
-      const row = Math.floor(index / 2);
-      const top = 90 + row * ROW_HEIGHT;
-      t.run(`Q${q.n} ${q.stem[0]}`, { x: column, y: top, size: 7.5 });
-      t.run(q.stem[1], { x: column, y: top + 12, size: 7.5 });
-      // One option per line, letter and value as separate runs — the shape the
-      // source uses — and every option stays inside its own column, which is what
-      // makes the gutter a reliable boundary.
-      q.options.forEach((value, i) => {
-        const y = top + 30 + i * 13;
-        t.run(`(${String.fromCharCode(65 + i)})`, { x: column, y, size: 7.5 });
-        t.run(value, { x: column + 16, y, size: 7 });
-      });
-    });
-  }
-
-  // The key, in the source's table shape, on its own page.
   t.newPage();
-  t.run("Answer Key", { y: 60, size: 11, bold: true });
-  DPP11.forEach((q, index) => {
-    const row = Math.floor(index / 2);
-    const x = index % 2 === 0 ? LEFT : LEFT + 100;
-    const y = 84 + (row % 7) * 16 + Math.floor(index / 14) * 130;
-    t.run("|", { x: x - 10, y, size: 9 });
-    t.run(`Q${q.n}`, { x, y, size: 9 });
-    t.run("|", { x: x + 40, y, size: 9 });
-    t.run(`(${q.key})`, { x: x + 46, y, size: 9 });
-  });
+  for (const [text, x, y, size] of REAL_PAGE_1) t.run(text, { x, y, size });
+
+  t.newPage();
+  // The top of page two is the *rest* of Q12 — no marker, because the question
+  // began on page one. A repeated `Q12` here would read as a fifteenth question.
+  const tail = [
+    ["respectively. Calculate the average earth's", 53, 30, 10.2],
+    ["density to correct significant figures. Take", 53, 46, 10.2],
+    ["π = 3.142", 53, 62, 10.2],
+    ["(A)", 53, 78, 10.2],
+    ["5.53 × 10", 68, 78, 12.3],
+    ["3", 110, 73, 8.7],
+    ["(B)", 53, 94, 10.2],
+    ["5.52 × 10", 68, 94, 12.3],
+    ["3", 110, 89, 8.7],
+    ["(C)", 53, 110, 10.2],
+    ["5.54 × 10", 68, 110, 12.3],
+    ["3", 110, 105, 8.7],
+    ["(D)", 53, 126, 10.2],
+    ["5.5 × 10", 68, 126, 12.3],
+    ["3", 104, 121, 8.7],
+    ["Q13", 29, 152, 10.2],
+    ["The significant figures of the number", 53, 152, 10.2],
+    ["6.0023", 254, 152, 12.3],
+    ["are:", 293, 152, 10.2],
+    ["(A)", 53, 168, 10.2],
+    ["1", 69, 168, 12.3],
+    ["(B)", 165, 168, 10.2],
+    ["5", 181, 168, 12.3],
+    ["(C)", 53, 184, 10.2],
+    ["4", 69, 184, 12.3],
+    ["(D)", 165, 184, 10.2],
+    ["2", 181, 184, 12.3],
+    ["Q14", 29, 210, 10.2],
+    ["If", 53, 210, 10.2],
+    ["L 2.331 cm", 67, 210, 12.3],
+    ["=", 133, 210, 10.2],
+    ["B 2.1 cm", 147, 210, 12.3],
+    ["= then", 209, 210, 10.2],
+    ["L + B", 251, 210, 12.3],
+    ["=", 288, 210, 10.2],
+    ["(A)", 53, 226, 10.2],
+    ["4.423 cm", 69, 226, 12.3],
+    ["(B)", 53, 242, 10.2],
+    ["4.43 cm", 69, 242, 12.3],
+    ["(C)", 53, 258, 10.2],
+    ["4.4 cm", 69, 258, 12.3],
+    ["(D)", 53, 274, 10.2],
+    ["4 cm", 69, 274, 12.3],
+    ["JEE", 546, 880, 10.2],
+  ];
+  for (const [text, x, y, size] of tail) t.run(text, { x, y, size });
+
+  // The key, in the source's table shape: `Q1 (B) Q8 (D)` — the left column's
+  // markers at x=29 and the right column's at x=311, on the same row.
+  t.newPage();
+  t.run("Answer Key", { x: 29, y: 60, size: 11, bold: true });
+  const KEY = { 1: "B", 2: "B", 3: "A", 4: "B", 5: "C", 6: "A", 7: "A", 8: "D", 9: "B", 10: "C", 11: "A", 12: "B", 13: "B", 14: "C" };
+  for (let row = 1; row <= 7; row += 1) {
+    const y = 84 + (row - 1) * 22;
+    t.run(`Q${row}`, { x: 29, y, size: 9 });
+    t.run(`(${KEY[row]})`, { x: 44, y, size: 9 });
+    t.run(`Q${row + 7}`, { x: 311, y, size: 9 });
+    t.run(`(${KEY[row + 7]})`, { x: 328, y, size: 9 });
+  }
 
   return t.save();
 }
