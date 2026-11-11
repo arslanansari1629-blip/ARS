@@ -90,6 +90,30 @@ dropping half the key.
    run by run *before* the page is split, which is the only order that works: the time
    limit is three runs and one of them lands in each column.
 
+**Every batch now has a DPP panel.** The papers were three levels down — a batch has
+subjects, a subject has chapters, a chapter has a `DppNotes` tab — so reaching one was
+five taps, and nothing anywhere said how many a batch had. The batch page gained a
+**DPP Tests** tab that walks that tree once and lists the papers flat: a Practice
+button and a PDF link on each, the chapter and subject it came from, a search box and
+a subject filter, and the walk is progressive — papers appear as each chapter answers
+rather than after the eleventh, with "still looking…" in the header while it runs.
+The nav carries a DPP Tests link to match, which lands on the catalogue with a note
+saying where the papers live.
+
+A finished attempt now leaves its score behind (`arsvibe.dpp.result.<paper>`), so the
+row says **62% last time** and offers **Retry** instead of a blank Practice button as
+if the paper were untouched. The answers themselves are still dropped on submit.
+
+**Two papers that would not read, and the wrong thing said about them.** Sweeping the
+chapter's papers after the fix, DPP 11 passed (`?check=1` → 14/14, 100%) and DPP 10
+failed with "it is probably a scanned image". It is not a scan: it opens, it has 842
+runs on page one, and every one of them extracts as control bytes — the PDF's font has
+no character mapping. A student told their paper is "probably a scan" goes looking for
+a scanner that is not there, and the real fault is hidden. Scans and broken-encoding
+papers are now told apart by whether the extracted text has any letters in it, and each
+gets an honest message. Neither can be turned into a test, and the page still offers
+the PDF.
+
 **And the door into the feature was broken.** A chapter's `Practice` button builds
 the link the practice page opens; the link addressed the paper as `paper` while the
 page read its address from `dpp`. So the button was present, looked right, and opened

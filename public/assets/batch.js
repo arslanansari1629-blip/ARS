@@ -18,6 +18,7 @@ import {
 import { trackBatch } from "./library.js";
 import { isFavourite, toggleFavourite, wireFavourites } from "./favourites.js";
 import { loadBatch as fetchBatchData, loadBatchHeader, loadAnnouncements } from "./data.js";
+import { mountDppPanel } from "./dpp-panel.js";
 
 mountChrome("batches");
 wireFavourites();
@@ -206,12 +207,59 @@ async function renderAnnouncements() {
   }
 }
 
+/**
+ * The DPP panel: every practice paper in the batch, in one list.
+ *
+ * Mounted once and kept, because the walk over the batch's chapters is the expensive
+ * part — switching to Announcements and back must not start it again. The subjects
+ * it needs are the batch's own, so it waits for them.
+ */
+let dppPanel = null;
+let dppPanelBatch = "";
+
+function dppHost() {
+  let host = document.getElementById("dppPanel");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "dppPanel";
+    host.className = "dpp-panel";
+    tabBody.appendChild(host);
+  }
+  return host;
+}
+
+function renderDpp() {
+  const host = dppHost();
+  if (!batch) {
+    host.innerHTML = emptyState("Loading the batch", "The papers appear once its subjects do.");
+    return;
+  }
+  if (!batch.subjects || !batch.subjects.length) {
+    host.innerHTML = emptyState(
+      "No subjects to walk",
+      "A DPP lives under a chapter, and this batch lists none yet."
+    );
+    return;
+  }
+  // One panel per batch: a re-render of the page must not leave a second walk
+  // running against the same catalogue.
+  if (dppPanel && dppPanelBatch === batch.id) return;
+  dppPanelBatch = batch.id;
+  dppPanel = mountDppPanel(host, { batch: batch.id, subjects: batch.subjects });
+}
+
 function setTab(next) {
   tab = next;
   document.querySelectorAll("[data-tab]").forEach((b) =>
     b.classList.toggle("active", b.dataset.tab === tab)
   );
+  if (tab !== "dpp") {
+    // Leave the list alone but drop the host, so returning repaints it without
+    // walking the catalogue again.
+    tabBody.querySelector("#dppPanel")?.remove();
+  }
   if (tab === "subjects") renderSubjects();
+  if (tab === "dpp") renderDpp();
   if (tab === "about") renderAbout();
   if (tab === "announcements") renderAnnouncements();
 }
@@ -219,6 +267,12 @@ function setTab(next) {
 document.querySelectorAll("[data-tab]").forEach((btn) =>
   btn.addEventListener("click", () => setTab(btn.dataset.tab))
 );
+
+// A link can open the DPP tab directly (`/batch?id=…#dpp`), the way a chapter's
+// `#dpp` opens its DPP list — the same fragment means the same thing on both pages.
+if ((location.hash || "").replace("#", "").toLowerCase() === "dpp") {
+  setTab("dpp");
+}
 
 async function loadHeader() {
   const header = await loadBatchHeader(batchId).catch(() => null);
@@ -253,6 +307,7 @@ async function loadBatch() {
       document.getElementById("retryBatchBtn")?.addEventListener("click", () => loadBatch());
       return;
     }
+    if (tab === "dpp") renderDpp();
     rememberBatch({ id: batch.id, name: batch.name, image: batch.image });
     trackBatch({ id: batch.id, name: batch.name, image: batch.image });
     document.getElementById("detailGrid").classList.add("fade-up");

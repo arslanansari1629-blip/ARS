@@ -7352,3 +7352,115 @@ body.side-rail .side-brand:hover .brand-img {
     border-color: #999;
   }
 }
+
+/* ---------------------------------------------------- the batch DPP panel */
+
+/*
+ * A batch's practice papers, flat.
+ *
+ * The papers live three levels down (subject → chapter → DPP tab), so this list has
+ * to carry the context for each row itself: which chapter, which subject, and what
+ * the last attempt scored. The row is a grid so the Practice button stays on one
+ * line while a long chapter name wraps beside it.
+ */
+.dpp-panel { margin-top: 1rem; }
+
+.dpp-panel-head {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.dpp-panel-head h2 { margin: 0.15rem 0 0.35rem; }
+.dpp-panel-head p { margin: 0; }
+
+.dpp-panel-tools {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dpp-panel-search input,
+.dpp-panel-select {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.dpp-panel-search input { min-width: 13rem; }
+.dpp-panel-search input:focus-visible,
+.dpp-panel-select:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+.dpp-panel-strip {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  min-height: 1.6rem;
+  margin-bottom: 0.5rem;
+}
+
+/* A paper still being looked for: the walk is progressive, and saying so is
+   friendlier than a skeleton that never explains itself. */
+.pill-live { color: var(--blue); border-color: var(--blue); }
+
+.dpp-panel-rows { display: grid; gap: 0.5rem; }
+
+.dpp-panel-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  /* The stagger is per row and capped, so a hundred papers do not take a minute
+     to fade in. */
+  animation-delay: calc(min(var(--i, 0), 8) * 30ms);
+}
+
+.dpp-panel-row:hover { border-color: var(--blue); }
+.dpp-panel-row h3 { margin: 0; font-size: 0.98rem; }
+.dpp-panel-main { min-width: 0; }
+.dpp-panel-main p { margin: 0.2rem 0 0; }
+.dpp-panel-main .wrap { row-gap: 0.3rem; }
+
+.dpp-panel-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.dpp-panel-row .is-ok { color: var(--ok); border-color: currentColor; }
+.dpp-panel-row .is-bad { color: var(--danger); border-color: currentColor; }
+
+@media (max-width: 640px) {
+  .dpp-panel-row { grid-template-columns: minmax(0, 1fr); }
+  .dpp-panel-actions { justify-content: flex-start; }
+  .dpp-panel-search input { min-width: 0; width: 100%; }
+  .dpp-panel-tools { width: 100%; }
+  .dpp-panel-search { flex: 1 1 100%; }
+  .dpp-panel-select { flex: 1 1 auto; }
+}
+
+/* The nav's DPP Tests jump lands on the catalogue with this note above it. */
+.dpp-tests-notice {
+  align-items: flex-start;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--blue);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+.dpp-tests-notice h2 { margin: 0.15rem 0 0.3rem; }

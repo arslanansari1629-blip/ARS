@@ -177,7 +177,43 @@ function rangeLabel(shown, total) {
   return `${first.toLocaleString("en-IN")}–${(first + shown - 1).toLocaleString("en-IN")} of ${total.toLocaleString("en-IN")}`;
 }
 
+/**
+ * `#dpp-tests` — the batches that carry practice papers.
+ *
+ * The nav links here, and it has to land somewhere useful rather than on the ordinary
+ * catalogue. It is a *jump*, not a second page: the catalogue stays as it is and the
+ * reader is told where the papers are, with the batch search still underneath. The
+ * alternative — walking every batch's subjects and chapters from this page — would be
+ * tens of thousands of upstream calls for a list nobody asked to see in full.
+ */
+async function showDppTests() {
+  const notice = document.getElementById("dppTestsNotice") || document.createElement("div");
+  notice.id = "dppTestsNotice";
+  notice.className = "dpp-panel-head dpp-tests-notice";
+  notice.innerHTML = `
+    <div>
+      <span class="eyebrow">Practice</span>
+      <h2>DPP tests</h2>
+      <p class="muted tiny">
+        Every batch that lists DPP papers carries them in its own <strong>DPP Tests</strong>
+        tab — open a batch and press it. Papers are marked against the paper's own key,
+        and nothing needs an account.
+      </p>
+    </div>
+    <div class="row gap-1">
+      <button class="btn btn-ghost btn-sm" id="dppTestsDismiss" type="button">Show all batches</button>
+    </div>`;
+  if (!notice.isConnected) grid.parentElement.insertBefore(notice, grid);
+  document.getElementById("dppTestsDismiss")?.addEventListener("click", () => {
+    notice.remove();
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  });
+  // The catalogue below is the way to a batch, so it is loaded, not replaced.
+  resultCount.textContent = "Open a batch to see its DPP papers.";
+}
+
 async function load() {
+  if ((location.hash || "").replace("#", "") === "dpp-tests") await showDppTests();
   grid.innerHTML = skeletonCards(12);
   pager.innerHTML = "";
   resultCount.textContent = "Loading…";

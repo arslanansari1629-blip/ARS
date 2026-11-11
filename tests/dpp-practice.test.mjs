@@ -392,6 +392,179 @@ test("a paper that will not read still shows how it was laid out", async () => {
   assert.equal(body.layout.pages, 1);
 });
 
+test("the batch page lists every DPP in the batch, with a Practice button on each", async () => {
+  // The papers live three levels down — subject, chapter, then the chapter's DPP tab —
+  // which is five taps from a batch and says nothing about how many there are. The
+  // batch page now walks that tree and lists them flat. This drives the real page: the
+  // tab, the walk, the rows, and the link on each row.
+  const { register } = await import("node:module");
+  const { JSDOM } = await import("jsdom");
+  register("./loader.mjs", import.meta.url);
+
+  const page = "/batch.html?id=698ad3519549b300a5e1cc6a";
+  const dom = new JSDOM(await (await REAL_FETCH(`${BASE}${page}`)).text(), {
+    url: `${BASE}${page}`,
+    pretendToBeVisual: true,
+  });
+  openDoms.push(dom);
+  const { window } = dom;
+  const doc = window.document;
+  globalThis.window = window;
+  globalThis.document = doc;
+  globalThis.localStorage = window.localStorage;
+  globalThis.location = window.location;
+  globalThis.CustomEvent = window.CustomEvent;
+  globalThis.HTMLElement = window.HTMLElement;
+  window.fetch = (input, init) =>
+    REAL_FETCH(String(input).startsWith("http") ? input : `${BASE}${input}`, init);
+  globalThis.fetch = window.fetch;
+
+  await import(`/assets/batch.js?v=dpp-panel-${Date.now()}`);
+
+  // The tab exists, and is where a reader would look for it.
+  const tab = doc.getElementById("tab-dpp");
+  assert.ok(tab, "the batch page has no DPP Tests tab");
+  assert.equal(tab.dataset.tab, "dpp");
+
+  await until(() => doc.getElementById("tab-dpp"), "the batch page");
+  doc.getElementById("tab-dpp").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+  await until(
+    () => doc.querySelectorAll("#dppPanel .dpp-panel-row").length > 0,
+    "the batch's DPP papers",
+    20000
+  );
+
+  const rows = [...doc.querySelectorAll("#dppPanel .dpp-panel-row")];
+  assert.ok(rows.length >= 1, "the panel found no papers in a batch that has one");
+
+  // Every row is a real paper with a real link — and the link is the one the practice
+  // page actually opens, not just something that looks like a URL.
+  for (const row of rows) {
+    const practice = row.querySelector('a[data-practice]');
+    assert.ok(practice, "a paper row has no Practice button");
+    const href = new URL(practice.getAttribute("href"), BASE);
+    assert.equal(href.pathname, "/dpp.html");
+    assert.match(href.searchParams.get("paper") || "", /\.pdf$/, "the row does not link a paper");
+    // The chapter it came from travels with the link, so the practice page's back
+    // button returns to the chapter rather than to nowhere.
+    assert.ok(href.searchParams.get("chapter"), "the row lost the chapter it came from");
+    assert.ok(href.searchParams.get("batch"), "the row lost the batch");
+    // …and the PDF itself is one tap away.
+    assert.ok(row.querySelector('a[href^="/api/media?"]'), "the row has no PDF link");
+  }
+
+  // The count is stated, and the chapter each paper came from is on the row — a flat
+  // list that does not say where its papers live is a list of orphans.
+  assert.match(doc.getElementById("dppPanelNote").textContent, /\d+ paper/);
+  assert.match(doc.querySelector("#dppPanel .dpp-panel-row h3").textContent, /\S/);
+});
+
+test("the batch DPP panel narrows its list by search and by subject", async () => {
+  const { register } = await import("node:module");
+  const { JSDOM } = await import("jsdom");
+  register("./loader.mjs", import.meta.url);
+
+  const page = "/batch.html?id=698ad3519549b300a5e1cc6a";
+  const dom = new JSDOM(await (await REAL_FETCH(`${BASE}${page}`)).text(), {
+    url: `${BASE}${page}`,
+    pretendToBeVisual: true,
+  });
+  openDoms.push(dom);
+  const { window } = dom;
+  const doc = window.document;
+  globalThis.window = window;
+  globalThis.document = doc;
+  globalThis.localStorage = window.localStorage;
+  globalThis.location = window.location;
+  globalThis.CustomEvent = window.CustomEvent;
+  globalThis.HTMLElement = window.HTMLElement;
+  window.fetch = (input, init) =>
+    REAL_FETCH(String(input).startsWith("http") ? input : `${BASE}${input}`, init);
+  globalThis.fetch = window.fetch;
+
+  await import(`/assets/batch.js?v=dpp-panel-filter-${Date.now()}`);
+  await until(() => doc.getElementById("tab-dpp"), "the batch page");
+  doc.getElementById("tab-dpp").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await until(() => doc.querySelectorAll("#dppPanel .dpp-panel-row").length > 0, "the papers", 20000);
+
+  const before = doc.querySelectorAll("#dppPanel .dpp-panel-row").length;
+  const search = doc.getElementById("dppPanelSearch");
+  search.value = "nothing-matches-this-xyz";
+  search.dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal(doc.querySelectorAll("#dppPanel .dpp-panel-row").length, 0, "search did not narrow");
+  // It says so, rather than showing a blank panel.
+  assert.match(doc.getElementById("dppPanelList").textContent, /No paper matches/i);
+
+  search.value = "";
+  search.dispatchEvent(new window.Event("input", { bubbles: true }));
+  assert.equal(doc.querySelectorAll("#dppPanel .dpp-panel-row").length, before, "clearing search did not restore");
+});
+
+test("a finished attempt is remembered on the batch's paper row", async () => {
+  // The panel offers "Retry" and the last percentage instead of a blank Practice
+  // button, which is the difference between a list of links and a record of what the
+  // student has done. The practice page writes it when it submits.
+  const { dom, window, doc } = await openPractice(PAPER());
+  doc.querySelector('#dppSheet input[data-index="0"][data-letter="B"]').checked = true;
+  doc
+    .querySelector('#dppSheet input[data-index="0"][data-letter="B"]')
+    .dispatchEvent(new window.Event("change", { bubbles: true }));
+  doc.querySelector('#dppSheet input[data-index="1"][data-letter="B"]').checked = true;
+  doc
+    .querySelector('#dppSheet input[data-index="1"][data-letter="B"]')
+    .dispatchEvent(new window.Event("change", { bubbles: true }));
+  doc.getElementById("dppSubmit").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await until(() => doc.getElementById("dppAnalysis").hidden === false, "the analysis");
+
+  // The score survives the attempt being dropped: the answers are gone, the result is
+  // kept, keyed by the paper.
+  const saved = JSON.parse(window.localStorage.getItem(`arsvibe.dpp.result.${PAPER()}`) || "null");
+  assert.ok(saved, "the finished attempt was not remembered");
+  assert.equal(saved.percent, 100);
+  assert.equal(saved.correct, 2);
+  assert.equal(window.localStorage.getItem(`arsvibe.dpp.${PAPER()}`), null, "the answers were kept");
+});
+
+test("the site's DPP Tests link lands somewhere that explains where the papers are", async () => {
+  // The nav carries a DPP Tests link on every page, so it has to land on something
+  // that answers "where are the papers?" — not on an unchanged catalogue that happens
+  // to have a fragment in its URL.
+  const { register } = await import("node:module");
+  const { JSDOM } = await import("jsdom");
+  register("./loader.mjs", import.meta.url);
+
+  const path_ = "/batches.html#dpp-tests";
+  const dom = new JSDOM(await (await REAL_FETCH(`${BASE}${path_}`)).text(), {
+    url: `${BASE}${path_}`,
+    pretendToBeVisual: true,
+  });
+  openDoms.push(dom);
+  const { window } = dom;
+  const doc = window.document;
+  globalThis.window = window;
+  globalThis.document = doc;
+  globalThis.localStorage = window.localStorage;
+  globalThis.location = window.location;
+  globalThis.CustomEvent = window.CustomEvent;
+  globalThis.HTMLElement = window.HTMLElement;
+  window.fetch = (input, init) =>
+    REAL_FETCH(String(input).startsWith("http") ? input : `${BASE}${input}`, init);
+  globalThis.fetch = window.fetch;
+
+  await import(`/assets/batches.js?v=dpp-jump-${Date.now()}`);
+  await until(() => doc.getElementById("dppTestsNotice"), "the DPP Tests note");
+
+  const note = doc.getElementById("dppTestsNotice");
+  assert.match(note.textContent, /DPP/i);
+  // It says where the papers actually live, and how they are marked.
+  assert.match(note.textContent, /DPP Tests/, "the note does not name the batch tab");
+  assert.match(note.textContent, /key/i, "the note does not say the papers are marked against their key");
+  // And it can be dismissed back to the plain catalogue.
+  doc.getElementById("dppTestsDismiss").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  assert.equal(doc.getElementById("dppTestsNotice"), null, "the note cannot be dismissed");
+});
+
 /* ------------------------------------------------------- the guard rails */
 
 test("a paper is only read from the allowed hosts", async () => {

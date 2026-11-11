@@ -450,6 +450,30 @@ function restore() {
   }
 }
 
+/**
+ * Keep the last score for this paper, for the batch's DPP list.
+ *
+ * Only the four numbers the list paints: a percentage, its counts, and when. The
+ * answers themselves are dropped with the attempt — this is a bookmark, not a
+ * record of what the student got wrong.
+ */
+function rememberScore(result) {
+  if (!paperUrl || !result) return;
+  try {
+    localStorage.setItem(
+      `arsvibe.dpp.result.${paperUrl}`,
+      JSON.stringify({
+        percent: Number(result.percent) || 0,
+        correct: Number(result.correct) || 0,
+        scored: Number(result.scored) || 0,
+        at: Date.now(),
+      })
+    );
+  } catch {
+    /* private mode: the list simply will not know, which is not worth a warning */
+  }
+}
+
 function forget() {
   try {
     localStorage.removeItem(STORE);
@@ -503,6 +527,10 @@ async function submit() {
     }
     state.review = data.review || data.result?.rows || [];
     renderAnalysis(data);
+    // The attempt is finished, so it is dropped — but the *score* is kept, keyed by
+    // the paper, so the batch's DPP list can say "62% last time" instead of offering
+    // a blank Practice button as if the paper were untouched.
+    rememberScore(data.result);
     forget();
   } catch (err) {
     // Marking is a server round trip; a paper that was answered should not be
