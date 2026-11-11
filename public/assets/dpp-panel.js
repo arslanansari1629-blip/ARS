@@ -77,7 +77,7 @@ async function getJson(url) {
  * are fetched. `shouldStop` lets a newer walk (the reader typed a search, or pressed
  * "load more") retire this one instead of racing it.
  */
-async function walkBatch({ batch, subjects, limit, onPaper, onProgress, shouldStop }) {
+export async function walkBatch({ batch, subjects, limit, onPaper, onProgress, shouldStop }) {
   const queue = [];
   for (const subject of subjects) {
     queue.push({

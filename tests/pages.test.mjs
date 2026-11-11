@@ -287,6 +287,87 @@ test("batches page lists catalogue with pager and result count", async () => {
   dom.window.close();
 });
 
+test("the batch DPP tab opens every time, not just the first", async () => {
+  // The DPP panel used to be deleted when the reader left the tab while the
+  // module kept a reference to it, so `renderDpp` returned early and the second
+  // and third visits painted an empty card — papers in the data, blank on screen.
+  const { doc, dom, window } = await render("/batch.html?id=698ad3519549b300a5e1cc6a", {
+    waitForSelector: "#subjects .subject-card",
+  });
+  await new Promise((r) => setTimeout(r, 1200));
+
+  const open = async () => {
+    doc.querySelector('[data-tab="dpp"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    const deadline = Date.now() + 12000;
+    while (Date.now() < deadline) {
+      const panel = doc.getElementById("dppPanel");
+      if (panel && /\d+ papers? from \d+ chapters/.test(panel.textContent)) return panel;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    return doc.getElementById("dppPanel");
+  };
+
+  for (const visit of [1, 2, 3]) {
+    const panel = await open();
+    assert.ok(panel, `visit ${visit}: the DPP tab painted nothing`);
+    assert.match(
+      panel.textContent,
+      /\d+ papers? from \d+ chapters/,
+      `visit ${visit}: the panel did not list papers — ${panel.textContent.slice(0, 120)}`
+    );
+    // Bindings have to survive the round trip too, not just the markup.
+    assert.ok(doc.getElementById("dppPanelSearch"), `visit ${visit}: the search box is gone`);
+    assert.ok(doc.querySelector(".dpp-panel-row"), `visit ${visit}: no paper rows`);
+    assert.ok(doc.querySelector('.dpp-panel-row a[href^="/dpp.html?"]'), `visit ${visit}: no Practice link`);
+    doc.querySelector('[data-tab="about"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  // And the search still filters after those switches — the old bug's tell was
+  // a panel that looked right but had lost its event listeners. (The loop ends
+  // on the About tab, so the panel is detached: come back to DPP first.)
+  await open();
+  const box = doc.getElementById("dppPanelSearch");
+  box.value = "zzz-no-such-paper";
+  box.dispatchEvent(new window.Event("input", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 250));
+  assert.match(doc.getElementById("dppPanelList").textContent, /No paper matches/);
+  dom.window.close();
+});
+
+test("the nav's DPP Tests entry lists papers instead of pointing at a batch", async () => {
+  const { doc, dom, window } = await render("/batches.html#dpp-tests", {
+    waitForSelector: "#dppTestsNotice .dpp-tests-list",
+  });
+
+  const panel = doc.getElementById("dppTestsNotice");
+  assert.ok(panel, "the nav's DPP Tests entry painted no panel");
+  // The catalogue stays underneath: this is a panel over the page, not a page
+  // that replaces it with an instruction.
+  assert.ok(doc.querySelectorAll("#grid .batch-card").length >= 2, "the catalogue vanished");
+
+  const deadline = Date.now() + 20000;
+  while (Date.now() < deadline && !doc.querySelector(".dpp-tests .dpp-panel-row")) {
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  const rows = doc.querySelectorAll(".dpp-tests .dpp-panel-row");
+  assert.ok(rows.length >= 1, "no papers listed under DPP Tests");
+  assert.ok(
+    [...rows].every((row) => row.querySelector('a[href^="/dpp.html?"]')),
+    "a listed paper has no Practice link"
+  );
+  assert.match(doc.getElementById("dppTestsNote").textContent, /paper/i);
+  assert.equal(/open a batch/i.test(panel.textContent), false, "the panel still tells the reader to go elsewhere");
+
+  // Its own search filters the list.
+  const box = doc.getElementById("dppTestsSearch");
+  box.value = "zzz-no-such-paper";
+  box.dispatchEvent(new window.Event("input", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.match(doc.getElementById("dppTestsList").textContent, /No paper matches/);
+  dom.window.close();
+});
+
 test("batch page renders subjects from upstream detail", async () => {
   const { doc, dom } = await render("/batch.html?id=698ad3519549b300a5e1cc6a", {
     waitForSelector: ".subject-card",

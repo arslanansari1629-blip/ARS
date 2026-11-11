@@ -7453,17 +7453,19 @@ body.side-rail .side-brand:hover .brand-img {
   .dpp-panel-select { flex: 1 1 auto; }
 }
 
-/* The nav's DPP Tests jump lands on the catalogue with this note above it. */
-.dpp-tests-notice {
-  align-items: flex-start;
-  padding: 0.9rem 1rem;
-  margin-bottom: 1rem;
+/* The nav's DPP Tests panel: the same rows a batch's panel draws, listed for
+   the batches on this page and sitting above the catalogue it overlays. */
+.dpp-tests {
+  padding: 0.9rem 1rem 1rem;
+  margin-bottom: 1.25rem;
   border: 1px solid var(--rule);
   border-left: 3px solid var(--blue);
   border-radius: 10px;
   background: var(--surface, #fff);
 }
-.dpp-tests-notice h2 { margin: 0.15rem 0 0.3rem; }
+.dpp-tests h2 { margin: 0.15rem 0 0.3rem; }
+.dpp-tests-list { margin-top: 0.75rem; }
+.dpp-tests .sk-row { height: 3.1rem; }
 
 /* ==========================================================================
    The opening sheet — a title sequence drawn on the site's own paper

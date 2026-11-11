@@ -10,7 +10,8 @@ import {
   skeletonCards,
   emptyState,
 } from "./app.js";
-import { loadCatalog, loadFacets } from "./data.js";
+import { loadCatalog, loadFacets, loadBatch, loadContents } from "./data.js";
+import { practiceHref, walkBatch } from "./dpp-panel.js";
 import { heartButton, wireFavourites } from "./favourites.js";
 
 mountChrome("batches");
@@ -178,42 +179,158 @@ function rangeLabel(shown, total) {
 }
 
 /**
- * `#dpp-tests` — the batches that carry practice papers.
+ * `#dpp-tests` — the nav's DPP Tests entry.
  *
- * The nav links here, and it has to land somewhere useful rather than on the ordinary
- * catalogue. It is a *jump*, not a second page: the catalogue stays as it is and the
- * reader is told where the papers are, with the batch search still underneath. The
- * alternative — walking every batch's subjects and chapters from this page — would be
- * tens of thousands of upstream calls for a list nobody asked to see in full.
+ * This used to render a notice explaining that papers live in a batch's DPP
+ * Tests tab and leave the catalogue underneath: a page that told you where the
+ * thing was instead of showing it. It now walks the batches already on screen,
+ * reads each one's paper list from the same route the panel uses, and lists the
+ * papers here — with Practice on each, the batch it belongs to, and a way to
+ * search. Batches whose walk has not answered yet say so, and the walk stops at
+ * a bounded number so opening the tab is not a crawl.
  */
 async function showDppTests() {
-  const notice = document.getElementById("dppTestsNotice") || document.createElement("div");
-  notice.id = "dppTestsNotice";
-  notice.className = "dpp-panel-head dpp-tests-notice";
-  notice.innerHTML = `
-    <div>
-      <span class="eyebrow">Practice</span>
-      <h2>DPP tests</h2>
-      <p class="muted tiny">
-        Every batch that lists DPP papers carries them in its own <strong>DPP Tests</strong>
-        tab — open a batch and press it. Papers are marked against the paper's own key,
-        and nothing needs an account.
-      </p>
+  const host = document.getElementById("dppTestsNotice") || document.createElement("div");
+  host.id = "dppTestsNotice";
+  host.className = "dpp-tests";
+  host.dataset.sig = catalogSig();
+  if (!host.isConnected) grid.parentElement.insertBefore(host, grid);
+
+  host.innerHTML = `
+    <div class="dpp-panel-head">
+      <div>
+        <span class="eyebrow">Practice</span>
+        <h2>DPP tests</h2>
+        <p class="muted tiny">Every paper is marked against its own answer key, one attempt each.</p>
+        <p class="muted tiny" id="dppTestsNote" role="status">Finding papers in the batches below…</p>
+      </div>
+      <div class="dpp-panel-tools">
+        <label class="dpp-panel-search">
+          <span class="sr-only">Search DPP papers</span>
+          <input type="search" id="dppTestsSearch" placeholder="Search papers, batches, chapters…" autocomplete="off" />
+        </label>
+        <button class="btn btn-ghost btn-sm" id="dppTestsDismiss" type="button">All batches</button>
+      </div>
     </div>
-    <div class="row gap-1">
-      <button class="btn btn-ghost btn-sm" id="dppTestsDismiss" type="button">Show all batches</button>
+    <div class="dpp-tests-list" id="dppTestsList">
+      <div class="list">${Array.from({ length: 3 })
+        .map(() => `<div class="skeleton sk-row"></div>`)
+        .join("")}</div>
     </div>`;
-  if (!notice.isConnected) grid.parentElement.insertBefore(notice, grid);
-  document.getElementById("dppTestsDismiss")?.addEventListener("click", () => {
-    notice.remove();
-    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+
+  document.getElementById("dppTestsDismiss").addEventListener("click", () => {
+    host.classList.add("hide");
+    if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    document.getElementById("resultCount")?.scrollIntoView?.({ block: "start" });
   });
-  // The catalogue below is the way to a batch, so it is loaded, not replaced.
-  resultCount.textContent = "Open a batch to see its DPP papers.";
+
+  const note = document.getElementById("dppTestsNote");
+  const listEl = document.getElementById("dppTestsList");
+  const searchEl = document.getElementById("dppTestsSearch");
+
+  const papers = [];
+  const seen = new Set();
+  let query = "";
+  let scanning = true;
+
+  const render = () => {
+    const needle = query.trim().toLowerCase();
+    const rows = papers.filter((paper) =>
+      !needle ||
+      `${paper.title} ${paper.chapter} ${paper.subjectName} ${paper.batchName}`.toLowerCase().includes(needle)
+    );
+
+    if (rows.length) {
+      listEl.innerHTML = `<div class="list dpp-panel-rows">${rows
+        .map(
+          (paper) => `
+        <article class="dpp-panel-row">
+          <div class="dpp-panel-main">
+            <span class="pill">${esc(paper.batchName)}</span>
+            <strong>${esc(paper.title)}</strong>
+            <span class="tiny dim">${esc(paper.subjectName)} · ${esc(paper.chapter)}${paper.file && paper.file !== paper.title ? ` · ${esc(paper.file)}` : ""}</span>
+          </div>
+          <div class="dpp-panel-actions">
+            <a class="btn btn-primary btn-sm" href="${esc(practiceHref(paper))}">Practice</a>
+            <a class="btn btn-ghost btn-sm" href="/api/media?url=${encodeURIComponent(paper.url)}" target="_blank" rel="noopener">PDF</a>
+          </div>
+        </article>`
+        )
+        .join("")}</div>`;
+    } else if (scanning) {
+      listEl.innerHTML = `<div class="list">${Array.from({ length: 3 })
+        .map(() => `<div class="skeleton sk-row"></div>`)
+        .join("")}</div>`;
+    } else {
+      listEl.innerHTML = `<div class="empty-state">
+        <p><strong>${needle ? `No paper matches “${esc(query)}”.` : "None of these batches list a DPP yet."}</strong></p>
+        <p class="tiny muted">${
+          needle
+            ? "Clear the search, or open a batch's DPP Tests tab for everything in it."
+            : "Open any batch and press its DPP Tests tab — the papers live under its chapters."
+        }</p>
+      </div>`;
+    }
+
+    const found = papers.length;
+    note.textContent = scanning
+      ? `${found} paper${found === 1 ? "" : "s"} so far, reading the batches on this page…`
+      : found
+        ? `${found} paper${found === 1 ? "" : "s"} from ${new Set(papers.map((p) => p.batchName)).size} batch${new Set(papers.map((p) => p.batchName)).size === 1 ? "" : "es"} on this page. Press Practice on any of them.`
+        : "No papers found in the batches on this page.";
+  };
+
+  searchEl.addEventListener("input", () => {
+    query = searchEl.value;
+    render();
+  });
+
+  render();
+
+  /**
+   * Walk a handful of the visible batches, not all of them, and not deeply: this
+   * is a way in, and a reader who has not found a paper after a few batches wants
+   * the catalogue or their own batch — not a longer spinner.
+   *
+   * The walk itself is `walkBatch` from the panel, so a paper listed here is the
+   * same record the batch page lists: same title, same chapter, same Practice link.
+   */
+  const targets = (state.list || []).filter((b) => b && b.id).slice(0, 6);
+
+  await Promise.all(
+    targets.slice(0, 3).map(async (target) => {
+      let subjects = target.subjects || [];
+      if (!subjects.length) {
+        const info = await loadBatch(target.id).catch(() => null);
+        subjects = info?.subjects || [];
+      }
+      await walkBatch({
+        batch: target.id,
+        subjects,
+        limit: 8,
+        onPaper: (paper) => {
+          if (seen.has(paper.url)) return;
+          seen.add(paper.url);
+          papers.push({ ...paper, batch: target.id, batchName: target.name || target.id });
+          render();
+        },
+        onProgress: () => render(),
+      }).catch(() => {});
+      render();
+    })
+  );
+
+  scanning = false;
+  render();
 }
 
+/** True while the nav's DPP Tests panel is the thing on screen. */
+const onDppTests = () => location.hash.replace("#", "") === "dpp-tests";
+
+/** What the catalogue is currently showing — the panel lists *this* page. */
+const catalogSig = () => `${state.page}|${state.search}|${state.lang}|${state.price}|${state.sort}`;
+
 async function load() {
-  if ((location.hash || "").replace("#", "") === "dpp-tests") await showDppTests();
   grid.innerHTML = skeletonCards(12);
   pager.innerHTML = "";
   resultCount.textContent = "Loading…";
@@ -231,6 +348,7 @@ async function load() {
     });
 
     const list = out.batches || [];
+    state.list = list;
     state.total = out.total || 0;
     state.shown = list.length;
     state.totalPages = isFiltered() ? 1 : out.totalPages || 1;
@@ -265,6 +383,20 @@ async function load() {
     grid.innerHTML = emptyState("Catalogue unavailable", err.message);
     resultCount.textContent = "Could not reach the PW catalogue.";
     toast(err.message, "error");
+  }
+
+  // The nav's DPP panel overlays the catalogue and lists the batches on it, so
+  // it mounts once the rows exist — not in front of a skeleton, and never
+  // instead of the catalogue. If the catalogue itself changed (a search, a page,
+  // a filter) the panel's papers describe a page that is gone: re-read it.
+  if (onDppTests()) {
+    const host = document.getElementById("dppTestsNotice");
+    if (!host) showDppTests();
+    else if (host.classList.contains("hide")) host.dataset.sig = catalogSig();
+    else if (host.dataset.sig !== catalogSig()) {
+      host.remove();
+      showDppTests();
+    }
   }
 }
 
@@ -305,6 +437,23 @@ resetBtn.addEventListener("click", () => {
   priceFilter.value = "all";
   sortBy.value = "default";
   load();
+});
+
+// Back/forward and a second click on the nav entry both land here. The panel is
+// mounted over the catalogue, so "leave" only means dropping it again.
+window.addEventListener("hashchange", () => {
+  if (!onDppTests()) {
+    document.getElementById("dppTestsNotice")?.remove();
+    return;
+  }
+  const host = document.getElementById("dppTestsNotice");
+  if (host) {
+    host.classList.remove("hide");
+    return;
+  }
+  // Arriving before the catalogue has answered: let `load` mount it afterwards.
+  if (!state.list?.length) load();
+  else showDppTests();
 });
 
 load();

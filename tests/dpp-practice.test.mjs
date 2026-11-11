@@ -547,10 +547,10 @@ test("a finished attempt is remembered on the batch's paper row", async () => {
   assert.equal(window.localStorage.getItem(`arsvibe.dpp.${PAPER()}`), null, "the answers were kept");
 });
 
-test("the site's DPP Tests link lands somewhere that explains where the papers are", async () => {
-  // The nav carries a DPP Tests link on every page, so it has to land on something
-  // that answers "where are the papers?" — not on an unchanged catalogue that happens
-  // to have a fragment in its URL.
+test("the site's DPP Tests link lists the papers, and can be dismissed", async () => {
+  // The nav carries a DPP Tests link on every page. It has to land on the papers
+  // themselves — it used to land on a note explaining that papers live in a
+  // batch's tab, which is a page about the feature rather than the feature.
   const { register } = await import("node:module");
   const { JSDOM } = await import("jsdom");
   register("./loader.mjs", import.meta.url);
@@ -574,16 +574,20 @@ test("the site's DPP Tests link lands somewhere that explains where the papers a
   globalThis.fetch = window.fetch;
 
   await import(`/assets/batches.js?v=dpp-jump-${Date.now()}`);
-  await until(() => doc.getElementById("dppTestsNotice"), "the DPP Tests note");
+  await until(() => doc.getElementById("dppTestsNotice"), "the DPP Tests panel");
 
-  const note = doc.getElementById("dppTestsNotice");
-  assert.match(note.textContent, /DPP/i);
-  // It says where the papers actually live, and how they are marked.
-  assert.match(note.textContent, /DPP Tests/, "the note does not name the batch tab");
-  assert.match(note.textContent, /key/i, "the note does not say the papers are marked against their key");
-  // And it can be dismissed back to the plain catalogue.
+  const panel = doc.getElementById("dppTestsNotice");
+  assert.match(panel.textContent, /DPP/i);
+  // It says the papers are marked against their key, and it stays on the page
+  // rather than sending the reader somewhere else to find them.
+  assert.match(panel.textContent, /answer key/i, "the panel does not say the papers are marked");
+  assert.equal(/open a batch/i.test(panel.textContent), false, "the panel sends the reader elsewhere");
+
+  // And it can be dismissed back to the plain catalogue, without losing the
+  // catalogue underneath it or the panel for a later re-open.
   doc.getElementById("dppTestsDismiss").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-  assert.equal(doc.getElementById("dppTestsNotice"), null, "the note cannot be dismissed");
+  assert.ok(panel.classList.contains("hide"), "the panel cannot be dismissed");
+  assert.ok(doc.querySelectorAll("#grid .batch-card").length >= 1, "the catalogue vanished");
 });
 
 /* ------------------------------------------------------- the guard rails */

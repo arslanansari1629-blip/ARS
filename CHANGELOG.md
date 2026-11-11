@@ -5,6 +5,37 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AG — the DPP panel that only opened once
+
+**The problem.** "DPP test panel is not opening." It opened the first time and then not
+again — press the DPP Tests tab on a batch, look at About, come back, and the card said
+"Looking for papers…" forever while the data was fine all along. The second half of the
+complaint was the nav's own DPP Tests entry: it landed on a note explaining that papers
+live in a batch's tab, which is a page *about* the feature rather than the feature.
+
+**The bug.** `setTab` removed the `#dppPanel` node when the reader left the tab and kept
+the module's reference to it. `renderDpp` saw a panel already built and returned early,
+so nothing was ever re-mounted: the card was empty because the panel had been thrown
+away. The panel is now kept as a *detached* node and re-attached — bindings, rows, filters
+and all — and `renderDpp` never replaces a mounted panel with a loading line.
+
+**What shipped.**
+
+- **The batch DPP tab opens every time.** First, second and third visit paint the same
+  paper list; the search box, subject filter and "looking for more" all still work after
+  the round trip, because the DOM survives it rather than being rebuilt from markup.
+- **The nav's DPP Tests entry lists papers.** It reads the batches already on the page —
+  a bounded walk, three at a time, using the same collection code as the batch panel — and
+  lists each paper with its batch, chapter and a Practice link, with its own search and a
+  dismiss back to the catalogue. It is a panel over the catalogue, not a page instead of
+  it: the catalogue stays, off-JS still shows the catalogue, and changing the search or
+  page re-reads the panel because its papers described the page that was there.
+
+**Tests.** `the batch DPP tab opens every time, not just the first` (three round trips,
+then the search box must still filter) and `the nav's DPP Tests entry lists papers
+instead of pointing at a batch`. The older jump test that asserted the "go open a batch"
+copy was replaced — it was asserting the behaviour the user rejected.
+
 ## Round AF — XP, a daily streak, and a leaderboard
 
 **The problem.** The site could record work and had nowhere to put the record. A student finished a

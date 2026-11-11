@@ -210,42 +210,79 @@ async function renderAnnouncements() {
 /**
  * The DPP panel: every practice paper in the batch, in one list.
  *
- * Mounted once and kept, because the walk over the batch's chapters is the expensive
- * part — switching to Announcements and back must not start it again. The subjects
- * it needs are the batch's own, so it waits for them.
+ * Mounted once and kept as a *node*, because two things about it are expensive:
+ * the walk over the batch's chapters, and the bindings `mountDppPanel` sets on
+ * its search box, subject filter and "show more" control.
+ *
+ * The first version removed the panel's node when you left the tab and let the
+ * next visit build a fresh, empty host. Both the bindings and the papers went
+ * with it, so the second visit rendered a blank panel for ever — which is what
+ * "the DPP panel is not opening" looks like from outside. Taking the node out
+ * of the document and putting the same one back keeps everything: the mount,
+ * the search text, the filter, the papers already found, the scroll position.
  */
 let dppPanel = null;
 let dppPanelBatch = "";
+/** The panel's node while it is out of the tab, so a return can re-use it. */
+let detachedDpp = null;
 
+/** Puts the kept panel back in the tab, and says whether it had one. */
+function reattachDpp() {
+  if (!detachedDpp) return false;
+  const host = detachedDpp;
+  detachedDpp = null;
+  if (host.parentElement !== tabBody) tabBody.replaceChildren(host);
+  return true;
+}
+
+/**
+ * The host element for the panel.
+ *
+ * The tab body is rewritten by every other tab, so a placeholder is created on
+ * demand. The *mounted* panel always wins over any placeholder, whether it is in
+ * the tab or out of it, so this page can never end up with two.
+ */
 function dppHost() {
-  let host = document.getElementById("dppPanel");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "dppPanel";
-    host.className = "dpp-panel";
-    tabBody.appendChild(host);
+  reattachDpp();
+  const existing = document.getElementById("dppPanel");
+  if (existing) {
+    if (existing.parentElement !== tabBody) tabBody.replaceChildren(existing);
+    return existing;
   }
+  const host = document.createElement("div");
+  host.id = "dppPanel";
+  host.className = "dpp-panel";
+  tabBody.replaceChildren(host);
   return host;
 }
 
 function renderDpp() {
-  const host = dppHost();
+  const mounted = Boolean(dppPanel) && dppPanelBatch === batch?.id;
+
   if (!batch) {
-    host.innerHTML = emptyState("Loading the batch", "The papers appear once its subjects do.");
+    // The panel is only replaced with this message when it is not already up:
+    // a slow detail call must not wipe a walk that is already running.
+    if (!mounted) dppHost().innerHTML = emptyState("Loading the papers", "The batch's subjects are still arriving.");
+    else reattachDpp();
     return;
   }
+
+  if (mounted) {
+    // Re-use: same node, same bindings, same papers. The walk does not restart.
+    reattachDpp();
+    return;
+  }
+
   if (!batch.subjects || !batch.subjects.length) {
-    host.innerHTML = emptyState(
-      "No subjects to walk",
-      "A DPP lives under a chapter, and this batch lists none yet."
+    dppHost().innerHTML = emptyState(
+      "No papers in this batch",
+      "A DPP lives under a chapter, and this batch lists no subjects yet. Lecture notes are still on its subject pages."
     );
     return;
   }
-  // One panel per batch: a re-render of the page must not leave a second walk
-  // running against the same catalogue.
-  if (dppPanel && dppPanelBatch === batch.id) return;
+
   dppPanelBatch = batch.id;
-  dppPanel = mountDppPanel(host, { batch: batch.id, subjects: batch.subjects });
+  dppPanel = mountDppPanel(dppHost(), { batch: batch.id, subjects: batch.subjects });
 }
 
 function setTab(next) {
@@ -254,9 +291,13 @@ function setTab(next) {
     b.classList.toggle("active", b.dataset.tab === tab)
   );
   if (tab !== "dpp") {
-    // Leave the list alone but drop the host, so returning repaints it without
-    // walking the catalogue again.
-    tabBody.querySelector("#dppPanel")?.remove();
+    // Taken out of the document, not discarded: the panel keeps its bindings,
+    // its papers and its filters, so coming back is instant and starts no walk.
+    const host = document.getElementById("dppPanel");
+    if (host && dppPanel) {
+      host.remove();
+      detachedDpp = host;
+    }
   }
   if (tab === "subjects") renderSubjects();
   if (tab === "dpp") renderDpp();
