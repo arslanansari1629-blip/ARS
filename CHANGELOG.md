@@ -90,6 +90,14 @@ dropping half the key.
    run by run *before* the page is split, which is the only order that works: the time
    limit is three runs and one of them lands in each column.
 
+**And the door into the feature was broken.** A chapter's `Practice` button builds
+the link the practice page opens; the link addressed the paper as `paper` while the
+page read its address from `dpp`. So the button was present, looked right, and opened
+"Pick a DPP paper first" — an empty page with no test on it. The page now reads
+`dpp` or `paper`, the link sends both, and a test presses the real button, takes the
+href it produced, opens *that* and waits for the questions. It was confirmed to fail
+(the paper never loads) when the page goes back to reading only `dpp`.
+
 **The check that should have existed first.** `GET …&check=1` marks a perfect attempt
 — every question answered with the paper's own key, which the server reads itself —
 and reports how many came back correct. Fourteen of fourteen means the options belong

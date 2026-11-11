@@ -563,6 +563,88 @@ async function until(check, what, ms = 12000) {
   assert.fail(`timed out waiting for ${what}`);
 }
 
+test("the link a chapter gives a student opens that paper, not an empty page", async () => {
+  // The way in is a chapter's Practice button, and the only thing it guarantees is the
+  // link it builds. That link used to address the paper as `paper` while the practice
+  // page read its address from `dpp` — so pressing Practice from a chapter opened
+  // "Pick a DPP paper first", with no paper and no test. The button was present in the
+  // DOM and looked right, which is why only opening it catches this.
+  const { practiceUrl } = await import("../public/assets/chapter.js").catch(() => ({}));
+  // The page module is not importable on its own (it boots a page), so the link is
+  // read from the DOM the way a student gets it.
+  const { register } = await import("node:module");
+  const { JSDOM } = await import("jsdom");
+  register("./loader.mjs", import.meta.url);
+
+  const chapter =
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822" +
+    "&chapter=6a6b461cce4ac4e9ab51ee98&name=Ch%2001#dpp";
+  const page = await (await REAL_FETCH(`${BASE}${chapter}`)).text();
+  const dom = new JSDOM(page, { url: `${BASE}${chapter}`, pretendToBeVisual: true });
+  openDoms.push(dom);
+  const { window } = dom;
+  const doc = window.document;
+  window.fetch = (input, init) =>
+    REAL_FETCH(String(input).startsWith("http") ? input : `${BASE}${input}`, init);
+  globalThis.fetch = window.fetch;
+  globalThis.window = window;
+  globalThis.document = doc;
+  globalThis.localStorage = window.localStorage;
+  globalThis.location = window.location;
+  globalThis.CustomEvent = window.CustomEvent;
+  globalThis.HTMLElement = window.HTMLElement;
+
+  await import(`/assets/chapter.js?v=practice-link-${Date.now()}`);
+  const deadline = Date.now() + 12000;
+  let link = null;
+  while (Date.now() < deadline && !link) {
+    await new Promise((r) => setTimeout(r, 50));
+    link = doc.querySelector('#body .doc-row a[href^="/dpp.html?"]');
+  }
+  assert.ok(link, "the chapter offered no Practice link");
+  const href = new URL(link.getAttribute("href"), BASE);
+  assert.match(href.searchParams.get("paper") || "", /\.pdf/, "the link does not name a paper");
+
+  // The page must read the address from *the* parameter the link uses, not from a
+  // second one that happens to carry the same value: sending both would pass even if
+  // the page only read the other, and the day one of them is dropped every Practice
+  // button on the site opens an empty page again.
+  const only = new URL(href);
+  only.searchParams.delete("dpp");
+  const practice0 = await (await REAL_FETCH(only.toString())).text();
+  assert.ok(practice0.length > 0);
+
+  // Now open the link *without* the duplicate parameter, which is what proves the page
+  // resolves the address from `paper` itself.
+  const practice = new JSDOM(await (await REAL_FETCH(only.toString())).text(), {
+    url: only.toString(),
+    pretendToBeVisual: true,
+  });
+  openDoms.push(practice);
+  const pwindow = practice.window;
+  const pdoc = pwindow.document;
+  pwindow.fetch = (input, init) =>
+    REAL_FETCH(String(input).startsWith("http") ? input : `${BASE}${input}`, init);
+  globalThis.fetch = pwindow.fetch;
+  globalThis.window = pwindow;
+  globalThis.document = pdoc;
+  globalThis.localStorage = pwindow.localStorage;
+  globalThis.location = pwindow.location;
+  globalThis.CustomEvent = pwindow.CustomEvent;
+  globalThis.HTMLElement = pwindow.HTMLElement;
+  pwindow.confirm = () => true;
+  await import(`/assets/dpp.js?v=practice-from-chapter-${Date.now()}`);
+  await until(
+    () => pdoc.querySelectorAll("#dppSheet .dpp-q").length > 0,
+    "the paper the chapter linked to"
+  );
+  assert.equal(pdoc.getElementById("dppTest").hidden, false);
+  assert.ok(
+    pdoc.querySelectorAll("#dppSheet .dpp-q").length >= 2,
+    "the paper the chapter linked to opened empty"
+  );
+});
+
 test("a student answers a paper, submits, and reads the analysis", async () => {
   const { dom, window, doc } = await openPractice(PAPER());
 

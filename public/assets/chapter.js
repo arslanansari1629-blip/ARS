@@ -140,7 +140,11 @@ function videoRow(item, index) {
  */
 function practiceUrl(doc) {
   const params = new URLSearchParams({
+    // `paper` is the paper's address — the link has always carried it there, and the
+    // practice page reads it as such. `dpp` is repeated for the route that names a
+    // paper the same way (`/api/pdf?dpp=`), so a link can be pasted into either.
     paper: doc.url || "",
+    dpp: doc.url || "",
     name: doc.topic || doc.name || "DPP",
     batch: batchId,
     subject: subjectSlug,

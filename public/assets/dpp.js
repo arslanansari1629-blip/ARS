@@ -14,7 +14,10 @@ import { mountChrome, esc, qs, toast, setPageMeta } from "./app.js";
 
 mountChrome("batches");
 
-const paperUrl = qs("paper");
+// `dpp` is the paper's address and `paper` its name — but a chapter's Practice link
+// carries the address as `paper`, and a link is the only way in. Accept either, so a
+// hand-written or older link opens the paper it names instead of the empty state.
+const paperUrl = qs("dpp") || qs("paper");
 const paperName = qs("name");
 const batchId = qs("batch");
 const subjectSlug = qs("subject");
