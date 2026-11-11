@@ -581,7 +581,11 @@ test("the site's DPP Tests link lists the papers, and can be dismissed", async (
   // It says the papers are marked against their key, and it stays on the page
   // rather than sending the reader somewhere else to find them.
   assert.match(panel.textContent, /answer key/i, "the panel does not say the papers are marked");
-  assert.equal(/open a batch/i.test(panel.textContent), false, "the panel sends the reader elsewhere");
+  assert.equal(
+    /open a batch/i.test(panel.querySelector(".dpp-panel-head").textContent),
+    false,
+    "the panel sends the reader elsewhere instead of listing papers"
+  );
 
   // And it can be dismissed back to the plain catalogue, without losing the
   // catalogue underneath it or the panel for a later re-open.

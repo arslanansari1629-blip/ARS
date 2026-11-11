@@ -357,7 +357,13 @@ test("the nav's DPP Tests entry lists papers instead of pointing at a batch", as
     "a listed paper has no Practice link"
   );
   assert.match(doc.getElementById("dppTestsNote").textContent, /paper/i);
-  assert.equal(/open a batch/i.test(panel.textContent), false, "the panel still tells the reader to go elsewhere");
+  // The panel *head* lists papers; it is not a notice pointing at another page.
+  // (The empty state may still say where papers live, which is honest.)
+  assert.equal(
+    /open a batch/i.test(panel.querySelector(".dpp-panel-head").textContent),
+    false,
+    "the panel still tells the reader to go elsewhere instead of listing papers"
+  );
 
   // Its own search filters the list.
   const box = doc.getElementById("dppTestsSearch");
