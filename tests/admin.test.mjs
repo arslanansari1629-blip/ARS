@@ -836,6 +836,17 @@ test("the scanner is reachable on its own URL, and only a POST can run it", asyn
     "a GET moved the scanner's cursor"
   );
 
+  // The busiest route carries the clock, and says so in a header: a tick is
+  // otherwise invisible from outside, because each function instance has its own
+  // memory.
+  const catalogue = await fetch(`${BASE}/api/batches?page=1&pageSize=2`);
+  assert.equal(catalogue.status, 200);
+  assert.match(
+    catalogue.headers.get("x-scan-tick") || "",
+    /started|wait/,
+    "the catalogue route does not report whether it ticked the scanner"
+  );
+
   // And a POST without a key or a session is refused, with the reason.
   const post = await fetch(`${BASE}/api/scan`, { method: "POST" });
   assert.equal(post.status, 401, "an unauthenticated POST started a scan");
