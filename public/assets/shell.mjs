@@ -32,6 +32,7 @@ const NAV = [
       { id: "downloads", href: "/downloads.html", label: "Downloads", icon: "download" },
       { id: "library", href: "/library.html", label: "My Library", icon: "bookmark" },
       { id: "dashboard", href: "/dashboard.html", label: "Dashboard", icon: "chart" },
+      { id: "leaderboard", href: "/leaderboard.html", label: "Leaderboard", icon: "trophy" },
     ],
   },
   {
@@ -61,6 +62,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.6-3.6"/>',
   bookmark: '<path d="M6 4h12v17l-6-4-6 4V4Z"/>',
   download: '<path d="M12 4v10"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/>',
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0Z"/><path d="M8 5H5v2a3 3 0 0 0 3 3"/><path d="M16 5h3v2a3 3 0 0 1-3 3"/><path d="M12 13v4M9 20h6"/>',
   chart: '<path d="M4 19V9M10 19V4M16 19v-6M22 19H2"/>',
   spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
   globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.6 2.4 14.4 0 17M12 3.5c-2.4 2.6-2.4 14.4 0 17"/>',

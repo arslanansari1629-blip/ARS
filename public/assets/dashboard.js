@@ -10,8 +10,55 @@ import {
 } from "./app.js";
 import { getLibrary } from "./library.js";
 import { favouriteCount } from "./favourites.js";
+import { progress, nextMilestone } from "./progress.js";
 
 mountChrome("dashboard");
+
+/**
+ * XP and the streak, painted before the session check.
+ *
+ * They are a record of this browser, not of an account, so they are true for a
+ * signed-out visitor too — and waiting for the sign-in redirect would flash an
+ * empty band at exactly the student who has the most to show.
+ */
+function paintProgress() {
+  const p = progress();
+  const byId = (id) => document.getElementById(id);
+  const total = byId("xpTotal");
+  if (!total) return;
+
+  total.textContent = p.xp.toLocaleString("en-IN");
+  byId("xpLevel").textContent = `Level ${p.level} · ${p.title}`;
+  const bar = byId("xpBar");
+  bar.setAttribute("aria-valuenow", String(p.percent));
+  bar.setAttribute("aria-valuetext", `${p.into} of ${p.span} XP to level ${p.level + 1}`);
+  byId("xpBarFill").style.width = `${p.percent}%`;
+
+  const next = nextMilestone(p.xp);
+  byId("xpNext").textContent = next
+    ? `${p.into} / ${p.span} XP into this level · ${next.remaining.toLocaleString("en-IN")} XP to “${next.label}”`
+    : `${p.into} / ${p.span} XP into this level · every milestone cleared`;
+
+  byId("streakCurrent").textContent = p.streak.current;
+  byId("streakNote").textContent = p.streak.atRisk
+    ? `At risk: no paper yet today.`
+    : p.streak.studiedToday
+      ? `Today counts. Longest: ${p.streak.longest}.`
+      : "Mark a paper to start a streak.";
+
+  byId("streakWeek").innerHTML = p.week
+    .map(
+      (d) => `
+      <li class="sw-day${d.active ? " on" : ""}${d.isToday ? " today" : ""}" title="${d.day} — ${d.dpp} paper${d.dpp === 1 ? "" : "s"}">
+        <span class="sw-dot" aria-hidden="true"></span>
+        <span class="sw-label">${new Date(d.day + "T00:00:00").toLocaleDateString("en-IN", { weekday: "narrow" })}</span>
+      </li>`
+    )
+    .join("");
+}
+
+paintProgress();
+window.addEventListener("progress:change", paintProgress);
 
 const session = requireSession();
 if (session) {

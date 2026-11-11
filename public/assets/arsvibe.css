@@ -8254,3 +8254,440 @@ html:not(.intro-armed) > body {
     opacity: 0.65;
   }
 }
+
+/* ==========================================================================
+   XP, streaks and the leaderboard
+   --------------------------------------------------------------------------
+   A readout, in the sheet's own language: a wide bar that measures progress
+   like a ruler, mono figures, a seven-day strip of ruled boxes, and a board
+   that reads as a table rather than a trophy case.
+
+   The one flourish is the streak: an unbroken run fills its dots edge to edge
+   and a broken one is honestly hollow. Nothing here is gold, and nothing is a
+   badge for its own sake — the point is the work, measured.
+   ========================================================================== */
+
+.xp-band,
+.xp-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.42fr);
+  gap: clamp(1rem, 3vw, 2rem);
+  align-items: center;
+  margin-bottom: var(--s-5);
+  padding: clamp(0.9rem, 2.4vw, 1.3rem);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--blue);
+  border-radius: var(--r);
+  background: linear-gradient(180deg, var(--card-2), var(--card));
+  box-shadow: var(--lift-1);
+}
+
+.xp-hero {
+  margin-bottom: var(--s-6);
+}
+
+.xp-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0.35rem 0 0.6rem;
+}
+
+.xp-line strong {
+  font-family: var(--mono);
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.xp-unit {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.xp-level {
+  margin-left: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-pill);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue-ink);
+  background: var(--blue-soft);
+}
+
+/* A ruler, not a glow: the fill is the one blue, the track is a hairline. */
+.xp-bar {
+  position: relative;
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--hair) 0 1px,
+    transparent 1px 10%
+  ), var(--paper-2);
+}
+
+.xp-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--blue);
+  transition: width 420ms var(--ease);
+}
+
+.xp-band p,
+.xp-hero p {
+  margin: 0.45rem 0 0;
+}
+
+.xp-band-side,
+.xp-hero-side {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+  padding-left: clamp(0.5rem, 2vw, 1.2rem);
+  border-left: 1px dashed var(--rule);
+}
+
+.streak-big {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.streak-big strong {
+  font-family: var(--mono);
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+}
+
+.streak-big span {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* Seven boxes: studied days are filled, today is outlined wherever it is. */
+.streak-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  width: 100%;
+  max-width: 230px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sw-day {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.sw-dot {
+  width: 100%;
+  height: 14px;
+  border: 1px solid var(--rule);
+  border-radius: 1px;
+  background: transparent;
+}
+
+.sw-day.on .sw-dot {
+  border-color: var(--blue);
+  background: var(--blue);
+}
+
+.sw-day.today .sw-dot {
+  box-shadow: 0 0 0 2px var(--blue-soft-2);
+}
+
+.sw-label {
+  font-family: var(--mono);
+  font-size: 0.52rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.sw-day.on .sw-label {
+  color: var(--ink-2);
+}
+
+/* ---- what a marked paper is worth, on the analysis ---------------------- */
+
+.earned {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 var(--s-4);
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ok);
+  border-radius: var(--r);
+  background: var(--card-2);
+}
+
+.earned-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.earned-xp {
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+
+.earned-list {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+.earned-list b {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.earned-side {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  color: var(--ink-3);
+}
+
+.earned-streak {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--amber);
+}
+
+.earned-link {
+  font-size: 0.74rem;
+}
+
+/* ---- the board page ---------------------------------------------------- */
+
+.board-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+
+.h-sm {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.board-head,
+.board-row {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr) 5rem 3.6rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.board-head {
+  padding: 0 0.45rem 0.3rem;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.board-head span:nth-child(3),
+.board-head span:nth-child(4) {
+  text-align: right;
+}
+
+.board {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-row {
+  padding: 0.42rem 0.45rem;
+  border-bottom: 1px solid var(--hair);
+  font-size: 0.82rem;
+}
+
+.board-row:last-child {
+  border-bottom: 0;
+}
+
+.board-row.me {
+  background: var(--blue-soft);
+  box-shadow: inset 2px 0 0 var(--blue);
+}
+
+.board-rank {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-row:nth-child(1) .board-rank,
+.board-row:nth-child(2) .board-rank,
+.board-row:nth-child(3) .board-rank {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.board-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-you {
+  margin-left: 0.3rem;
+  padding: 0 0.3rem;
+  border-radius: var(--r-pill);
+  background: var(--blue);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.board-xp {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-streak {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-3);
+}
+
+.board-gap,
+.board-empty {
+  padding: 0.7rem 0.45rem;
+  color: var(--ink-4);
+  font-size: 0.76rem;
+  list-style: none;
+}
+
+.board-gap {
+  padding: 0.15rem;
+  text-align: center;
+  letter-spacing: 0.3em;
+}
+
+.xp-rules,
+.milestones {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.6rem 0 0.7rem;
+  padding: 0;
+  list-style: none;
+}
+
+.xp-rules li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding-bottom: 0.28rem;
+  border-bottom: 1px dashed var(--hair);
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+.xp-rules b {
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ms {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.76rem;
+  color: var(--ink-3);
+}
+
+.ms-mark {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 1.35rem;
+  flex: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  font-family: var(--mono);
+  font-size: 0.55rem;
+  color: var(--ink-4);
+}
+
+.ms.done .ms-mark {
+  border-color: var(--ok);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.ms.done .ms-text strong {
+  color: var(--ink);
+}
+
+.ms-text {
+  display: grid;
+}
+
+@media (max-width: 860px) {
+  .xp-band,
+  .xp-hero,
+  .board-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .xp-band-side,
+  .xp-hero-side {
+    padding-left: 0;
+    padding-top: 0.6rem;
+    border-left: 0;
+    border-top: 1px dashed var(--rule);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-bar-fill {
+    transition: none;
+  }
+}

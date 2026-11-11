@@ -1,5 +1,7 @@
 /* PDF reader — resolves the relay URL and keeps the document for offline */
 
+import { award } from "./progress.js";
+
 const params = new URLSearchParams(location.search);
 const name = params.get("name") || "Document";
 const raw = params.get("url") || "";
@@ -66,3 +68,21 @@ document.getElementById("openBtn").href = raw || (base + id);
     /* offline keeping is an enhancement; opening the document is not */
   }
 })();
+
+/* ------------------------------------------------------------------- xp */
+
+/*
+ * A class note that was actually opened is worth something, once.
+ *
+ * "Actually opened" is the point: the award is made here, in the reader, not on
+ * the chapter page — a listing full of note links would otherwise pay for a page
+ * view rather than for reading. It is keyed on the document's own address, so
+ * reopening the same note is free, and it is worth less than a paper because
+ * reading is not the work the streak is about.
+ */
+if (raw || id) {
+  const key = raw || id;
+  setTimeout(() => {
+    award("note", `note:${key}`);
+  }, 4000);
+}

@@ -156,6 +156,47 @@ In production no such override is set: `PW_UPSTREAM_BASE` is unset, so requests 
 PW API. If a deployment's region is blocked upstream, the API answers `{ needsProxy: true }` and
 the browser transparently falls back to the public CORS relay — the UI keeps showing live data.
 
+## XP, streaks and the leaderboard
+
+Every finished piece of work pays XP, days of studying make a streak, and one page shows where that
+stands against everyone else.
+
+```bash
+/leaderboard.html            your level, your seven-day streak, the board, the milestones
+/dashboard.html              the same record on the home dashboard
+GET  /api/token?route=board  → the board (public, cached 15 s)
+POST /api/token?route=board  → publish one row   { id, name, xp, level, streak }
+```
+
+| what | pays | capped by |
+| --- | --- | --- |
+| a marked DPP paper | **+50** | once per paper, per day |
+| each correct answer | **+6** | inside that same award |
+| a perfect paper | **+40** | same paper |
+| first paper of the day | **+30** | once a day — this is the streak's own reward |
+| a lecture finished | **+15** | once per lecture |
+| 20 minutes actually watched | **+20** | once per lecture |
+| a class note read | **+8** | once per note |
+
+**The XP is derived, never stored.** `earnedXp()` is the sum of the ledger, so a half-written save
+or a hand-edited key cannot produce a second, different total. Every award carries a natural key
+(`dpp:<url>:<day>`, `lecture:<id>`, `note:<url>`) and a key already in the ledger is refused — which
+is the whole defence against farming. A retried paper the same evening pays nothing, because the
+paper *is* the award and its marks are components of it, not separate awards.
+
+**The streak is honest about being broken.** A run counts back from today when today has a paper,
+and from yesterday when it does not — and in that second case the dashboard says *at risk* rather
+than showing a streak that has already ended.
+
+**The board is the server's.** A ranking cannot live in a browser: two phones in a classroom have
+to see the same rows. `lib/leaderboard.mjs` validates every write (name stripped of markup and
+control characters, XP capped at 2,000,000, row id a hash of the browser's own id so the payload
+cannot be used to follow a visitor), keeps one row per player, and never lets a row lose ground
+within a day. It uses Vercel's Postgres or Upstash Redis when one is attached to the project, and
+otherwise says so plainly rather than pretending: the payload carries `store` and `persistent`, and
+the page repeats it — *"1 student in this deployment's memory · attach a store to make the board
+worldwide"*. Board names are a first name plus a hash tag (`Aarav 9W`), never an email address.
+
 ## The opening sheet (`/open`)
 
 The site opens itself the way a drawing is made: the plate traces, the wordmark letterspaces

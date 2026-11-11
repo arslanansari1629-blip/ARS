@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>XP, streaks and the leaderboard — ArsVibe PW</title>
+<meta name="description" content="Every marked DPP earns XP, every day you study keeps the streak, and the board shows where your work stands." />
+<meta name="theme-color" content="#eef1f5" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ArsVibe" />
+<meta property="og:title" content="ArsVibe — XP, streaks and the leaderboard" />
+<meta property="og:description" content="Every marked DPP earns XP, every day you study keeps the streak, and the board shows where your work stands." />
+<meta property="og:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<link rel="modulepreload" href="/assets/leaderboard.js" />
+<link rel="modulepreload" href="/assets/progress.js" />
+<link rel="preconnect" href="https://static.pw.live" crossorigin />
+<link rel="dns-prefetch" href="https://static.pw.live" />
+<link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/leaderboard" />
+<meta property="og:url" content="https://arsvibe-pw-sepia.vercel.app/leaderboard" />
+</head>
+<body data-page="leaderboard">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="/">
+      <img class="brand-img" src="/assets/logo.svg" alt="ArsVibe" width="30" height="30" />
+      <span>ArsVibe<small>Physics Wallah</small></span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <nav class="nav-links" id="navLinks">
+      <a href="/" data-page="home">Home</a>
+      <a href="/open" data-page="open">Opening</a>
+      <a href="/batches.html" data-page="batches">Batches</a>
+      <a href="/batches.html#dpp-tests" data-page="dpp-tests">DPP Tests</a>
+      <a href="/leaderboard.html" data-page="leaderboard">Leaderboard</a>
+      <a href="/library.html" data-page="library">My Library</a>
+      <a href="/downloads.html" data-page="downloads">Downloads</a>
+      <a href="/dashboard.html" data-page="dashboard">Dashboard</a>
+    </nav>
+    <div class="nav-actions" id="sessionChip"></div>
+  </div>
+</header>
+
+<main id="main" class="section">
+  <div class="shell">
+    <div class="page-head">
+      <div>
+        <span class="eyebrow">Progress</span>
+        <h1>XP, streaks &amp; the board</h1>
+        <p class="muted">Marked DPP papers earn XP. Showing up every day keeps the streak.</p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost btn-sm" href="/batches.html#dpp-tests">Practise a paper</a>
+        <a class="btn btn-ghost btn-sm" href="/dashboard.html">Dashboard</a>
+      </div>
+    </div>
+
+    <!-- Your own standing, first: a board is only useful if you can find
+         yourself on it. -->
+    <section class="xp-hero" id="xpHero" aria-live="polite">
+      <div class="xp-hero-main">
+        <span class="eyebrow">Your standing</span>
+        <div class="xp-line">
+          <strong id="xpTotal">0</strong><span class="xp-unit">XP</span>
+          <span class="xp-level" id="xpLevel">Level 1</span>
+        </div>
+        <div class="xp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="xpBar">
+          <span class="xp-bar-fill" id="xpBarFill"></span>
+        </div>
+        <p class="tiny dim" id="xpNext">One marked paper is 50 XP.</p>
+      </div>
+      <div class="xp-hero-side">
+        <div class="streak-big" id="streakBig">
+          <strong id="streakCurrent">0</strong>
+          <span>day streak</span>
+        </div>
+        <ol class="streak-week" id="streakWeek" aria-label="The last seven days"></ol>
+        <p class="tiny dim" id="streakNote"></p>
+      </div>
+    </section>
+
+    <div class="grid board-grid">
+      <section class="card pad-md">
+        <div class="row between mb-3">
+          <div>
+            <h2 class="h-sm">Leaderboard</h2>
+            <p class="tiny dim" id="boardNote">Loading the board…</p>
+          </div>
+          <button class="btn btn-ghost btn-sm" type="button" id="boardRefresh">Refresh</button>
+        </div>
+        <div class="board-head" aria-hidden="true">
+          <span>#</span><span>Student</span><span>XP</span><span>Streak</span>
+        </div>
+        <ol class="board" id="boardList"></ol>
+      </section>
+
+      <aside>
+        <section class="card pad-md mb-4">
+          <h2 class="h-sm">Where the points come from</h2>
+          <ul class="xp-rules" id="xpRules"></ul>
+          <p class="tiny dim">
+            XP is worked out from finished attempts, so it cannot be typed in. A paper pays once a
+            day — retrying the same one the same evening is practice, not a second harvest.
+          </p>
+        </section>
+
+        <section class="card pad-md">
+          <h2 class="h-sm">Milestones</h2>
+          <ul class="milestones" id="milestones"></ul>
+        </section>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="shell footer-inner">
+    <div><strong>ArsVibe PW</strong> · free &amp; open learning</div>
+    <div class="row"><a href="/">Home</a><a href="/batches.html">Batches</a></div>
+  </div>
+</footer>
+
+<script type="module" src="/assets/leaderboard.js"></script>
+<script type="module" src="/assets/shell.mjs"></script>
+<script type="module" src="/assets/ui.js"></script>
+<script type="module" src="/assets/offline-boot.js"></script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import { cors, json, query } from "../lib/http.mjs";
+import { board, publish } from "../lib/leaderboard.mjs";
 import {
   resolveToken,
   pwHeaders,
@@ -217,9 +218,100 @@ export async function probePlayback(videoUrl) {
   }
 }
 
+/**
+ * GET  /api/token?route=board[&me=<browser id>&limit=50]  → the XP leaderboard
+ * POST /api/token?route=board                            → publish one row
+ *
+ * The leaderboard lives here for the same reason the DPP test lives on the PDF
+ * route: a deployment may carry only twelve serverless functions and this one is
+ * the site's small utility route. `route=board` is explicit, so nothing that
+ * already asks for the token state can land here by accident.
+ *
+ * Why the board is server-side at all, when XP itself is not: points can be a
+ * local record, but a *ranking* cannot. Two phones in one classroom have to see
+ * the same rows, and a row that a browser can write unchecked is not a board —
+ * hence lib/leaderboard.mjs, which validates and caps every write and says
+ * plainly whether it is backed by storage or by one instance's memory.
+ */
+async function leaderboardRoute(req, res) {
+  const params = query(req);
+
+  if (req.method === "GET") {
+    const out = await board({
+      me: String(params.me || "").slice(0, 64),
+      limit: Number(params.limit) || 50,
+    });
+    // A board is read on every dashboard visit and changes slowly; a short
+    // shared cache is enough to keep it off the function's critical path.
+    return json(res, 200, out, 15);
+  }
+
+  if (req.method === "POST") {
+    const payload = await readJson(req);
+    if (!payload || typeof payload !== "object") {
+      return json(res, 400, { success: false, error: "A JSON body is required." });
+    }
+    const out = await publish(payload);
+    return json(res, out.success ? 200 : 400, out);
+  }
+
+  res.setHeader("Allow", "GET, POST, OPTIONS");
+  return json(res, 405, { success: false, error: "Method not allowed" });
+}
+
+/**
+ * A bounded JSON body read.
+ *
+ * Vercel may hand the body over already parsed; the dev server streams it. Both
+ * are handled, and the size is capped because this route is reachable by anyone
+ * and a row is a few hundred bytes.
+ */
+async function readJson(req) {
+  if (req.body && typeof req.body === "object") return req.body;
+  if (typeof req.body === "string" && req.body.trim()) {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return null;
+    }
+  }
+  const raw = await new Promise((resolve) => {
+    let size = 0;
+    const chunks = [];
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    };
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > 8 * 1024) {
+        finish();
+        req.destroy?.();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", finish);
+    req.on("error", finish);
+    setTimeout(finish, 4000);
+  });
+  if (!raw.trim()) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
+
+  const { route } = query(req);
+  if (route === "board") return leaderboardRoute(req, res);
+
   if (req.method !== "GET") {
     return json(res, 405, { success: false, error: "Method not allowed" });
   }

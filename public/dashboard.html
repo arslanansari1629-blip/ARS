@@ -41,6 +41,7 @@
       <a href="/open" data-page="open">Opening</a>
       <a href="/batches.html" data-page="batches">Batches</a>
       <a href="/batches.html#dpp-tests" data-page="dpp-tests">DPP Tests</a>
+      <a href="/leaderboard.html" data-page="leaderboard">Leaderboard</a>
       <a href="/favourites.html" data-page="favourites">Favourites</a>
       <a href="/library.html" data-page="library">My Library</a>
       <a href="/downloads.html" data-page="downloads">Downloads</a>
@@ -63,6 +64,31 @@
         <button class="btn btn-ghost btn-sm" id="signOutBtn">Sign out</button>
       </div>
     </div>
+
+    <!-- XP, level and streak: the same record the leaderboard reads, shown
+         first because it is the one line a student checks daily. -->
+    <section class="xp-band" id="xpBand" aria-live="polite">
+      <div class="xp-band-main">
+        <span class="eyebrow">Your progress</span>
+        <div class="xp-line">
+          <strong id="xpTotal">0</strong><span class="xp-unit">XP</span>
+          <span class="xp-level" id="xpLevel">Level 1</span>
+        </div>
+        <div class="xp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="xpBar">
+          <span class="xp-bar-fill" id="xpBarFill"></span>
+        </div>
+        <p class="tiny dim" id="xpNext">One marked paper is 50 XP.</p>
+      </div>
+      <div class="xp-band-side">
+        <div class="streak-big" id="streakBig">
+          <strong id="streakCurrent">0</strong>
+          <span>day streak</span>
+        </div>
+        <ol class="streak-week" id="streakWeek" aria-label="The last seven days"></ol>
+        <p class="tiny dim" id="streakNote"></p>
+        <a class="tiny link" href="/leaderboard.html">See the board →</a>
+      </div>
+    </section>
 
     <div class="stat-grid mb-5">
       <div class="stat"><strong id="statBatches">0</strong><span>Batches opened</span></div>

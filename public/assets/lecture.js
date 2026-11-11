@@ -15,6 +15,7 @@ import {
   ORIGIN,
 } from "./app.js";
 import { trackLecture } from "./library.js";
+import { award } from "./progress.js";
 import { loadLecture, loadContents } from "./data.js";
 import { upstream as upstreamJson } from "./client-api.js";
 import { ProPlayer, fmtTime, folderOf } from "./player.js";
@@ -1507,6 +1508,39 @@ document.addEventListener("keydown", (e) => {
   action();
 });
 
+/* ---------------------------------- xp ----------------------------------- */
+
+/*
+ * Two awards from watching, both keyed on the lecture so neither can be farmed
+ * by reloading:
+ *
+ *   · 20 minutes actually watched — the point where a student is studying
+ *     rather than opening a tab to see whether it loads;
+ *   · the lecture finished, which only counts within a minute of the real end
+ *     (a scrub to the last second is not a class attended).
+ *
+ * XP comes from the player's own clock, so it is a record of what was watched,
+ * not a claim the page makes about itself.
+ */
+let deepest = 0;
+let paid20 = false;
+
+function noteWatchTime() {
+  const t = Number(video.currentTime) || 0;
+  if (t > deepest) deepest = t;
+  if (!paid20 && deepest >= 20 * 60) {
+    paid20 = true;
+    award("watch20", `watch20:${lectureId}`, { meta: { lecture: lectureId } });
+  }
+}
+
+video.addEventListener("ended", () => {
+  const dur = Number(video.duration) || 0;
+  if (dur && Number(video.currentTime) >= dur - 60) {
+    award("lecture", `lecture:${lectureId}`, { meta: { lecture: lectureId, batch: batchId } });
+  }
+});
+
 /* ------------------------------- position -------------------------------- */
 
 function savePositionNow() {
@@ -1520,6 +1554,7 @@ document.addEventListener("visibilitychange", () => {
 });
 let lastSave = 0;
 video.addEventListener("timeupdate", () => {
+  noteWatchTime();
   const now = Date.now();
   if (now - lastSave > 4000) {
     lastSave = now;

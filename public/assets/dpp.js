@@ -11,6 +11,7 @@
  */
 
 import { mountChrome, esc, qs, toast, setPageMeta } from "./app.js";
+import { recordPaper, progress, levelInfo } from "./progress.js";
 
 mountChrome("batches");
 
@@ -532,6 +533,17 @@ async function submit() {
     // a blank Practice button as if the paper were untouched.
     rememberScore(data.result);
     forget();
+
+    // XP is awarded from what the *server* marked, never from the browser's own
+    // count, and never twice for the same paper on the same day (see progress.js).
+    const earned = recordPaper({
+      url: paperUrl,
+      correct: Number(data.result?.correct) || 0,
+      scored: Number(data.result?.scored) || 0,
+      percent: Number(data.result?.percent) || 0,
+      title: data.title || paperName || "",
+    });
+    showEarned(earned);
   } catch (err) {
     // Marking is a server round trip; a paper that was answered should not be
     // lost because that round trip failed. Put the attempt back, unlocked.
@@ -835,3 +847,56 @@ function focusIndex() {
 window.addEventListener("pagehide", () => {
   if (!state.submitted) save();
 });
+
+/* -------------------------------------------------------------------- xp */
+
+/**
+ * Say what the attempt was worth, once, in the place the student is already
+ * looking — the analysis, above the scorecard.
+ *
+ * Nothing is shown for an attempt that earned nothing new (a repeat of a paper
+ * already paid for today): the honest reading of that is "already counted", not
+ * a zero. The line is a live region, so a screen reader hears the result of the
+ * submit without having to find it.
+ */
+function showEarned(earned) {
+  const host = document.getElementById("dppEarned");
+  if (!host) return;
+  const fresh = earned?.awards || [];
+  if (!fresh.length) {
+    host.hidden = true;
+    host.innerHTML = "";
+    return;
+  }
+
+  const total = fresh.reduce((sum, a) => sum + (Number(a.points) || 0), 0);
+  // The paper's own arithmetic, in the student's words: base, marks, and the
+  // rare clean sweep. Named separately so "+X XP" is never a number from nowhere.
+  const b = earned.breakdown || {};
+  const parts = [
+    `paper marked <b>+${b.base ?? 50}</b>`,
+    b.answers ? `${earned.awards.find((a) => a.kind === "dpp")?.meta?.correct ?? ""} correct <b>+${b.answers}</b>` : "",
+    b.perfect ? `perfect paper <b>+${b.perfect}</b>` : "",
+    fresh.some((a) => a.kind === "daily") ? `showed up today <b>+30</b>` : "",
+  ].filter(Boolean);
+
+  const lvl = levelInfo(progress().xp);
+  host.hidden = false;
+  host.innerHTML = `
+    <div class="earned-main">
+      <span class="earned-xp">+${total} XP</span>
+      <span class="earned-list">${parts.join(" · ")}</span>
+    </div>
+    <div class="earned-side">
+      ${earned.streak?.current ? `<span class="earned-streak">🔥 ${earned.streak.current}-day streak${earned.streakStarted ? "" : " (already counted today)"}</span>` : ""}
+      <a class="earned-link" href="/leaderboard.html">Level ${lvl.level} · ${esc(lvl.title)} — see the board →</a>
+    </div>`;
+}
+
+const LABEL = {
+  dpp: "paper marked",
+  daily: "showed up today",
+  lecture: "lecture finished",
+  note: "note read",
+  watch20: "20 minutes watched",
+};

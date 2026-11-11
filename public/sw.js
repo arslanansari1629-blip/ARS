@@ -40,6 +40,9 @@ const SHELL_ASSETS = [
   // The opening sheet: /open is cached as a document (below), and the front
   // door fills itself from it on the first visit of a session.
   "/assets/open.js",
+  // Progress is read on the dashboard and the board, needs no request to be
+  // useful, and is small enough to pre-cache with the shell.
+  "/assets/progress.js",
   "/assets/logo.svg",
   "/assets/icon.svg",
   // The fallback page has to be here, not merely cached when someone happens to

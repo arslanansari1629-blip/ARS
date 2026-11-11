@@ -29,6 +29,7 @@ const REQUIRED_PAGES = [
   "library.html",
   "favourites.html",
   "downloads.html",
+  "leaderboard.html",
   "admin.html",
   "404.html",
 ];

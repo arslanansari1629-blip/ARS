@@ -5,6 +5,41 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AF — XP, a daily streak, and a leaderboard
+
+**The problem.** The site could record work and had nowhere to put the record. A student finished a
+paper, saw a percentage, and that was the end of it: no accumulated standing, no reason to come back
+tomorrow, and nothing that answered "am I actually keeping up?".
+
+**What shipped.**
+
+- **XP for finished work, from the marked result.** A DPP paper pays 50, its correct answers 6 each,
+  a clean sweep 40 more; a finished lecture 15, twenty minutes actually watched 20, a class note 8.
+  Levels widen as they rise (220 XP then +25% each), with names in the site's own register —
+  starting sheet, set square, draftsman, surveyor, chief engineer.
+- **A streak that says when it is at risk.** Five days of papers is a five-day run; the sixth day
+  with no paper yet is *at risk*, stated, not quietly still running.
+- **`/leaderboard.html`** — your standing, a seven-day strip, the board with your own row marked,
+  where every point comes from, and the milestones ahead. The dashboard carries the same band.
+- **`GET|POST /api/token?route=board`** — the board, folded into an existing function because the
+  deployment is at the ten-function mark and Hobby allows twelve.
+
+**The two bugs this round was really about.**
+
+1. **The paper paid twice.** The base award, the marks, the perfect score and the daily were keyed
+   separately, so re-sitting the same paper the same evening with two more right paid again — the
+   cheapest possible exploit, discovered by the test that asserted a repeat pays nothing. A paper is
+   one award; its marks are *components* of it, in `meta.breakdown`, and the key is the paper and the
+   day.
+2. **A stale tab could demote a student.** A row is the player's best score, but level and streak
+   were being taken from whichever request arrived last — "800 XP, level 1". Whichever score wins
+   now keeps its own level and streak; only the name and the timestamp refresh.
+
+**Honest limit.** Without a store attached to the project, the board is one warm function instance's
+memory. The route says exactly that (`store: "memory"`, `persistent: false`) and the page repeats
+it, rather than calling one instance a worldwide ranking. Attaching `POSTGRES_URL` or
+`KV_REST_API_URL` makes it real with no code change.
+
 ## Round AE — two things left owed
 
 **A diagnostic that had become a public window.** `?probe=extract` was added to
