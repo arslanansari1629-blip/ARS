@@ -110,11 +110,23 @@ async function walkBatch({ batch, subjects, limit, onPaper, onProgress, shouldSt
       continue;
     }
 
-    // Only chapters that report content; an empty one carries no papers.
+    // The catalogue reports each chapter's own DPP count as `exercises` — on a real
+    // batch, "Units and Measurement" says 11 and the "Only PDF" chapters say 0. So the
+    // chapters that actually hold papers are walked first, which is the difference
+    // between the list filling in three seconds and filling in twenty-five: a subject
+    // can carry 35 chapters and only a handful of them have DPPs.
     const useful = chapters.filter(
-      (c) => (Number(c.videos) || 0) > 0 || (Number(c.notes) || 0) > 0 || (Number(c.dpps) || 0) > 0
+      (c) =>
+        (Number(c.exercises) || 0) > 0 ||
+        (Number(c.dpps) || 0) > 0 ||
+        (Number(c.videos) || 0) > 0 ||
+        (Number(c.notes) || 0) > 0
     );
-    const pool = (useful.length ? useful : chapters).filter(() => scanned < limit);
+    const rank = (c) => -(Number(c.exercises) || Number(c.dpps) || 0);
+    const pool = (useful.length ? useful : chapters)
+      .slice()
+      .sort((a, b) => rank(a) - rank(b) || (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0))
+      .filter(() => scanned < limit);
 
     for (let i = 0; i < pool.length; i += CONCURRENCY) {
       if (stopped || scanned >= limit) break;

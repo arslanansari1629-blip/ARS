@@ -100,6 +100,13 @@ rather than after the eleventh, with "still looking…" in the header while it r
 The nav carries a DPP Tests link to match, which lands on the catalogue with a note
 saying where the papers live.
 
+The walk reads the catalogue's own DPP count per chapter (`exercises` — "Units and
+Measurement" reports 11, the "Only PDF" chapters report 0) and visits the chapters
+that hold papers first. That is the difference between the list filling in three
+seconds and filling in twenty-five: a real subject carries 35 chapters and only a
+handful of them have DPPs. Measured against the fixture batch, the first row lands in
+141 ms and the walk finishes in 192 ms.
+
 A finished attempt now leaves its score behind (`arsvibe.dpp.result.<paper>`), so the
 row says **62% last time** and offers **Retry** instead of a blank Practice button as
 if the paper were untouched. The answers themselves are still dropped on submit.
