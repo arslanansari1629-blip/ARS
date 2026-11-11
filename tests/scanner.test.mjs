@@ -389,6 +389,11 @@ test("the scheduler ticks at most once every five minutes", async () => {
 
   // A tick really did the work, not just moved a number.
   assert.equal(scheduleReport().slices, 1, "the tick started no slice");
+  // And the caller can wait for it: a slice the platform freezes at response time
+  // finishes nothing, so the request that started one has to be able to hold.
+  const slice = await first.slice;
+  assert.ok(slice && slice.pass, "the tick handed back nothing to wait for");
+  assert.ok(slice.pass.checks > 0, "the awaited slice ran no checks");
 });
 
 test("a tick with no origin refuses rather than inventing one", async () => {

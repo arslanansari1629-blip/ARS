@@ -1,5 +1,5 @@
 import { json, cors, query, methodNotAllowed, proxyFallback } from "../lib/http.mjs";
-import { tick } from "../lib/scheduler.mjs";
+import { tick, TICK_GRACE_MS } from "../lib/scheduler.mjs";
 import { CATALOG_SORTS as SORTS, normaliseSort } from "../lib/catalog.mjs";
 import { fetchCatalogPage, searchCatalog } from "../lib/api-data.mjs";
 import {
@@ -33,10 +33,10 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "GET") return methodNotAllowed(res);
 
-  // Five-minute cadence: cheap when it is not time (two number comparisons),
-  // detached when it is, and it can never throw into the request.
+  // Five-minute cadence: two number comparisons when it is not time, and a
+  // bounded wait when it is. It can never throw into the request.
   //
-  // The header is the only way to see this from outside. Each function instance
+  // The headers are the only way to see this from outside. Each function instance
   // has its own memory, so the admin panel's copy of the scheduler cannot see a
   // tick that happened here — an operator checking whether the cadence is real
   // needs the route that ran it to say so.
@@ -44,6 +44,16 @@ export default async function handler(req, res) {
     const t = tick(req);
     res.setHeader("X-Scan-Tick", t.ticked ? "started" : "wait");
     if (t.nextInMs) res.setHeader("X-Scan-Next", String(Math.ceil(t.nextInMs / 1000)));
+    if (t.ticked && t.slice) {
+      // Hold for the slice, but never longer than the grace. The alternative — a
+      // fully detached slice — is one the platform may freeze the moment the
+      // response is sent, which is a scheduler that quietly finishes nothing.
+      const done = await Promise.race([
+        t.slice.then(() => "done").catch(() => "failed"),
+        new Promise((resolve) => setTimeout(() => resolve("running"), TICK_GRACE_MS)),
+      ]);
+      res.setHeader("X-Scan-Slice", done);
+    }
   } catch {
     /* a scheduler fault must not cost a catalogue page */
   }
