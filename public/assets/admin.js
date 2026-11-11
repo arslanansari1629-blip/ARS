@@ -978,6 +978,11 @@ const dppTest = {
   endsAt: 0,
   timer: null,
   submitted: false,
+  /** The marked attempt, as the server returned it. */
+  result: null,
+  /** index → { outcome } once submitted, for the per-question marks. */
+  outcomes: new Map(),
+  filter: "all",
 };
 
 function dppPapersError(message) {
@@ -1065,10 +1070,12 @@ async function openDppPaper(index) {
   block.scrollIntoView?.({ behavior: "smooth", block: "start" });
 
   try {
-    const res = await fetch(
-      `/api/admin?action=dpp-paper&url=${dppQ(paper.url)}&name=${dppQ(paper.title)}`,
-      { headers: { "x-admin-token": token } }
-    );
+    // The *public* practice route, deliberately: it hands out the questions and
+    // withholds the key, so the panel runs the same test a student would. Reading
+    // it through the admin route would send the answers with the questions, and
+    // an operator cannot then tell a broken paper from a paper they have already
+    // seen the key for.
+    const res = await fetch(`/api/pdf?dpp=${dppQ(paper.url)}&name=${dppQ(paper.title)}`);
     const data = await res.json();
     if (!data.success) {
       $("#dppTestMeta").textContent = "could not read";
@@ -1088,10 +1095,18 @@ async function openDppPaper(index) {
 
 function startDppTest(paper, meta) {
   dppTest.paper = paper;
+  // Kept separately: `paper` is the payload, and the POST needs the URL it came
+  // from. Assigning it onto the payload would send the key back to the server
+  // inside the object the renderer iterates.
+  dppTest.paperSourceUrl = meta?.url || paper.url || "";
   dppTest.answers = new Map();
   dppTest.submitted = false;
+  dppTest.result = null;
+  dppTest.outcomes = new Map();
+  dppTest.filter = "all";
+  $("#dppTestFilter").hidden = true;
 
-  const runnable = (paper.questions || []).filter((q) => !q.textOnly);
+  const runnable = (paper.questions || []).filter((q) => q.scorable);
   const stats = paper.stats || { total: 0, answerable: runnable.length };
   $("#dppTestMeta").textContent = [
     `${stats.total} question${stats.total === 1 ? "" : "s"}`,
@@ -1150,9 +1165,16 @@ function renderTestQuestion(question, index) {
 }
 
 function updateTestProgress() {
-  const total = (dppTest.paper?.questions || []).filter((q) => !q.textOnly).length;
-  const answered = dppTest.answers.size;
-  $("#dppTestProgress").textContent = `${answered} of ${total} answered`;
+  const total = (dppTest.paper?.questions || []).filter((q) => q.scorable).length;
+  const answered = [...dppTest.answers.keys()].filter(
+    (index) => dppTest.paper?.questions?.[index]?.scorable
+  ).length;
+  const progress = $("#dppTestProgress");
+  if (dppTest.submitted && dppTest.result) {
+    progress.textContent = `submitted · ${dppTest.result.percent}%`;
+    return;
+  }
+  progress.textContent = `${answered} of ${total} answered`;
 }
 
 function startTestClock() {
@@ -1177,77 +1199,211 @@ function stopTestClock() {
   dppTest.timer = null;
 }
 
-function submitDppTest() {
+/**
+ * Submit the attempt and show the analysis.
+ *
+ * The marking is the server's, not this file's: answers go to
+ * `POST /api/pdf?dpp=…`, which reads the paper again and marks against its own
+ * key. Marking in the browser would mean the key has to be *in* the browser,
+ * which is the one thing the practice route exists to avoid — and it is why the
+ * questions arrive without their answers.
+ *
+ * The per-question marks are still painted here, from the server's verdict, so a
+ * wrong answer shows what the right one was on the paper itself.
+ */
+async function submitDppTest() {
   if (dppTest.submitted || !dppTest.paper) return;
   dppTest.submitted = true;
   stopTestClock();
+  const button = $("#dppTestSubmit");
+  button.disabled = true;
+  button.textContent = "Marking…";
 
-  const questions = dppTest.paper.questions || [];
-  let correct = 0;
-  let wrong = 0;
-  let skipped = 0;
+  let data = null;
+  try {
+    const res = await fetch(`/api/pdf?dpp=${dppQ(dppTest.paperSourceUrl)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        answers: Object.fromEntries(dppTest.answers),
+        elapsedMs: Math.max(0, Date.now() - dppTest.startedAt),
+      }),
+    });
+    data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || "The paper could not be marked.");
+  } catch (err) {
+    // A failed marking must not eat the attempt: unlock the paper so it can be
+    // submitted again, and say what happened.
+    dppTest.submitted = false;
+    button.disabled = false;
+    button.textContent = "Submit test";
+    dppTest.startedAt = dppTest.startedAt || Date.now();
+    if (dppTest.endsAt) startTestClock();
+    $("#dppTestProgress").textContent = "marking failed — try again";
+    $("#dppTestResult").hidden = false;
+    $("#dppTestResult").innerHTML = `<p class="dpp-locked-note">${esc(
+      err?.message || "The paper could not be marked."
+    )}</p>`;
+    return;
+  }
 
-  questions.forEach((question, index) => {
+  dppTest.result = data.result;
+  dppTest.outcomes = new Map((data.review || []).map((row) => [row.index, row]));
+
+  (dppTest.paper.questions || []).forEach((question, index) => {
     const row = document.getElementById(`dpp-q-${index}`);
     if (!row) return;
     const chosen = dppTest.answers.get(index) || "";
+    const verdict = dppTest.outcomes.get(index);
     const note = row.querySelector(".dpp-question-note");
 
     row.querySelectorAll("input[type=radio]").forEach((input) => {
       input.disabled = true;
       const letter = input.getAttribute("data-letter");
       const label = input.closest("label");
-      if (letter === question.answer) label.classList.add("is-correct");
-      if (letter === chosen && chosen !== question.answer) label.classList.add("is-wrong");
+      if (question.scorable && letter === verdict?.answer) label.classList.add("is-correct");
+      if (question.scorable && letter === chosen && chosen !== verdict?.answer) {
+        label.classList.add("is-wrong");
+      }
       if (letter === chosen) input.checked = true;
     });
 
-    if (!question.answer) {
-      note.textContent = "No answer in the paper's key for this question.";
-      note.className = "dpp-question-note tiny dim";
+    if (!verdict) {
+      note.textContent = "";
       return;
     }
-    if (!chosen) {
-      skipped += 1;
-      note.textContent = `Not answered · answer is ${question.answer}`;
-      note.className = "dpp-question-note tiny dim";
-      return;
-    }
-    if (chosen === question.answer) {
-      correct += 1;
-      note.textContent = "Correct";
-      note.className = "dpp-question-note tiny is-ok";
-    } else {
-      wrong += 1;
-      note.textContent = `Wrong · answer is ${question.answer}`;
-      note.className = "dpp-question-note tiny is-bad";
-    }
+    const labels = {
+      correct: ["Correct", "dpp-question-note tiny is-ok"],
+      wrong: [`Wrong · answer is ${verdict.answer}`, "dpp-question-note tiny is-bad"],
+      skipped: [`Not answered · answer is ${verdict.answer}`, "dpp-question-note tiny dim"],
+      unscored: [
+        verdict.answer
+          ? `Not scorable from the PDF · the key says ${verdict.answer}`
+          : "No answer in the paper's key for this question.",
+        "dpp-question-note tiny dim",
+      ],
+    };
+    const [text, className] = labels[verdict.outcome] || ["", "dpp-question-note tiny"];
+    note.textContent = text;
+    note.className = className;
   });
 
-  const scored = correct + wrong + skipped;
-  const percent = scored ? Math.round((correct / scored) * 100) : 0;
+  renderTestResult(data);
+  button.textContent = "Submitted";
+  updateTestProgress();
+}
+
+/** The scorecard and the review list, once the server has marked the paper. */
+function renderTestResult(data) {
+  const result = data.result || {};
   const box = $("#dppTestResult");
   box.hidden = false;
   box.innerHTML = `
     <div class="dpp-score">
       <div class="dpp-score-main">
-        <strong>${correct}</strong>
-        <span>of ${scored} correct</span>
+        <strong>${Number(result.correct) || 0}</strong>
+        <span>of ${Number(result.scored) || 0} correct</span>
       </div>
       <div class="dpp-score-detail">
-        <span class="is-ok">${correct} correct</span>
-        <span class="is-bad">${wrong} wrong</span>
-        <span class="dim">${skipped} skipped</span>
-        <span class="dim">${percent}%</span>
+        <span class="is-ok">${Number(result.correct) || 0} correct</span>
+        <span class="is-bad">${Number(result.wrong) || 0} wrong</span>
+        <span class="dim">${Number(result.skipped) || 0} skipped</span>
+        ${result.unscored ? `<span class="dim">${result.unscored} not scorable</span>` : ""}
+        <span class="dim">${Number(result.percent) || 0}%</span>
       </div>
-    </div>`;
-  $("#dppTestSubmit").disabled = true;
-  $("#dppTestProgress").textContent = `submitted · ${percent}%`;
+    </div>
+    ${
+      result.focus && result.focus.length
+        ? `<p class="tiny dim mt-2">Worth another look: ${result.focus
+            .map((n) => `Q${esc(n)}`)
+            .join(", ")}.</p>`
+        : ""
+    }`;
+
+  $("#dppTestFilter").hidden = !(data.review || []).length;
+  renderDppReview();
 }
+
+/** The review list, filtered — the analysis half of the panel's runner. */
+function renderDppReview() {
+  const rows = [];
+  (dppTest.paper?.questions || []).forEach((question, index) => {
+    const verdict = dppTest.outcomes.get(index);
+    if (!verdict) return;
+    if (dppTest.filter !== "all" && verdict.outcome !== dppTest.filter) return;
+    rows.push({ question, verdict });
+  });
+
+  const host = $("#dppTestReview");
+  if (!rows.length) {
+    host.innerHTML = `<p class="tiny dim dpp-empty">${
+      dppTest.filter === "wrong" ? "No wrong answers." : "Nothing was left blank."
+    }</p>`;
+    return;
+  }
+
+  const LABELS = {
+    correct: ["Correct", "is-ok"],
+    wrong: ["Wrong", "is-bad"],
+    skipped: ["Not answered", "dim"],
+    unscored: ["Not scorable", "dim"],
+  };
+
+  host.innerHTML = rows
+    .map(({ question, verdict }) => {
+      const [label, tone] = LABELS[verdict.outcome] || ["—", "dim"];
+      const options = (verdict.options || [])
+        .map((option) => {
+          const isAnswer = verdict.outcome !== "unscored" && option.letter === verdict.answer;
+          const isChosen = option.letter === verdict.chosen;
+          const cls = [
+            "dpp-option",
+            isAnswer ? "is-correct" : "",
+            isChosen && !isAnswer ? "is-wrong" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return `<li class="${cls}">
+            <span class="dpp-option-key">${esc(option.letter)}</span>
+            <span>${esc(option.text)}</span>
+            ${isAnswer ? `<span class="dpp-rev-tag">key</span>` : ""}
+          </li>`;
+        })
+        .join("");
+      return `
+        <article class="dpp-question dpp-rev is-${verdict.outcome}">
+          <header class="dpp-rev-head">
+            <span class="dpp-question-num">Q${esc(question.number)}</span>
+            <span class="dpp-rev-badge ${tone}">${esc(label)}</span>
+          </header>
+          <p class="dpp-question-text">${esc(question.text || "—")}</p>
+          ${options ? `<ul class="dpp-options">${options}</ul>` : ""}
+          <p class="tiny dim">${
+            verdict.outcome === "correct"
+              ? `You answered ${esc(verdict.chosen)}.`
+              : verdict.answer
+                ? `You answered ${esc(verdict.chosen || "nothing")}; the key says ${esc(verdict.answer)}.`
+                : "This question has no answer in the paper's key."
+          }</p>
+        </article>`;
+    })
+    .join("");
+}
+
+$("#dppTestFilter")?.addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-filter]");
+  if (!tab) return;
+  dppTest.filter = tab.dataset.filter;
+  $("#dppTestFilter")
+    .querySelectorAll("[data-filter]")
+    .forEach((el) => el.classList.toggle("active", el === tab));
+  renderDppReview();
+});
 
 function closeDppTest() {
   stopTestClock();
   dppTest.paper = null;
+  dppTest.paperSourceUrl = "";
   dppTest.answers = new Map();
   dppTest.submitted = false;
   $("#dppTestBlock").hidden = true;

@@ -131,11 +131,36 @@ function videoRow(item, index) {
     </a>`;
 }
 
+/**
+ * Where "Practice" sends a student.
+ *
+ * A DPP paper is a real test, not a PDF to read: `/dpp` reads the paper's
+ * questions and marks the attempt against its own key. The chapter is passed
+ * along so the analysis can send them back to the exact tab they came from.
+ */
+function practiceUrl(doc) {
+  const params = new URLSearchParams({
+    paper: doc.url || "",
+    name: doc.topic || doc.name || "DPP",
+    batch: batchId,
+    subject: subjectSlug,
+    chapter: chapterId,
+    chapterName: chapterName || "",
+  });
+  return `/dpp.html?${params.toString()}`;
+}
+
 function docRow(doc) {
   const viewer = `/viewer.html?url=${encodeURIComponent(doc.url)}&name=${encodeURIComponent(doc.name)}`;
   // `data-keep` names the relay URL the worker should store — the same bytes the
   // reader shows, so the copy that is kept is the copy that will open.
   const keep = `/api/media?url=${encodeURIComponent(doc.url)}`;
+  // Only the questions of a DPP tab are a test; a class note is not.
+  const practice =
+    type === "DppNotes"
+      ? `<a class="btn btn-primary btn-sm" href="${esc(practiceUrl(doc))}"
+           title="Attempt this paper and get it marked">Practice</a>`
+      : "";
   return `
     <div class="doc-row fade-up">
       <span class="pdf">PDF</span>
@@ -143,6 +168,7 @@ function docRow(doc) {
         <span class="name">${esc(doc.name)}</span>
         <span class="meta">${esc(doc.topic || doc.note || "Document")}</span>
       </span>
+      ${practice}
       <button class="btn btn-ghost btn-sm keep-btn" type="button" data-keep="${esc(keep)}" title="Keep this file on this device" aria-label="Keep ${esc(doc.name)} on this device">Keep</button>
       <a class="btn btn-ghost btn-sm" href="${viewer}" target="_blank" rel="noopener">Open</a>
       <a class="btn btn-ghost btn-sm" href="/api/media?url=${encodeURIComponent(doc.url)}" download>Download</a>

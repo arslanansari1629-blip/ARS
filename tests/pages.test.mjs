@@ -2163,3 +2163,46 @@ test("the wait says what it is waiting for, and for how long", async () => {
     "the clock survives the overlay closing"
   );
 });
+
+/**
+ * The DPP tab is where a student meets the practice test: every row there is a
+ * paper that can be attempted, and the notes tab is not. A "Practice" button on
+ * a class note would be a promise the site cannot keep, so both cases are
+ * asserted rather than only the happy one.
+ */
+test("the DPP tab offers Practice on every paper, and the notes tab does not", async () => {
+  const url =
+    "/chapter.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822" +
+    "&chapter=6a6b461cce4ac4e9ab51ee98&name=Ch%2001#dpp";
+  const { doc, dom } = await render(url, { waitForSelector: "#body .doc-row", settle: 900 });
+
+  const active = doc.querySelector("#tabs .tab.active");
+  assert.equal(active?.dataset.type, "DppNotes", "the #dpp hash must open the DPP tab");
+
+  const rows = doc.querySelectorAll("#body .doc-row");
+  assert.ok(rows.length >= 1, "no DPP rows to practise");
+  const practice = rows[0].querySelector('a[href^="/dpp.html?"]');
+  assert.ok(practice, "a DPP row has no Practice link");
+  const href = new URL(practice.getAttribute("href"), "http://x.test");
+  // The link must carry the paper, and enough context to come back to the chapter.
+  assert.match(href.searchParams.get("paper") || "", /\.pdf/);
+  assert.equal(href.searchParams.get("chapter"), "6a6b461cce4ac4e9ab51ee98");
+  assert.ok(href.searchParams.get("name"), "the paper's name was not passed through");
+
+  // The notes tab is reading material: no Practice button there.
+  doc.querySelector('#tabs .tab[data-type="notes"]').click();
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    const noteRows = doc.querySelectorAll("#body .doc-row");
+    if (noteRows.length) {
+      assert.equal(
+        noteRows[0].querySelector('a[href^="/dpp.html?"]'),
+        null,
+        "a class note was offered as a practice paper"
+      );
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  dom.window.close();
+});

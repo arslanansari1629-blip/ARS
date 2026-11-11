@@ -100,7 +100,9 @@ api/                 Vercel serverless functions (Node runtime, ESM)
   stream.mjs         playable stream resolution
   check.mjs          playback self-test (one lecture, a URL, or a whole chapter)
   admin.mjs          operator API: sign-in, sessions, live stats (+ mounts /api/hls, /api/sign)
-  pdf.mjs            PDF resolution + redirect
+  pdf.mjs            PDF resolution + redirect, and the public DPP practice test
+                     (GET hands out the questions without the key, POST marks the
+                     attempt and returns the analysis)
   media.mjs          asset (PDF/image) relay
   pw/[...path].mjs   authenticated pass-through to the whole PW API surface
   token.mjs          token + auth self-test ("why is this lecture 401?")
@@ -114,12 +116,15 @@ lib/                 shared upstream client + normalisers (server side)
   sign.mjs           signed-playlist relay (mounted on api/admin.mjs)
 public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
+  dpp.html           attempt a DPP paper and read the analysis
   viewer.html login.html dashboard.html library.html favourites.html 404.html
   admin.html         the operator panel (noindex, its own plate)
   assets/            arsvibe.css (the whole design system) · app.js · data.js · page modules
 data/batches.json.gz complete batch catalogue (13,631 upstream → 14,201 with the full list)
 scripts/dev.mjs      local dev server (same (req,res) contract as Vercel)
 scripts/fixture-upstream.mjs   offline fixture upstream for tests only
+scripts/build-paper-fixtures.mjs  regenerate the DPP paper PDFs the tests read
+scripts/inspect-paper.mjs      print how a DPP paper was read (diagnose a bad one)
 scripts/fetch-catalogue.mjs    refresh data/batches.json.gz from the source list
 tests/               jsdom end-to-end tests for every page + API
 legacy/              the Flask document-scanner project that previously lived in this repo
@@ -220,6 +225,38 @@ The allowlisted hosts are mirrors of the same API but they do not overlap comple
 Both transports apply that rule — the HTTP route and `pwFetch()`, which is what the site's
 own pages call — and a test pins them together. The signer endpoints also take the bearer as
 an `authorization` **query parameter**; data routes keep it in the header.
+
+## Attempting a DPP paper
+
+A DPP is a PDF, and the PDF has the questions and the key in it. `/dpp` turns that
+into a test a student can sit:
+
+```
+GET  /api/pdf?dpp=<paper url>          → the paper's questions and options, no key
+POST /api/pdf?dpp=<paper url>          → the marked attempt: score + per-question review
+```
+
+Both halves go through this origin, so the browser never talks to PW and the answer
+key is not in the page source of a test in progress. The key is only in the POST
+response, and the POST re-reads the paper rather than trusting anything the client
+sends about the answers.
+
+Two readers parse the PDF (`lib/dpp-paper.mjs`): one follows the text, one groups
+the runs by position. The positioned reader is what handles a real paper, because
+PW sets each option letter and its value as **separate runs** — `(A) (B) (C) (D)`
+on one line and `5 4 2 3` on the next — and a stream-order read pairs every letter
+with the wrong value. Both run; the one that recovers more scorable questions wins,
+and the response says which answered (`parser`).
+
+A question whose options are printed as an image is shown but **not scored**: the
+analysis counts it separately rather than marking it wrong.
+
+Diagnosing a paper that reads badly:
+
+```bash
+node scripts/inspect-paper.mjs <url-or-path>      # questions, options, key
+DPP_DUMP_LINES=1 node scripts/inspect-paper.mjs <url-or-path>   # the visual lines too
+```
 
 ## Is a lecture actually playable?
 

@@ -1,3 +1,7 @@
 User-agent: *
 Disallow: /admin
 Disallow: /api/admin
+
+# Practice papers are read live from Physics Wallah's PDFs; there is nothing to
+# rank here, and every URL is a paper that may disappear.
+Disallow: /dpp

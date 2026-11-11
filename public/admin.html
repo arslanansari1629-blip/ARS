@@ -181,10 +181,13 @@
             <h4>DPP papers <span class="tiny dim" id="dppPapersStamp"></span></h4>
             <button class="btn btn-ghost btn-sm" id="dppPapersLoad" type="button">Load papers</button>
           </div>
-          <p class="tiny dim mb-2">
+            <p class="tiny dim mb-2">
             One PDF per lecture. These are the papers Physics Wallah serves to a
             guest, with the questions and the answer key inside — pick one to run it
-            as a test.
+            as a test. The runner reads the paper through the same route the
+            public practice page uses, so the answers stay on the server until you
+            submit. To hand a paper to a student, open it from the chapter's
+            <strong>DPPs</strong> tab and press <strong>Practice</strong>.
           </p>
           <p class="admin-error" id="dppPapersError" role="alert" hidden></p>
           <ol class="admin-dpp-list admin-dpp-paper-list" id="dppPapers"></ol>
@@ -259,6 +262,14 @@
           </div>
         </form>
         <div class="admin-dpp-result" id="dppTestResult" hidden></div>
+
+        <!-- the analysis: only the questions worth reading again -->
+        <div class="tabs-mini mt-3" id="dppTestFilter" hidden>
+          <button class="tab active" type="button" data-filter="all">All</button>
+          <button class="tab" type="button" data-filter="wrong">Wrong</button>
+          <button class="tab" type="button" data-filter="skipped">Skipped</button>
+        </div>
+        <div class="dpp-review" id="dppTestReview"></div>
       </section>
 
       <!-- self-healing: visible here and nowhere else on the site -->

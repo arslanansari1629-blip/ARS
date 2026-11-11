@@ -778,6 +778,29 @@ test("the DPP test runner scores a real paper and shows the key", async () => {
   assert.equal([...doc.querySelectorAll("#dppTestQuestions input")].every((i) => i.disabled), true);
   assert.equal(doc.getElementById("dppTestSubmit").disabled, true);
 
+  /* The analysis: the panel asks the server for the marking, so `fetch` in this
+     test is a live request against the dev server — the score above is the
+     server's, not this file's arithmetic. The review list is what an operator
+     reads afterwards, and the filters are how they find the question to fix. */
+  assert.match(doc.getElementById("dppTestProgress").textContent, /submitted · 50%/);
+  assert.equal(doc.getElementById("dppTestFilter").hidden, false, "no review filters");
+  const review = doc.getElementById("dppTestReview");
+  assert.equal(review.querySelectorAll(".dpp-rev").length, 2, "the review list is empty");
+  assert.ok(review.querySelector(".dpp-rev.is-correct"), "the right answer is not in the review");
+  assert.ok(review.querySelector(".dpp-rev.is-wrong"), "the wrong answer is not in the review");
+  assert.match(
+    review.querySelector(".dpp-rev.is-wrong").textContent,
+    /key says B/,
+    "the review does not say what the key was"
+  );
+
+  // "Wrong" must narrow to the one question worth reading, not repaint everything.
+  doc.querySelector('#dppTestFilter [data-filter="wrong"]').dispatchEvent(
+    new window.MouseEvent("click", { bubbles: true })
+  );
+  assert.equal(review.querySelectorAll(".dpp-rev").length, 1);
+  assert.ok(review.querySelector(".dpp-rev.is-wrong"));
+
   // Signing out stops the panel's poller. Without it, the 20 s interval keeps the
   // Node process alive and the whole suite hangs after the last assertion — the
   // panel runs in this process, not in the window.

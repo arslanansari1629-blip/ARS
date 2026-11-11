@@ -49,6 +49,11 @@ const routes = [
   // The DPP *paper* PDF. Unlike the quiz, a paper is guest-readable, so the
   // fixture serves a real one and the whole extract-and-run path is testable.
   { match: /dpp-paper\.pdf$/, file: "dpp-paper.pdf", type: "application/pdf" },
+  // A reproduction of the *live* DPP 11 layout (option letters and values in
+  // separate runs) and a stacked variant. Both exist because a plain-text read
+  // gets them wrong, so they are what the practice tests assert against.
+  { match: /dpp-paper-real\.pdf$/, file: "dpp-paper-real.pdf", type: "application/pdf" },
+  { match: /dpp-paper-stacked\.pdf$/, file: "dpp-paper-stacked.pdf", type: "application/pdf" },
 ];
 
 http

@@ -1,0 +1,578 @@
+/**
+ * DPP practice — the public test route.
+ *
+ * The point of this feature is a working loop: read a paper, answer it, submit,
+ * get marked. So these tests run that loop against the dev server and the
+ * fixture upstream rather than against the parser alone — a paper that parses
+ * but cannot be answered is not the feature.
+ *
+ * The invariant worth guarding harder than any other: the answer key must not
+ * be in the GET. A practice test whose answers are in the page source is not a
+ * test, and that is a mistake nobody notices from the outside.
+ */
+
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { scorePaper, testPayload, parseDppPaperFromItems } from "../lib/dpp-paper.mjs";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const PORT = 4272;
+const FIXPORT = 4273;
+const BASE = `http://127.0.0.1:${PORT}`;
+
+const children = [];
+/** The same fetch the server uses; captured before any test stubs anything. */
+const REAL_FETCH = globalThis.fetch.bind(globalThis);
+
+function start(args, env = {}) {
+  const child = spawn(process.execPath, args, {
+    cwd: ROOT,
+    env: { ...process.env, ...env },
+    stdio: "ignore",
+  });
+  children.push(child);
+  return child;
+}
+
+async function waitFor(url, ms = 25000) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    try {
+      const res = await REAL_FETCH(url);
+      if (res.ok) return true;
+    } catch {
+      /* retry */
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`timed out waiting for ${url}`);
+}
+
+before(async () => {
+  start(["scripts/fixture-upstream.mjs"], { FIXTURE_PORT: String(FIXPORT) });
+  await waitFor(`http://127.0.0.1:${FIXPORT}/AllBatches?page=1`);
+  start(["scripts/dev.mjs"], {
+    PORT: String(PORT),
+    HOST: "127.0.0.1",
+    PW_UPSTREAM_BASE: `http://127.0.0.1:${FIXPORT}`,
+  });
+  await waitFor(`${BASE}/`);
+});
+
+after(() => {
+  for (const child of children) child.kill("SIGKILL");
+  // Belt and braces: any page still open (a failed test) must lose its clock
+  // before the process can exit.
+  for (const dom of openDoms) {
+    try {
+      dom.window.close();
+    } catch {
+      /* already closed */
+    }
+  }
+});
+
+const PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper.pdf`;
+const REAL_PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-real.pdf`;
+const STACKED_PAPER = () => `http://127.0.0.1:${FIXPORT}/dpp-paper-stacked.pdf`;
+
+async function get(pathname) {
+  const res = await REAL_FETCH(`${BASE}${pathname}`);
+  const body = await res.json().catch(() => ({}));
+  return { res, body };
+}
+
+async function post(pathname, payload) {
+  const res = await REAL_FETCH(`${BASE}${pathname}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await res.json().catch(() => ({}));
+  return { res, body };
+}
+
+/* ------------------------------------------------------- the reading loop */
+
+test("the practice route hands out a paper's questions without its key", async () => {
+  const { res, body } = await get(`/api/pdf?dpp=${encodeURIComponent(PAPER())}`);
+
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.equal(body.success, true);
+  assert.equal(body.source, "pdf");
+  assert.ok(body.questions.length >= 2, "no questions came back");
+  assert.equal(body.questions[0].number, 1);
+  assert.equal(body.questions[0].options.length, 4);
+  assert.equal(body.questions[0].scorable, true);
+  assert.ok(body.duration > 0, "the paper's own time limit was lost");
+  assert.ok(body.bytes > 1000, `the report claims ${body.bytes} bytes`);
+
+  // The invariant: no answer, anywhere, in any spelling.
+  const wire = JSON.stringify(body);
+  assert.equal(body.answerKey, undefined);
+  assert.equal(body.questions.some((q) => "answer" in q), false, "an answer was sent with the test");
+  assert.equal(/answerIndex|answerKey|"answer"/.test(wire), false, `the key leaked: ${wire.slice(0, 300)}`);
+});
+
+test("a submitted attempt is marked against the paper's own key, question by question", async () => {
+  // Q1 is B, Q2 is B in the fixture paper.
+  const { res, body } = await post(`/api/pdf?dpp=${encodeURIComponent(PAPER())}`, {
+    answers: { 0: "B", 1: "A" },
+    elapsedMs: 95_000,
+  });
+
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.equal(body.success, true);
+  const { result } = body;
+  assert.equal(result.total, 2);
+  assert.equal(result.correct, 1, "Q1 was answered correctly");
+  assert.equal(result.wrong, 1, "Q2 was answered wrongly");
+  assert.equal(result.skipped, 0);
+  assert.equal(result.percent, 50);
+  assert.equal(result.elapsedMs, 95_000);
+  assert.deepEqual(result.focus, [2], "the wrong answer was not flagged for revision");
+
+  // The review is what the analysis page renders, so it has to carry enough to
+  // show the question, both answers, and the reason.
+  assert.equal(body.review.length, 2);
+  const [first, second] = body.review;
+  assert.equal(first.outcome, "correct");
+  assert.equal(first.chosen, "B");
+  assert.equal(first.answer, "B");
+  assert.equal(first.text.length > 10, true);
+  assert.equal(first.options.length, 4);
+  assert.equal(second.outcome, "wrong");
+  assert.equal(second.chosen, "A");
+  assert.equal(second.answer, "B");
+});
+
+test("an unanswered paper is marked as skipped, not as wrong", async () => {
+  const { body } = await post(`/api/pdf?dpp=${encodeURIComponent(PAPER())}`, { answers: {} });
+  assert.equal(body.result.correct, 0);
+  assert.equal(body.result.wrong, 0);
+  assert.equal(body.result.skipped, 2);
+  assert.equal(body.result.percent, 0);
+  assert.equal(body.result.rows.every((r) => r.outcome === "skipped"), true);
+});
+
+test("the real DPP 11 layout is read with its options paired to the right letters", async () => {
+  const { body } = await get(`/api/pdf?dpp=${encodeURIComponent(REAL_PAPER())}`);
+  assert.equal(body.success, true, body.error);
+
+  // Five questions: four with readable options, one printed as an image.
+  assert.equal(body.questions.length, 5);
+  assert.equal(body.stats.unreadable, 1, "the image-only question should be the only unreadable one");
+
+  const [q1, q2] = body.questions;
+  assert.deepEqual(
+    q1.options.map((o) => o.text),
+    ["6 cm", "6.5 cm", "5.99 cm", "6.0 cm"]
+  );
+  // The trap: the values 5 / 4 / 2 / 3 are printed under the letters, and a
+  // stream-order read pairs them backwards.
+  assert.deepEqual(
+    q2.options.map((o) => o.text),
+    ["5", "4", "2", "3"]
+  );
+  assert.equal(q2.options.find((o) => o.letter === "A").text, "5");
+
+  // The image-only question is shown, says it is not scorable, and carries no key.
+  const imageOnly = body.questions.find((q) => q.number === 14);
+  assert.equal(imageOnly.scorable, false);
+  assert.equal("answer" in imageOnly, false, "a non-scorable question must not reveal its answer either");
+});
+
+test("a paper whose options are stacked under their letters still scores", async () => {
+  const { body } = await get(`/api/pdf?dpp=${encodeURIComponent(STACKED_PAPER())}`);
+  assert.equal(body.success, true, body.error);
+  assert.equal(body.questions.length, 2);
+  assert.deepEqual(
+    body.questions[0].options.map((o) => o.text),
+    ["0.0500", "0.05000", "0.0050", "5.0 x 10"]
+  );
+
+  const marked = await post(`/api/pdf?dpp=${encodeURIComponent(STACKED_PAPER())}`, {
+    answers: { 0: "A", 1: "B" },
+  });
+  assert.equal(marked.body.result.correct, 1);
+  assert.equal(marked.body.result.wrong, 1);
+  assert.equal(marked.body.result.percent, 50);
+});
+
+test("the image-only question is not scored against the student", async () => {
+  // Q1 B is right; Q2 B is right; Q6 A is right; Q12 B is right; Q14 is an image.
+  const { body } = await post(`/api/pdf?dpp=${encodeURIComponent(REAL_PAPER())}`, {
+    answers: { 0: "B", 1: "B", 2: "A", 3: "B", 4: "C" },
+  });
+  assert.equal(body.result.correct, 4);
+  assert.equal(body.result.wrong, 0);
+  assert.equal(body.result.unscored, 1, "the image-only question was counted against the attempt");
+  assert.equal(body.result.scored, 4, "only the four readable questions are marked");
+  assert.equal(body.result.percent, 100);
+  assert.equal(body.result.rows[4].outcome, "unscored");
+});
+
+/* ------------------------------------------------------- the guard rails */
+
+test("a paper is only read from the allowed hosts", async () => {
+  const { res, body } = await get(`/api/pdf?dpp=${encodeURIComponent("https://example.test/x.pdf")}`);
+  assert.equal(res.status, 400);
+  assert.equal(body.success, false);
+  assert.match(body.error, /Physics Wallah/i);
+
+  const relative = await get(`/api/pdf?dpp=${encodeURIComponent("/etc/passwd")}`);
+  assert.equal(relative.res.status, 400);
+});
+
+test("a link that is not a PDF is refused with a reason, not a blank paper", async () => {
+  // The fixture answers 404 for anything it does not know, which is the same
+  // shape as a dead CDN link.
+  const { res, body } = await get(
+    `/api/pdf?dpp=${encodeURIComponent(`http://127.0.0.1:${FIXPORT}/not-a-paper.pdf`)}`
+  );
+  assert.equal(res.status, 502);
+  assert.equal(body.success, false);
+  assert.ok(body.error, "a failed read must say why");
+});
+
+test("the practice page ships, links its module, and is statically sound", async () => {
+  const html = await readFile(path.join(ROOT, "public", "dpp.html"), "utf8");
+  assert.match(html, /<script type="module" src="\/assets\/dpp\.js">/);
+  assert.match(html, /rel="canonical"/);
+  assert.match(html, /id="dppSubmit"/);
+  assert.match(html, /id="dppReview"/);
+  assert.match(html, /class="skip-link"/);
+  const res = await REAL_FETCH(`${BASE}/dpp.html?paper=${encodeURIComponent(PAPER())}`);
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /DPP practice/);
+});
+
+/* ------------------------------------------------------- the scoring unit */
+
+test("scoring keys an answer by index, by string index, or by question number", () => {
+  const paper = {
+    questions: [
+      { number: 1, text: "a", options: [{ letter: "A", text: "x" }, { letter: "B", text: "y" }], answer: "A", textOnly: false },
+      { number: 7, text: "b", options: [{ letter: "A", text: "x" }, { letter: "B", text: "y" }], answer: "B", textOnly: false },
+    ],
+  };
+  const byIndex = scorePaper(paper, { 0: "A", 1: "B" });
+  assert.equal(byIndex.correct, 2);
+
+  const byString = scorePaper(paper, { "0": "A", "1": "B" });
+  assert.equal(byString.correct, 2);
+
+  const byNumber = scorePaper(paper, { 1: "A", 7: "B" }, { keyedBy: "number" });
+  assert.equal(byNumber.correct, 2);
+
+  // The default is positional, and must not be reinterpreted as numbering: index
+  // 1 on this paper is question 7, so a bare `{ 1: "A" }` answers question 7.
+  const positional = scorePaper(paper, { 1: "A" });
+  assert.equal(positional.rows[1].number, 7);
+  assert.equal(positional.wrong, 1);
+});
+
+test("a lower-case or padded answer is still the answer it names", () => {
+  const paper = {
+    questions: [
+      { number: 1, text: "a", options: [{ letter: "A", text: "x" }, { letter: "B", text: "y" }], answer: "B", textOnly: false },
+    ],
+  };
+  assert.equal(scorePaper(paper, { 0: " b " }).correct, 1);
+  assert.equal(scorePaper(paper, { 0: "z" }).wrong, 1, "an answer that is not an option is just wrong");
+});
+
+test("the test payload withholds every answer", () => {
+  const paper = {
+    title: "DPP",
+    duration: 30,
+    pages: 1,
+    questions: [
+      {
+        number: 1,
+        text: "a",
+        options: [{ letter: "A", text: "x" }, { letter: "B", text: "y" }],
+        answer: "B",
+        answerIndex: 1,
+        textOnly: false,
+        raw: "Q1 a (A) x (B) y",
+      },
+    ],
+    answerKey: { 1: "B" },
+    stats: { total: 1, answerable: 1, unreadable: 0 },
+  };
+  const payload = testPayload(paper);
+  assert.equal(JSON.stringify(payload).includes('"answer"'), false);
+  assert.equal(payload.questions[0].scorable, true);
+  assert.deepEqual(payload.questions[0].options.map((o) => o.letter), ["A", "B"]);
+  // `raw` is the paper's own text, which contains the key for a table-shaped
+  // paper — it must not travel to the browser either.
+  assert.equal("raw" in payload.questions[0], false);
+});
+
+test("the positioned reader pairs a value with the marker on its left", () => {
+  // (A) at x=50, (B) at x=200; the values sit beside them, in one row.
+  const items = [
+    { str: "Q1 what is the answer?", x: 50, y: 500, width: 200, fontSize: 11 },
+    { str: "(A)", x: 50, y: 480, width: 20, fontSize: 11 },
+    { str: "6 cm", x: 76, y: 480, width: 30, fontSize: 11 },
+    { str: "(B)", x: 200, y: 480, width: 20, fontSize: 11 },
+    { str: "6.5 cm", x: 226, y: 480, width: 40, fontSize: 11 },
+    { str: "(C)", x: 340, y: 480, width: 20, fontSize: 11 },
+    { str: "5.99 cm", x: 366, y: 480, width: 42, fontSize: 11 },
+    { str: "(D)", x: 470, y: 480, width: 20, fontSize: 11 },
+    { str: "6.0 cm", x: 496, y: 480, width: 38, fontSize: 11 },
+    { str: "Answer Key", x: 50, y: 300, width: 60, fontSize: 11 },
+    { str: "| Q1 | (C) |", x: 50, y: 280, width: 90, fontSize: 11 },
+  ];
+  const paper = parseDppPaperFromItems([items]);
+  assert.equal(paper.questions.length, 1);
+  assert.equal(paper.questions[0].answer, "C");
+  assert.deepEqual(
+    paper.questions[0].options.map((o) => `${o.letter}:${o.text}`),
+    ["A:6 cm", "B:6.5 cm", "C:5.99 cm", "D:6.0 cm"]
+  );
+  assert.match(paper.questions[0].text, /what is the answer/);
+  assert.equal(paper.stats.answerable, 1);
+});
+
+/* --------------------------------------------- the page, driven like a student */
+
+/**
+ * Load `/dpp.html` in jsdom and run its module, with `fetch` pointed at the dev
+ * server — the same trick `tests/pages.test.mjs` uses for every other page.
+ *
+ * This is the test that matters for the feature's promise: not "the parser
+ * works" but "a student can answer this and see what they got". So it drives the
+ * radios, submits the form, and reads the analysis back out of the DOM.
+ */
+const openDoms = [];
+
+async function openPractice(paperUrl, { seed = null } = {}) {
+  const { register } = await import("node:module");
+  const { JSDOM } = await import("jsdom");
+  register("./loader.mjs", import.meta.url);
+
+  const query = new URLSearchParams({ paper: paperUrl, name: "DPP 11 practice" });
+  const html = await (await REAL_FETCH(`${BASE}/dpp.html?${query}`)).text();
+  const dom = new JSDOM(html, {
+    url: `${BASE}/dpp.html?${query}`,
+    pretendToBeVisual: true,
+  });
+  const { window } = dom;
+  const doc = window.document;
+  // Tracked from the moment it exists: the practice page runs a one-second clock,
+  // and a test that fails before it closes the page would leave that clock
+  // running for the rest of the process — a suite that hangs instead of failing.
+  openDoms.push(dom);
+
+  // jsdom keeps one storage per document, so a *reopened* page has to be handed
+  // the attempt a real browser would still have. Doing it before the module runs
+  // is the whole point: the page restores on boot.
+  if (seed) seed(window.localStorage, window);
+
+  globalThis.window = window;
+  globalThis.document = doc;
+  globalThis.location = window.location;
+  globalThis.localStorage = window.localStorage;
+  globalThis.sessionStorage = window.sessionStorage;
+  globalThis.CustomEvent = window.CustomEvent;
+  globalThis.HTMLElement = window.HTMLElement;
+  // jsdom has no `confirm`, and submitting a half-answered paper asks.
+  window.confirm = () => true;
+
+  globalThis.fetch = (input, init) =>
+    REAL_FETCH(String(input).startsWith("http") ? input : `${BASE}${input}`, init);
+
+  await import(`/assets/dpp.js?v=practice-${Date.now()}`);
+  await until(() => doc.querySelectorAll("#dppSheet input[type=radio]").length > 0, "the questions");
+
+  return { dom, window, doc };
+}
+
+/** Poll rather than sleep: the dev server's first read is the slow one. */
+async function until(check, what, ms = 12000) {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (check()) return;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  assert.fail(`timed out waiting for ${what}`);
+}
+
+test("a student answers a paper, submits, and reads the analysis", async () => {
+  const { dom, window, doc } = await openPractice(PAPER());
+
+  // The paper is a test, not a wall of text.
+  assert.equal(doc.getElementById("dppTest").hidden, false, "the paper did not open");
+  const questions = doc.querySelectorAll("#dppSheet .dpp-q");
+  assert.equal(questions.length, 2, "the paper's questions were not rendered");
+  assert.match(doc.getElementById("dppTitle").textContent, /DPP/);
+  // The clock runs, from the paper's own time limit.
+  assert.match(doc.getElementById("dppClockValue").textContent, /^\d{2}:\d{2}$/);
+  assert.match(doc.getElementById("dppAnswered").textContent, /0 of 2 answered/);
+
+  // The key is nowhere in the page before submitting.
+  assert.equal(/correct|answer is/i.test(doc.getElementById("dppSheet").textContent), false);
+
+  const choose = (index, letter) => {
+    const input = doc.querySelector(`#dppSheet input[data-index="${index}"][data-letter="${letter}"]`);
+    assert.ok(input, `no option ${letter} on question ${index}`);
+    input.checked = true;
+    input.dispatchEvent(new window.Event("change", { bubbles: true }));
+  };
+
+  choose(0, "B"); // right
+  choose(1, "A"); // wrong (the key says B)
+
+  assert.match(doc.getElementById("dppAnswered").textContent, /2 of 2 answered/);
+  assert.equal(doc.querySelectorAll(".dpp-choice.is-chosen").length, 2, "the chosen options are not marked");
+  // The palette shows the same state, so a student can see what is left.
+  assert.equal(doc.querySelectorAll("#dppPalette .dpp-pal[data-state=done]").length, 2);
+
+  doc.getElementById("dppSubmit").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await until(() => doc.getElementById("dppAnalysis").hidden === false, "the analysis");
+
+  // The analysis: a score, the counts, and the reviewer's marks.
+  assert.equal(doc.getElementById("dppTest").hidden, true, "the paper is still on screen");
+  assert.match(doc.getElementById("dppAnalysisTitle").textContent, /1 of 2 correct/);
+  assert.match(doc.getElementById("dppScorecard").textContent, /50%/);
+  assert.match(doc.getElementById("dppScorecard").textContent, /Getting there/);
+
+  const reviews = doc.querySelectorAll("#dppReview .dpp-rev");
+  assert.equal(reviews.length, 2, "every question should be reviewed");
+  assert.match(reviews[0].textContent, /Correct/);
+  assert.match(reviews[1].textContent, /Wrong/);
+  // The right answer is shown, and the wrong pick is struck through.
+  assert.ok(reviews[1].querySelector(".dpp-rev-option.is-answer"), "the key is not shown on a wrong answer");
+  assert.ok(reviews[1].querySelector(".dpp-rev-option.is-chosen-wrong"), "the wrong pick is not marked");
+  assert.match(reviews[1].textContent, /key says B/);
+
+  // The filters are the point of an analysis page: "wrong" has to show the one
+  // question worth looking at, not the whole paper again.
+  doc.querySelector('#dppReviewTabs [data-review="wrong"]').dispatchEvent(
+    new window.MouseEvent("click", { bubbles: true })
+  );
+  assert.equal(doc.querySelectorAll("#dppReview .dpp-rev").length, 1);
+  assert.match(doc.querySelector("#dppReview .dpp-rev").textContent, /Wrong/);
+
+  // A finished attempt is not left behind to be restored over the analysis.
+  assert.equal(dom.window.localStorage.getItem(`arsvibe.dpp.${PAPER()}`), null);
+
+  dom.window.close();
+});
+
+test("an interrupted attempt survives a refresh, and does not count as submitted", async () => {
+  const paper = PAPER();
+  const first = await openPractice(paper);
+  const input = first.doc.querySelector('#dppSheet input[data-index="0"][data-letter="B"]');
+  input.checked = true;
+  input.dispatchEvent(new first.window.Event("change", { bubbles: true }));
+  assert.match(first.doc.getElementById("dppAnswered").textContent, /1 of 2 answered/);
+
+  const saved = JSON.parse(first.window.localStorage.getItem(`arsvibe.dpp.${paper}`));
+  assert.deepEqual(saved.answers, { 0: "B" }, "the attempt was not saved");
+  assert.ok(saved.startedAt > 0);
+  first.dom.window.close();
+
+  // Reopening the page restores it, and says so.
+  const second = await openPractice(paper, {
+    seed: (storage) => storage.setItem(`arsvibe.dpp.${paper}`, JSON.stringify(saved)),
+  });
+  await until(
+    () => second.doc.querySelectorAll(".dpp-choice.is-chosen").length === 1,
+    "the saved answer to be restored"
+  );
+  assert.match(second.doc.getElementById("dppAnswered").textContent, /1 of 2 answered/);
+  assert.match(second.doc.getElementById("dppScorable").textContent, /restored/);
+  assert.equal(
+    second.doc.querySelector('#dppSheet input[data-index="0"][data-letter="B"]').checked,
+    true,
+    "the restored answer is not checked"
+  );
+  second.dom.window.close();
+});
+
+test("a paper with an unreadable question does not score it against the student", async () => {
+  const { dom, window, doc } = await openPractice(REAL_PAPER());
+  await until(() => doc.querySelectorAll("#dppSheet .dpp-q").length === 5, "five questions");
+
+  // The image-only question is shown, and says why it will not be marked.
+  const imageOnly = doc.getElementById("q-4");
+  assert.match(imageOnly.textContent, /prints this question as an image/i);
+  assert.equal(imageOnly.querySelectorAll("input[type=radio]").length, 0);
+
+  // Answer all four readable ones correctly, using the keyboard, which is how a
+  // student on a laptop would: focus a question and press the letter.
+  const letters = ["B", "B", "A", "B"];
+  letters.forEach((letter, index) => {
+    doc.getElementById(`q-${index}`).focus();
+    doc.dispatchEvent(
+      new window.KeyboardEvent("keydown", { key: letter.toLowerCase(), bubbles: true })
+    );
+  });
+  assert.match(doc.getElementById("dppAnswered").textContent, /4 of 4 answered/);
+
+  // A wrong key is ignored rather than recorded.
+  doc.getElementById("q-0").focus();
+  doc.dispatchEvent(new window.KeyboardEvent("keydown", { key: "z", bubbles: true }));
+  assert.match(doc.getElementById("dppAnswered").textContent, /4 of 4 answered/);
+
+  doc.getElementById("dppSubmit").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  await until(() => doc.getElementById("dppAnalysis").hidden === false, "the analysis");
+
+  assert.match(doc.getElementById("dppAnalysisTitle").textContent, /4 of 4 correct/);
+  assert.match(doc.getElementById("dppScorecard").textContent, /100%/);
+  // …and the fifth is reported, not silently dropped.
+  assert.match(doc.getElementById("dppScorecard").textContent, /not scorable from the PDF/);
+
+  dom.window.close();
+});
+
+test("a paper that cannot be read explains itself instead of going blank", async () => {
+  // This path used to *throw*: the failure branch called a helper that had not
+  // been initialised yet, so a dead paper produced no message at all — the one
+  // case where the page must speak. Hence a test that only asserts the copy.
+  const dead = `http://127.0.0.1:${FIXPORT}/not-a-paper.pdf`;
+  const { register } = await import("node:module");
+  const { JSDOM } = await import("jsdom");
+  register("./loader.mjs", import.meta.url);
+
+  const query = new URLSearchParams({ paper: dead, name: "Broken paper" });
+  const html = await (await REAL_FETCH(`${BASE}/dpp.html?${query}`)).text();
+  const dom = new JSDOM(html, { url: `${BASE}/dpp.html?${query}`, pretendToBeVisual: true });
+  const { window } = dom;
+  const doc = window.document;
+  openDoms.push(dom);
+
+  globalThis.window = window;
+  globalThis.document = doc;
+  globalThis.location = window.location;
+  globalThis.localStorage = window.localStorage;
+  globalThis.sessionStorage = window.sessionStorage;
+  globalThis.CustomEvent = window.CustomEvent;
+  globalThis.HTMLElement = window.HTMLElement;
+  window.confirm = () => true;
+  globalThis.fetch = (input, init) =>
+    REAL_FETCH(String(input).startsWith("http") ? input : `${BASE}${input}`, init);
+
+  await import(`/assets/dpp.js?v=fail-${Date.now()}`);
+  await until(
+    () => /could not be read/i.test(doc.getElementById("dppIntroTitle").textContent),
+    "the failure message"
+  );
+
+  assert.match(doc.getElementById("dppIntroTitle").textContent, /could not be read/i);
+  const note = doc.getElementById("dppIntroNote").textContent;
+  assert.match(note, /answered 404|not a PDF|gone/i, `the reason is missing: ${note}`);
+  // Both ways out are offered, and the paper URL is in the PDF link.
+  assert.ok(doc.querySelector('#dppIntroNote a[href^="/api/media?url="]'), "no link to the PDF itself");
+  assert.ok(doc.querySelector('#dppIntroNote a[href^="/chapter.html"], #dppIntroNote a[href="/batches.html"]'));
+  assert.equal(doc.getElementById("dppTest").hidden, true, "an unreadable paper was still shown as a test");
+
+  dom.window.close();
+});

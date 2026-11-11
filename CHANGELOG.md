@@ -5,6 +5,69 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AC — DPP practice: answer a paper, submit, read the analysis
+
+**The problem.** Round AB made the *operator's* panel run a paper. A student still
+had nothing to sit: the chapter's DPP tab offered five buttons around a PDF
+(keep, open, download) and no way to answer anything. The feature existed and was
+unreachable from the site.
+
+**What shipped.**
+
+- **`/dpp`** — a practice page. The paper's own time limit counts down, options are
+  radio buttons, the palette shows which questions are still blank, `A`–`D` answers
+  from the keyboard, and the attempt survives a refresh (per paper, in
+  `localStorage`, dropped on submit).
+- **`GET /api/pdf?dpp=<paper>`** returns the questions and options *without* the
+  key; **`POST`** returns the marked attempt — score, percentage, and a
+  per-question review saying what was asked, what was chosen and what the key says.
+  The route rides on `api/pdf.mjs` because the deployment is at the 12-function cap.
+- **Analysis, not just a score**: a ring, four counters (correct / wrong / skipped /
+  not scorable), a "worth another look" line, and All / Wrong / Skipped filters over
+  the review.
+- **Every DPP row on a chapter page now has a `Practice` button.** Notes do not —
+  a class note is reading material, and a button there would promise a test that
+  does not exist.
+- **The operator panel's runner asks the same public route**, so an operator cannot
+  see the key before submitting either, and the same analysis filters are there.
+
+**The bug this round was really about.** The papers that ship are set with each
+option letter and its value as **separate text runs**: `(A) (B) (C) (D)` on one
+line, `5 4 2 3` on the next. Reading the page as a stream of lines pairs every
+letter with the wrong value — Q2's five options became "A is 4, B is 5". Nothing
+throws; the paper just marks wrongly. So there are now two readers: text order, and
+**positions** (runs grouped into visual lines by `y`, each value given to the
+nearest marker to its left). Both run, the one that recovers more scorable
+questions wins, and the response names it in `parser`. `lib/dpp-paper.mjs` is
+tested against a fixture that reproduces the real DPP 11 layout, including the
+table-shaped answer key whose number and letter are separate cells — that one was
+also silently dropping half the key.
+
+The practice page also had two bugs of its own, both found by driving it rather
+than reading it: the failure branch called a `const` helper declared below it, so
+the one case that must speak — a paper that will not load — threw and left a blank
+page; and the media-relay fallback overwrote the paper's real error with its own
+(`404` became `400`), so the message blamed this site's proxy instead of the dead
+link. Both are covered now.
+
+Three more found while building it:
+
+- `scorePaper` keyed answers by index *or* question number and guessed between
+  them; a paper numbered from 1 has `index 1 = question 2`, so a `number`-keyed
+  payload marked the wrong question. The two are now explicit (`keyedBy`) and never
+  mixed.
+- The practice page restored a saved attempt *before* drawing the questions, so a
+  restored answer had nothing to attach to. Restore now runs after the sheet.
+- `scripts/build-paper-fixtures.mjs` writes two PDFs, one of them the hostile
+  layout above; the fixture upstream serves both.
+
+`/dpp` is in `robots.txt` as a disallow: every URL is a PDF that may disappear, and
+there is nothing there to rank. 267 tests pass; 17 of them are new and 4 drive the
+page itself in jsdom (answer → submit → analysis, refresh → restored, keyboard →
+scored).
+
+---
+
 ## Round AB — the DPP panel actually runs a paper
 
 **The problem.** Round AA shipped a DPP panel that could *list* papers but not
