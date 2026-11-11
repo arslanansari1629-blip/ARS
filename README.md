@@ -116,6 +116,10 @@ lib/                 shared upstream client + normalisers (server side)
   sign.mjs           signed-playlist relay (mounted on api/admin.mjs)
   healer.mjs         the self-healing state machine: probes, repair ladders, the loop
   healer-wire.mjs    what a repair is allowed to touch in this deployment
+  selfheal.mjs       the reactive ledger: signer demotion, relay healing
+  scanner.mjs        the full-site walk: pages, routes, a window of real batches
+  scheduler.mjs      the five-minute clock: slices, the persisted cursor, the channels
+  store.mjs          one small document store (Postgres / Redis / this instance)
 public/              the whole front end (static, no build step)
   index.html batches.html batch.html subject.html chapter.html lecture.html
   dpp.html           attempt a DPP paper and read the analysis
@@ -469,6 +473,55 @@ healthy → degraded → repairing → repaired → healthy
   signer ranking, the two caches this process owns, and a read-only asset check.
   Nothing writes, deletes, deploys or changes a credential.
 
+### Above both: the scanner (`lib/scanner.mjs`, `lib/scheduler.mjs`)
+
+The healer watches the *machinery* — the index, the tokens, the signers, the
+relays. It cannot see what a visitor sees. The scanner walks the site itself:
+
+- **What it checks, every pass.** All 18 shipped pages (status, content type, the
+  `<main id="main">` landmark, a pattern for what the page exists to show, so a
+  200 with an error shell inside it is a fault, not a pass), the not-found shell
+  on a URL that does not exist, the public API routes *including* the shape of
+  their answers (a `200 {success:false}` is a failure), the asset manifest against
+  the files on disk, and a **window of real batches**: page → `/api/batch` →
+  `/api/contents` → DPP papers → each paper's PDF magic bytes.
+- **"Full site" is a cursor, not a page.** A real sweep is 18 pages, 10 routes
+  and 14,201 batches, which does not fit in a request. A *slice* walks a few
+  batches from a persisted cursor; consecutive slices walk the whole catalogue and
+  then wrap. `perMille` is what has actually been looked at, and the panel prints
+  it — 24.0% means 24.0%, and "no full cycle yet" means exactly that.
+- **Nothing here repairs.** A scanner that also fixes is a scanner you cannot
+  trust to tell you the truth. It reports findings tagged with the healer's
+  `symptom`; the healer applies its own ladder, budget and cooldown. A finding with
+  no repair path stays a finding.
+- **A blind spot is not an outage.** A function that cannot reach its own public
+  origin fails every probe at the transport layer. That is reported as one
+  `blind` finding with no symptom (and the sentence *"set SELF_BASE"*), never as
+  eighteen broken pages the healer would then try to fix.
+
+#### How "every five minutes" is actually delivered
+
+Vercel's **Hobby plan refuses any cron that fires more than once a day — at deploy
+time.** A `*/5 * * * *` entry in `vercel.json` does not run slowly, it fails the
+deployment. So the cadence is delivered by three channels, and the panel shows
+which ones are working rather than claiming the promise:
+
+| Channel | Cadence | Needs |
+| --- | --- | --- |
+| **On traffic** (`lib/scheduler.mjs`) | a slice per 5 minutes, on whatever request arrives | nothing — any busy route ticks |
+| **Deployment cron** (`vercel.json`) | daily floor, 03:00 UTC | nothing (the Hobby-safe maximum) |
+| **External pinger** | a true 5-minute pass | `SCAN_KEY`, then `POST /api/scan` |
+
+```bash
+# any scheduler that can call a URL — cron, a GitHub Action, a laptop
+curl -sS -X POST "https://your-deployment.vercel.app/api/scan" -H "x-scan-key: $SCAN_KEY"
+```
+
+`SCAN_KEY` unset means the external channel is closed and the panel says so. A
+`GET /api/scan` returns coverage only, with no findings, so a public URL is not a
+directory of everything that is broken. `POST /api/admin?action=site` does the
+same pass behind the operator session. **No pass ever runs on a GET.**
+
 ## Downloading lectures for offline use
 
 > **Status: blocked upstream, not by this code.** Everything below is built and
@@ -583,6 +636,7 @@ What the panel reports, refreshed every 20 seconds:
 | Requests by route | which routes this instance actually served |
 | Slowest / Errors | the eight slowest samples and the last twenty 5xx |
 | Self-healing | the healer's verdict, six probe readings, a card per fault with its repair ladder and a **Fix now** button, budget and cache holdings, the repair ledger, and every state transition with its reason |
+| Full-site scanner | coverage as a per-mille of the 14,201 batches actually walked, the three clocks and which are live, every open finding with the repair route it takes, and what has been repaired and cleared |
 | CDN | what Vercel's cache did with the responses this instance produced |
 | Deployment | commit, environment, region, Node version |
 | Runtime & data | uptime, memory, catalogue size |

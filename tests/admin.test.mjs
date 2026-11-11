@@ -592,6 +592,75 @@ test("the panel paints live numbers once signed in", async () => {
     catalogue: { batches: 14201, source: "https://example.test/batches.json" },
     trafficNote: "Counts are per warm server instance.",
     client: { ip: "127.0.0.1", ua: "node" },
+    // The scanner rides on the same poll. The sample is deliberately *mixed*: one
+    // serious fault, one blind spot, and a cursor part-way round the catalogue —
+    // a sample that is all green would let the renderer's worst branches rot.
+    scan: {
+      cadenceMs: 300000,
+      cadence: "every 5 minutes",
+      lastTickAt: new Date(Date.now() - 60_000).toISOString(),
+      nextTickInMs: 240_000,
+      slices: 7,
+      lastSliceMs: 1810,
+      lastDecision: "3 batch(es), 64 checks, 2 finding(s), 1 repair(s)",
+      store: "memory",
+      errors: [],
+      scanner: {
+        last: {
+          at: new Date(Date.now() - 120_000).toISOString(),
+          ms: 1740,
+          checks: 64,
+          scanned: 3,
+          pages: 19,
+          api: 6,
+          findings: 2,
+          perMille: 240,
+          complete: true,
+          blind: false,
+        },
+        progress: { cursor: 3408, of: 14201, perMille: 240, pass: 9, lastFullCycleAt: "" },
+        totals: { passes: 9, checks: 512, failures: 4, repaired: 1, needsOperator: 1 },
+        counts: { high: 1, medium: 1, low: 0 },
+        open: [
+          {
+            key: "pages:/dpp.html:site.page",
+            severity: "high",
+            area: "pages",
+            where: "/dpp",
+            what: "dpp.html is not being served correctly",
+            symptom: "site.page",
+            detail: "answered 500",
+            atIso: new Date(Date.now() - 120_000).toISOString(),
+          },
+          {
+            key: "pages:https://x:the scanner could not reach the site",
+            severity: "medium",
+            area: "pages",
+            where: "https://arsvibe.test",
+            what: "the scanner could not reach the site from inside the deployment",
+            symptom: "",
+            detail: "19 page(s) tried and none answered — set SELF_BASE to the public origin",
+            blind: true,
+            atIso: new Date(Date.now() - 120_000).toISOString(),
+          },
+        ],
+        resolved: [
+          {
+            key: "content:/batch.html?id=1:site.page",
+            what: "a batch page is not being served",
+            where: "/batch.html?id=1",
+            resolvedAt: new Date(Date.now() - 600_000).toISOString(),
+          },
+        ],
+      },
+      healer: { verdict: "Repairing", counts: {}, probes: [], budget: {}, timeline: [] },
+      channels: {
+        inProcess: { available: true, detail: "any request may run the next slice, at most one per five minutes", lastTickAt: new Date(Date.now() - 60_000).toISOString() },
+        cron: { available: true, detail: "the deployment's cron floor", capable: "daily" },
+        external: { available: false, detail: "set SCAN_KEY to allow an external pinger", url: "" },
+      },
+      window: { budgetMs: 12000, batches: 3, passBudgetMs: 45000, passBatches: 12 },
+    },
   };
 
   // A saved audit from an earlier sweep, in the shape `api/admin.mjs` returns.
@@ -702,6 +771,32 @@ test("the panel paints live numbers once signed in", async () => {
   // Every row can be re-checked on its own.
   assert.equal(doc.querySelectorAll("#auditRows .audit-rescan").length, 3, "some rows cannot be re-checked");
 
+  /* The scanner section: the coverage number, the three clocks, and the two
+     kinds of finding drawn differently — a fault the healer can act on, and a
+     blind spot that is the scanner's own failing. */
+  assert.match(doc.getElementById("scanVerdict").textContent, /1 serious fault/, "the verdict did not count the fault");
+  assert.match(doc.getElementById("scanCoverage").textContent, /3,408 of 14,201/, "the cursor is not shown honestly");
+  assert.match(doc.getElementById("scanCoverage").textContent, /24\.0%/, "the coverage percentage is wrong");
+  assert.match(doc.getElementById("scanCoverage").textContent, /no full cycle yet/, "a half-walked catalogue claimed a full cycle");
+
+  const findings = doc.querySelectorAll("#scanFindings .scan-finding");
+  assert.equal(findings.length, 2, `expected 2 findings, got ${findings.length}`);
+  assert.ok(findings[0].classList.contains("sev-high"), "the serious finding is not marked");
+  assert.ok(doc.querySelector("#scanFindings .scan-finding.is-blind"), "the blind spot is not drawn as one");
+  // The route column is what tells an operator who fixes it.
+  assert.match(findings[0].textContent, /site\.page/, "the finding does not name the repair route");
+  assert.match(doc.querySelector("#scanFindings .scan-finding.is-blind").textContent, /scanner/, "the blind spot was given a repair route");
+
+  // All three clocks, with the unconfigured one marked as such rather than green.
+  const clocks = doc.querySelectorAll("#scanClock .scan-channel");
+  assert.equal(clocks.length, 3, "the cadence checklist is incomplete");
+  assert.ok(clocks[0].classList.contains("on"), "the on-traffic channel is not marked as running");
+  assert.ok(clocks[2].classList.contains("warn"), "an unconfigured pinger was not flagged");
+  assert.match(clocks[2].textContent, /SCAN_KEY/);
+
+  assert.match(doc.getElementById("scanKv").textContent, /this instance's memory/, "the store's honesty line is missing");
+  assert.match(doc.getElementById("scanRepaired").textContent, /a batch page is not being served/, "the repaired list is empty");
+
   // Signing out must clear the token and go back to the gate.
   doc.getElementById("signOutBtn").dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
   await new Promise((r) => setTimeout(r, 120));
@@ -711,6 +806,89 @@ test("the panel paints live numbers once signed in", async () => {
   dom.window.close();
   // Hand the real network back to whatever test runs next.
   globalThis.fetch = nativeFetch;
+});
+
+test("the scanner is reachable on its own URL, and only a POST can run it", async () => {
+  // `/api/scan` is a rewrite onto the admin function, so a scheduler can call it
+  // without a session and without a thirteenth serverless function.
+  const anon = await fetch(`${BASE}/api/scan`);
+  assert.equal(anon.status, 200, "the scan route is not mounted");
+  const seen = await anon.json();
+  assert.equal(seen.success, true);
+  assert.ok(seen.scan, "the scan route answered without a scan report");
+  // No session, no findings: a public URL must not enumerate what is broken.
+  assert.equal(seen.findings, undefined, "the public scan route listed findings");
+
+  // The cadence has to be described honestly, including the channel that is not
+  // configured — the panel shows this verbatim.
+  assert.equal(seen.scan.cadenceMs, 300000);
+  assert.equal(seen.scan.channels.external.available, false);
+  assert.match(seen.scan.channels.external.detail, /SCAN_KEY/);
+  assert.equal(seen.scan.channels.inProcess.available, true);
+
+  // A GET never scans: reading it twice must not move the cursor.
+  const before = await (await fetch(`${BASE}/api/scan`)).json();
+  await fetch(`${BASE}/api/scan`);
+  const after = await (await fetch(`${BASE}/api/scan`)).json();
+  assert.deepEqual(
+    after.scan.scanner.progress,
+    before.scan.scanner.progress,
+    "a GET moved the scanner's cursor"
+  );
+
+  // And a POST without a key or a session is refused, with the reason.
+  const post = await fetch(`${BASE}/api/scan`, { method: "POST" });
+  assert.equal(post.status, 401, "an unauthenticated POST started a scan");
+  const body = await post.json();
+  assert.equal(body.success, false);
+  assert.match(body.error, /SCAN_KEY|scan key/i);
+});
+
+test("a signed-in operator can read the scanner and run a pass", async () => {
+  const { body: auth } = await signIn();
+
+  const read = await fetch(`${BASE}/api/admin?action=site`, {
+    headers: { "x-admin-token": auth.token },
+  });
+  assert.equal(read.status, 200);
+  const report = await read.json();
+  assert.equal(report.success, true);
+  assert.ok(report.scan, "the panel's scanner section got no report");
+  // Signed in, findings are visible; the shape must be drawable.
+  assert.ok(Array.isArray(report.scan.scanner.open), "the findings list is missing");
+  assert.ok(report.scan.scanner.counts && typeof report.scan.scanner.counts.high === "number");
+  assert.ok(report.scan.channels && report.scan.channels.inProcess);
+
+  // The stats poll carries it too, so one refresh paints the whole panel.
+  const stats = await (await fetch(`${BASE}/api/admin?action=stats`, {
+    headers: { "x-admin-token": auth.token },
+  })).json();
+  assert.ok(stats.scan, "the stats poll does not carry the scanner");
+  assert.ok(stats.scan.scanner.progress, "the stats poll has no cursor state");
+
+  // A pass against the dev server: it must answer, scan something and not throw.
+  // The fixture upstream is deliberately partial, so the *findings* are allowed —
+  // what is asserted is that the pass ran and that its coverage arithmetic holds.
+  const run = await fetch(`${BASE}/api/admin?action=site&full=1`, {
+    method: "POST",
+    headers: { "x-admin-token": auth.token },
+  });
+  assert.equal(run.status, 200, "the operator's scan failed");
+  const out = await run.json();
+  assert.equal(out.success, true, out.error);
+  assert.ok(out.scan.last, "the pass reported no numbers");
+  assert.ok(out.scan.last.checks > 5, `only ${out.scan.last.checks} checks ran`);
+  assert.ok(out.scan.last.ms >= 0);
+  assert.ok(out.ms >= 0);
+  assert.ok(Array.isArray(out.scan.actions), "repairs were not receipted");
+
+  // Anything the pass found is on the record with a route attached: a symptom the
+  // healer owns, or an explicit "this needs a person". Never a silent retry loop.
+  const open = out.scan.scanner.open || [];
+  for (const f of open) {
+    assert.ok(typeof f.symptom === "string", `${f.what} has no route`);
+    if (!f.symptom) assert.equal(f.blind === true || f.severity === "low", true, `${f.what} is serious and unrouted`);
+  }
 });
 
 test("the mounted media routes answer instead of crashing", async () => {

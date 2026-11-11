@@ -5,6 +5,73 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AI — the site scans itself every five minutes, and repairs what it finds
+
+**The request.** "make self healing system ultra it scan full site every 5
+minutes and if found any issue then fix it."
+
+**The first thing the request ran into.** Vercel's Hobby plan **rejects any cron
+that fires more than once a day, at deploy time.** A `*/5 * * * *` line in
+`vercel.json` does not make a slow scheduler — it fails the deployment and takes
+production with it. So "every five minutes" could not be a cron expression, and the
+honest options had to be built instead of faked:
+
+| Channel | What it really does |
+| --- | --- |
+| **On traffic** | any request to the site may run one *slice*, at most once per five minutes. Steady traffic is a five-minute scanner. |
+| **Deployment cron** | a daily floor at 03:00 UTC — the most a Hobby plan allows. |
+| **External pinger** | `POST /api/scan` with `x-scan-key` — the only true five-minute pass on this plan. |
+
+The panel draws all three and marks which are live, including the one that is not
+configured. It never prints "every 5 minutes" over a job that does not run.
+
+**What shipped.**
+
+- **`lib/scanner.mjs` — the eyes.** 18 pages (status, content type, the
+  `#main` landmark and a per-page content contract, so a soft 404 served with a
+  200 is caught), the not-found shell on a real missing URL, the public API routes
+  *including answer shape* (`200 {success:false}` is a failure), the asset manifest
+  against the disk, and a **window of real batches**: page → `/api/batch` →
+  `/api/contents` → DPP papers → PDF magic bytes.
+- **A cursor, not a lie.** 18 pages, 10 routes and 14,201 batches do not fit in a
+  request, so a pass is a *budgeted slice* that saves where it stopped. Consecutive
+  slices walk the whole catalogue and wrap; `perMille` is the honest coverage
+  number and "no full cycle yet" means exactly that.
+- **A blind spot is not an outage.** If the function cannot reach its own public
+  origin, that is *one* finding with no symptom and the sentence "set SELF_BASE" —
+  not eighteen broken pages the healer would then try to repair.
+- **`lib/scheduler.mjs` — the clock.** A five-minute tick that is two number
+  comparisons when it is not time, detaches its slice (`waitUntil` where the
+  runtime offers it), never overlaps itself, and restores its cursor from a store
+  after a cold start so a scaled-to-zero function resumes rather than restarting.
+- **`lib/store.mjs`** — the leaderboard's document store, lifted into a keyed
+  `readDoc`/`writeDoc` so the scheduler does not grow a second storage driver.
+- **The scanner reports; the healer repairs.** Two new symptoms with real ladders
+  (`site.page` → reload the index, then re-request; `api.route` → drop caches, then
+  re-mint; `api.upstream` → fresh token, cached answers, signer evidence) and
+  `reportFault()` so a sighting is recorded as *degraded* without counting a
+  strike — an escalation ladder that climbs on observation is one that nukes the
+  caches every time a network blips.
+- **Routes.** `GET /api/scan` (coverage only, never findings, never a scan),
+  `POST /api/scan` (key or session), `GET|POST /api/admin?action=site`, and the
+  scanner's report riding along on the existing stats poll. Still **10 serverless
+  functions** — `/api/scan` is a rewrite onto the admin function.
+- **The panel** gained a scanner section: the coverage bar and its per-mille, the
+  three clocks, every open finding with the repair route it takes (or *operator*),
+  the blind spots drawn differently, the store's honesty line, and what has been
+  repaired and cleared.
+- **A bug the tests caught before it shipped:** the batch walk was asking
+  `/api/batch?id=…&header=1`, and the slim header answers `subjects: null` *by
+  design* — so the first version would have reported every batch on the site as
+  having no subjects. The walk now uses the full answer.
+
+**Gates.** 22 new scanner/scheduler tests (coverage arithmetic, wrap-around,
+full-cycle detection, budget honesty, blind spots, the fault handoff, cold-start
+restore, the channel report) and 2 new route tests against the dev server; the
+whole suite is green, the build validators pass, and the function count is still 10.
+
+---
+
 ## Round AH — a healer with a state machine, and an admin panel that shows its work
 
 **The request.** "`/admin` upgrade it and self healing system ultra advance."

@@ -143,8 +143,18 @@
       "destination": "/api/admin?action=repair"
     },
     {
+      "source": "/api/scan",
+      "destination": "/api/admin?action=scan"
+    },
+    {
       "source": "/api/download",
       "destination": "/api/stream?action=download"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/admin?action=scan&cron=1",
+      "schedule": "0 3 * * *"
     }
   ]
 }

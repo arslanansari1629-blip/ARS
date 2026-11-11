@@ -206,6 +206,9 @@ function render(data) {
     ["Deployment", data.release.deployment || "—"],
   ]);
   renderHealing(data.heal || data.selfHeal);
+  // The scanner rides along with the stats poll, like the healer: one request
+  // paints the whole panel, and a GET never triggers a scan or a repair.
+  renderScanner(data.scan);
   renderKv("#runtimeKv", [
     ["Uptime", duration(data.uptimeSeconds)],
     ["Resident memory", `${data.runtime.memoryMb} MB`],
@@ -589,6 +592,241 @@ async function healNow(symptom, btn) {
     if (btn) {
       btn.disabled = false;
       btn.textContent = "Fix now";
+    }
+  }
+}
+
+/**
+ * The full-site scanner: how much of the site has actually been looked at, what
+ * was found, and — the part most panels leave out — which clock is running.
+ *
+ * The cadence is the requirement, so the panel has to be honest about it. Vercel's
+ * Hobby plan refuses a cron that fires more than once a day *at deploy time*, so
+ * "every five minutes" is delivered by three channels with different guarantees:
+ * the functions themselves ticking on traffic, the daily cron floor, and an
+ * external pinger if one is configured. This renderer draws all three and marks
+ * the ones that are actually working, rather than printing "every 5 minutes" over
+ * a job that never runs.
+ */
+function renderScanner(scan) {
+  const verdict = $("#scanVerdict");
+  const findingsBox = $("#scanFindings");
+  if (!verdict || !findingsBox) return;
+
+  if (!scan) {
+    verdict.textContent = "This build does not report a scanner";
+    verdict.className = "";
+    $("#scanSub").textContent = "The scan route answered without a scan section.";
+    return;
+  }
+
+  const last = (scan.scanner && scan.scanner.last) || null;
+  const progress = (scan.scanner && scan.scanner.progress) || {};
+  const counts = (scan.scanner && scan.scanner.counts) || {};
+  const open = (scan.scanner && scan.scanner.open) || [];
+  const resolved = (scan.scanner && scan.scanner.resolved) || [];
+  const totals = (scan.scanner && scan.scanner.totals) || {};
+
+  // --- the verdict: found, healthy, or not yet looked -----------------------
+  const high = Number(counts.high || 0);
+  const anyOpen = open.filter((f) => !f.blind).length;
+  if (!last && !progress.pass) {
+    verdict.textContent = "No pass has run yet";
+    verdict.className = "";
+  } else if (high) {
+    verdict.textContent = high + " serious fault" + (high === 1 ? "" : "s") + " found by the scanner";
+    verdict.className = "admin-bad";
+  } else if (anyOpen) {
+    verdict.textContent = anyOpen + " minor finding" + (anyOpen === 1 ? "" : "s") + " open";
+    verdict.className = "admin-warn";
+  } else {
+    verdict.textContent = "Every check passed on the last pass";
+    verdict.className = "admin-good";
+  }
+
+  const sub = $("#scanSub");
+  sub.textContent = last
+    ? last.checks + " checks in " + last.ms + " ms · " + (last.blind ? "the scanner could not reach the site" : "site reachable")
+    : "Eighteen pages, ten routes and every batch, a window at a time.";
+
+  $("#scanStamp").textContent = last ? "last pass " + ago(Date.parse(last.at)) : "no pass yet";
+
+  // --- coverage: an honest per-mille, never a full-sweep claim --------------
+  const perMille = Number(progress.perMille || (last && last.perMille) || 0);
+  const of = Number(progress.of || 0);
+  const bar = $("#scanProgress");
+  if (bar && bar.firstElementChild) bar.firstElementChild.style.width = Math.max(0, Math.min(100, perMille / 10)) + "%";
+
+  const coverage = $("#scanCoverage");
+  if (!of) {
+    coverage.textContent = "The catalogue was not readable, so no batch walk could start.";
+  } else {
+    const cursor = Number(progress.cursor || 0);
+    const pct = (perMille / 10).toFixed(1);
+    let line = "Catalogue walk: " + cursor.toLocaleString() + " of " + of.toLocaleString() + " batches (" + pct + "%)";
+    if (progress.fullCycleAt) line += " · a full cycle completed " + ago(Date.parse(progress.fullCycleAt));
+    else line += " · no full cycle yet — the walk is still on its first lap";
+    line += " · " + Number(progress.pass || 0) + " pass" + (Number(progress.pass || 0) === 1 ? "" : "es") + " so far";
+    coverage.textContent = line;
+  }
+
+  // --- the clock: three channels, each marked with what it really does ------
+  const channels = scan.channels || {};
+  const inProc = channels.inProcess || {};
+  const cron = channels.cron || {};
+  const ext = channels.external || {};
+
+  const tickAge = inProc.lastTickAt ? Date.parse(inProc.lastTickAt) : 0;
+  const inProcOn = Boolean(tickAge) && Date.now() - tickAge < Number(scan.cadenceMs || 0) * 3;
+
+  const rows = [];
+  rows.push(
+    channelRow(
+      inProcOn ? "on" : inProc.lastTickAt ? "warn" : "off",
+      inProcOn ? "✓" : "·",
+      "On traffic",
+      inProcOn
+        ? "Last slice " + ago(tickAge) + " · " + String(scan.slices || 0) + " slice" + (Number(scan.slices) === 1 ? "" : "s") + " this instance"
+        : inProc.lastTickAt
+          ? "Last slice " + ago(tickAge) + " — quiet, so nothing has needed scanning"
+          : "Waiting for the next visitor: a slice runs at most once every " + Math.round(Number(scan.cadenceMs || 0) / 60000) + " minutes",
+      inProc.detail || ""
+    )
+  );
+  rows.push(
+    channelRow(
+      cron.available ? "on" : "off",
+      cron.available ? "✓" : "·",
+      "Deployment cron",
+      cron.available
+        ? "Daily floor at 03:00 UTC (Hobby's limit). " + (ext.available ? "The external pinger below is what makes it five minutes." : "Without an external pinger this is a daily scan.")
+        : "Not a deployment",
+      cron.detail || ""
+    )
+  );
+  rows.push(
+    channelRow(
+      ext.available ? "on" : "warn",
+      ext.available ? "✓" : "!",
+      "External pinger",
+      ext.available
+        ? "POST /api/scan with the x-scan-key header. Any scheduler that can call a URL gives a true five-minute pass."
+        : "Not configured — set SCAN_KEY, then POST /api/scan from any scheduler.",
+      ext.detail || ""
+    )
+  );
+  $("#scanClock").innerHTML = rows.join("");
+
+  $("#scanClockNote").textContent = last
+    ? "· " + String(scan.lastDecision || "no tick yet")
+    : "";
+
+  // --- findings: what, where, and who is expected to fix it ----------------
+  $("#scanCount").textContent = open.length ? "(" + open.length + " open)" : "(none open)";
+  findingsBox.innerHTML = open.length
+    ? open
+        .slice(0, 40)
+        .map((f) => {
+          const route = f.blind
+            ? 'class="scan-route operator">scanner'
+            : f.symptom
+              ? 'class="scan-route heal">' + esc(f.symptom)
+              : 'class="scan-route operator">operator';
+          return (
+            '<div class="scan-finding sev-' + esc(f.severity || "low") + (f.blind ? " is-blind" : "") + '">' +
+            '<div class="scan-finding-head">' +
+            "<strong>" + esc(f.what || "a check failed") + "</strong>" +
+            '<span class="tiny dim">' + (Number(f.seen) > 1 ? "×" + f.seen + " · " : "") + esc(ago(Date.parse(f.atIso))) + "</span>" +
+            "</div>" +
+            '<span class="scan-where">' + esc(f.where || "") + "</span>" +
+            '<p><span ' + route + "</span> " + esc(f.detail || "") + "</p>" +
+            "</div>"
+          );
+        })
+        .join("")
+    : '<p class="tiny dim">Nothing is open. The scanner has not found a fault it is not already handling.</p>';
+
+  // --- the numbers that make the above checkable ---------------------------
+  renderKv("#scanKv", [
+    ["Passes run", String(Number(totals.passes || 0))],
+    ["Checks run", Number(totals.checks || 0).toLocaleString()],
+    ["Failures seen", Number(totals.failures || 0).toLocaleString()],
+    ["Repaired", String(Number(totals.repaired || 0))],
+    ["Left to an operator", String(Number(totals.needsOperator || 0))],
+    ["Cursor state", scan.store === "memory"
+      ? "this instance's memory — attach storage to survive a cold start"
+      : "persisted in " + (scan.store || "storage")],
+    ["Last slice", scan.lastSliceMs ? scan.lastSliceMs + " ms" : "—"],
+  ]);
+
+  $("#scanRepairedCount").textContent = resolved.length ? "(" + resolved.length + ")" : "(none yet)";
+  $("#scanRepaired").innerHTML = resolved.length
+    ? resolved
+        .slice(0, 20)
+        .map(
+          (f) =>
+            "<li><span class=\"tiny dim\">" + esc(f.resolvedAt ? ago(Date.parse(f.resolvedAt)) : "") + "</span>" +
+            "<span>" + esc(f.what || "") + " <span class=\"tiny dim\">" + esc(f.where || "") + "</span></span></li>"
+        )
+        .join("")
+    : '<li><span class="tiny dim">—</span><span class="tiny dim">No finding has been cleared by a repair yet.</span></li>';
+}
+
+/** One row of the cadence checklist. */
+function channelRow(kind, mark, title, detail, sub) {
+  return (
+    '<div class="scan-channel ' + kind + '">' +
+    '<span class="scan-channel-mark" aria-hidden="true">' + mark + "</span>" +
+    "<div><strong>" + esc(title) + "</strong><p>" + esc(detail) + "</p>" +
+    (sub ? "<p><code>" + esc(sub) + "</code></p>" : "") +
+    "</div></div>"
+  );
+}
+
+/**
+ * Run a pass now — the operator's "scan now".
+ *
+ * A POST for the same reason the healer's is: opening the panel to look must not
+ * be what starts scanning, and starting a scan must not be something a crawler
+ * can do by fetching a URL.
+ */
+async function scanNow(btn) {
+  const err = $("#scanError");
+  if (err) err.hidden = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Scanning…";
+  }
+  try {
+    const res = await fetch("/api/admin?action=site&full=1", {
+      method: "POST",
+      headers: { "x-admin-token": token },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || "HTTP " + res.status);
+    if (data.scan) {
+      lastData = { ...(lastData || {}), scan: data.scan };
+      renderScanner(data.scan);
+    }
+    const found = (data.scan && data.scan.last && data.scan.last.findings) || 0;
+    const ran = ((data.scan && data.scan.actions) || []).filter((a) => a.ran && a.ok).length;
+    setStatusLine(
+      ran
+        ? "Scanned and repaired " + ran + " fault" + (ran === 1 ? "" : "s")
+        : found
+          ? "Scanned — " + found + " finding" + (found === 1 ? "" : "s") + ", nothing to repair automatically"
+          : "Scanned — everything checked out"
+    );
+    load();
+  } catch (error) {
+    if (err) {
+      err.hidden = false;
+      err.textContent = error.message;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Scan now";
     }
   }
 }

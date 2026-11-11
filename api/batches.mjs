@@ -1,4 +1,5 @@
 import { json, cors, query, methodNotAllowed, proxyFallback } from "../lib/http.mjs";
+import { tick } from "../lib/scheduler.mjs";
 import { CATALOG_SORTS as SORTS, normaliseSort } from "../lib/catalog.mjs";
 import { fetchCatalogPage, searchCatalog } from "../lib/api-data.mjs";
 import {
@@ -31,6 +32,14 @@ export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "GET") return methodNotAllowed(res);
+
+  // Five-minute cadence: cheap when it is not time (two number comparisons),
+  // detached when it is, and it can never throw into the request.
+  try {
+    tick(req);
+  } catch {
+    /* a scheduler fault must not cost a catalogue page */
+  }
 
   const { page, search, pageSize, lang, price, sort, facets } = query(req);
 

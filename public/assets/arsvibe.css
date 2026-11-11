@@ -5990,6 +5990,168 @@ body.side-rail .side-brand:hover .brand-img {
 
 .log-when { text-align: right; }
 
+/* ---- the scanner --------------------------------------------------------
+   Same language as the healer, one level up: the healer watches the machinery,
+   the scanner watches the site. The coverage bar is deliberately a *fraction of
+   the catalogue actually looked at*, not a progress animation — a bar that fills
+   on its own would be a lie about a walk that has not happened.
+   ------------------------------------------------------------------------ */
+
+.scan-progress {
+  position: relative;
+  height: 4px;
+  margin: 0.5rem 0 0.35rem;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+
+.scan-progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--blue);
+  transition: width 0.4s ease;
+}
+
+.scan-coverage {
+  margin: 0 0 0.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-clock {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.scan-channel {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-2);
+  border-radius: var(--r-sm);
+  background: var(--card-2);
+}
+
+.scan-channel.on { border-left-color: var(--ok); }
+.scan-channel.off { border-left-color: var(--rule-2); }
+.scan-channel.warn { border-left-color: var(--warn, #a8620b); }
+
+.scan-channel-mark {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-4);
+  line-height: 1.3;
+}
+
+.scan-channel.on .scan-channel-mark { color: var(--ok); }
+
+.scan-channel strong {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--ink);
+}
+
+.scan-channel p {
+  margin: 0.1rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--ink-4);
+}
+
+.scan-channel code {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.scan-findings {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.scan-finding {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-2);
+  border-radius: var(--r-sm);
+  background: var(--card-2);
+}
+
+.scan-finding.sev-high { border-left-color: var(--danger); }
+.scan-finding.sev-medium { border-left-color: var(--warn, #a8620b); }
+.scan-finding.sev-low { border-left-color: var(--blue); }
+.scan-finding.is-blind { border-left-style: dashed; border-left-color: var(--ink-4); }
+
+.scan-finding-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.scan-finding-head strong { font-size: 0.78rem; }
+
+.scan-where {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.scan-finding p {
+  margin: 0;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--ink-4);
+  overflow-wrap: anywhere;
+}
+
+.scan-route {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-4);
+}
+
+.scan-route.heal { color: var(--blue-ink); }
+.scan-route.operator { color: var(--warn, #a8620b); }
+
+.scan-repaired {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scan-repaired li {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.scan-repaired li:last-child { border-bottom: 0; }
+
+@media (max-width: 720px) {
+  .scan-repaired li { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-progress span { transition: none; }
+}
+
 /* ---- the healer ---------------------------------------------------------
    A probe table, a ladder per fault, and the lifecycle strip above them. The
    language is the same one the rest of the panel uses: mono figures, one blue,

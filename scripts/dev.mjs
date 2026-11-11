@@ -66,10 +66,10 @@ function headerRulesFor(pathname) {
   return rules;
 }
 
-function sendStatic(res, filePath, pathname) {
+function sendStatic(res, filePath, pathname, status = 200) {
   return readFile(filePath).then((buf) => {
     const ext = path.extname(filePath).toLowerCase();
-    res.statusCode = 200;
+    res.statusCode = status;
     res.setHeader("Content-Type", TYPES[ext] || "application/octet-stream");
     res.setHeader("Cache-Control", "no-cache");
     for (const rule of headerRulesFor(pathname)) {
@@ -90,7 +90,8 @@ const server = http.createServer(async (req, res) => {
     pathname === "/api/hls" ||
     pathname === "/api/sign" ||
     pathname === "/api/repair" ||
-    pathname === "/api/download"
+    pathname === "/api/download" ||
+    pathname === "/api/scan"
   ) {
     // `/api/sign` and `/api/repair` are mounted on the admin function; `/api/hls`
     // rides on stream, which is how all of them keep their own URL inside a
@@ -176,7 +177,9 @@ const server = http.createServer(async (req, res) => {
       return await sendStatic(res, `${filePath}.html`, pathname);
     } catch {
       try {
-        return await sendStatic(res, path.join(PUBLIC, "404.html"), "/404.html");
+        // Served with its real status: a 404 page that answers 200 is how a site
+        // teaches every crawler and every monitor that its broken links are fine.
+        return await sendStatic(res, path.join(PUBLIC, "404.html"), "/404.html", 404);
       } catch {
         res.statusCode = 404;
         res.setHeader("Content-Type", "text/plain");

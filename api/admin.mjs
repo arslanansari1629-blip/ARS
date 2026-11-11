@@ -22,8 +22,11 @@ import { fetchDppList, fetchDppPaper, dppHeadline } from "../lib/dpp.mjs";
 import { readDppPaper, collectDppPapers } from "../lib/dpp-paper.mjs";
 import { fetchChapters, fetchChapterContents } from "../lib/api-data.mjs";
 import { fetchBatch, signMap, renditionMap } from "../lib/api-data.mjs";
-import { healAction, healerReport, sweep } from "../lib/healer.mjs";
+import { loadCatalogIndex } from "../lib/catalog.mjs";
+import { healAction, healerReport, sweep, repair, reportFault, SYMPTOMS } from "../lib/healer.mjs";
 import { wireHealer } from "../lib/healer-wire.mjs";
+import { scheduleReport, restoreSchedulerState, noteExternalTick, selfBaseOf } from "../lib/scheduler.mjs";
+import { scanPass, scannerReport, clearFinding } from "../lib/scanner.mjs";
 
 /**
  * The API edge: the operator API, plus two media routes that share this function.
@@ -41,6 +44,9 @@ import { wireHealer } from "../lib/healer-wire.mjs";
  *   GET    /api/admin?action=heal    → the healer's state, probe readings, ledger
  *   POST   /api/admin?action=heal    → sweep every probe and repair what is broken
  *   POST   /api/admin?action=heal&symptom=<key> → force one repair, on the spot
+ *   GET    /api/admin?action=scan    → the site scanner's coverage, findings, cadence
+ *   POST   /api/admin?action=scan    → run one scan pass now and repair what it finds
+ *   POST   /api/scan?key=…           → the external five-minute pinger (no session)
  *
  *   GET    /api/hls  → `action=hls`   (rewritten here, see vercel.json)
  *   GET    /api/sign → `action=sign`  (rewritten here, see vercel.json)
@@ -128,6 +134,10 @@ export default async function handler(req, res) {
   if (action === "hls") return hlsHandler(req, res);
   if (action === "repair") return repairAction(req, res);
   if (action === "sign") return signHandler(req, res, true);
+  // The scanner's own URL. `/api/scan` is a rewrite onto this function, so the
+  // external five-minute pinger costs no extra serverless function; the key is
+  // what makes it a scheduler rather than an anonymous "scan now" button.
+  if (action === "scan") return scanRoute(req, res, params);
 
   // No permissive CORS here: this route is same-origin only, by construction.
   res.setHeader("Cache-Control", "no-store");
@@ -207,6 +217,9 @@ export default async function handler(req, res) {
   /* ------------------------------------------------------------- audit */
   if (action === "audit") return auditAction(req, res, finish, params);
   if (action === "heal") return healRoute(req, res, finish, params);
+  // The panel's scanner section reads the same route with `__session` set, so a
+  // signed-in operator sees findings and an anonymous reader does not.
+  if (action === "site") return scanRoute(req, res, { ...params, __session: true }, finish);
   if (action === "rescan") return rescanAction(req, res, finish, params);
 
   /* --------------------------------------------------------------- dpp */
@@ -236,7 +249,169 @@ export default async function handler(req, res) {
   const heal = await sweep({ apply: false }).catch(() => null);
   if (heal) payload.heal = { ...healerReport(), applied: false, actions: [] };
 
+  // The scanner's report rides along too. Reading it never scans: the cadence is
+  // the scheduler's job (see `lib/scheduler.mjs`), and an operator watching the
+  // panel must not be what makes the site change.
+  await restoreSchedulerState().catch(() => null);
+  payload.scan = scheduleReport();
+
   return finish(200, { success: true, ...payload });
+}
+
+/* -------------------------------------------------------------- scanner */
+
+/**
+ * The site scanner, from the operator's chair and from a scheduler.
+ *
+ *   GET  ?action=scan                → coverage, findings, the cadence's channels
+ *   POST ?action=scan                → one full pass, then repair what it names
+ *   POST /api/scan?key=$SCAN_KEY     → the same pass, for an external pinger
+ *
+ * Two rules shape this route, both of them honesty rules:
+ *
+ * 1. **A GET never scans and never repairs.** Reading the state is not an
+ *    action; an operator watching the panel must not be the thing that changes
+ *    it, and a crawler must not be able to spend the repair budget.
+ * 2. **The scheduler is not the operator.** A POST carrying the shared key runs
+ *    a pass; a POST carrying a session runs a pass too, because both are
+ *    deliberate acts. Anything else is 401, and the response says which of the
+ *    two it wanted — a silent 401 on a cron is an outage you cannot see.
+ */
+async function scanRoute(req, res, params, finish = null) {
+  const done = finish || ((status, payload) => json(res, status, payload));
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+
+  // Two credentials can run a pass, and neither is a fixed string in the repo:
+  //   · `x-scan-key` / `?key=` — the external pinger, `SCAN_KEY`
+  //   · `?cron=1` — Vercel's own cron, proved by the `x-vercel-cron` header it
+  //     always sends, and checked against `CRON_SECRET` when one is set.
+  const configured = String(process.env.SCAN_KEY || "");
+  const offered = String(req.headers["x-scan-key"] || params.key || params.scan_key || "");
+  const cronHeader = String(req.headers["x-vercel-cron"] || "");
+  const cronSecret = String(process.env.CRON_SECRET || "");
+  const cronCall =
+    params.cron === "1" &&
+    (cronHeader || req.headers["user-agent"] === "vercel-cron/1.0") &&
+    (!cronSecret || offered === cronSecret || String(req.headers.authorization || "") === `Bearer ${cronSecret}`);
+  const keyed = (Boolean(configured) && offered === configured) || cronCall;
+
+  // The scheduler restores before it reports: a cold instance that has never
+  // ticked still knows where the last pass stopped, and the panel must not show
+  // "0 of 14,201" every time the function scales to zero.
+  await restoreSchedulerState().catch(() => null);
+
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.setHeader("Allow", "GET, POST, OPTIONS");
+    return res.end();
+  }
+
+  if (req.method === "GET") {
+    const report = scheduleReport();
+    return done(200, {
+      success: true,
+      scan: report,
+      // No session and no key: coverage only, no findings. A public URL must not
+      // be a directory of everything that is broken about the site.
+      open: keyed ? report.scanner.open : undefined,
+      findings: keyed ? report.scanner.open : undefined,
+    });
+  }
+
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "GET, POST, OPTIONS");
+    return done(405, { success: false, error: "Method not allowed" });
+  }
+
+  if (!keyed && !params.__session) {
+    return done(401, {
+      success: false,
+      error: configured
+        ? "Send the scan key in x-scan-key to run a pass."
+        : "Set SCAN_KEY on the deployment to allow scheduled scans, or sign in to the panel.",
+    });
+  }
+
+  // The pass needs an origin to talk to. The request's own host is the honest
+  // default; `SELF_BASE` overrides it where the function cannot reach its
+  // public alias (deployment protection, restricted egress).
+  const base = selfBaseOf(req);
+  if (!base) {
+    return done(400, { success: false, error: "No origin to scan from — set SELF_BASE." });
+  }
+
+  // A repair runs against registered handles. Without this, every repair throws
+  // "Cannot read properties of null (reading 'reload')" — a scan that looks like it
+  // tried and failed at everything, on a site that is fine.
+  wireHealer({
+    caches: { plans: planCache(), renditions: renditionCacheHandle() },
+    traffic: () => requestStats(),
+    version: process.env.BUILD_STAMP || "",
+  });
+
+  // The walk needs the catalogue id list. Without it a pass checks the pages and
+  // the routes and then reports "0 batches scanned" — a scanner that never looks
+  // at content, which is exactly the failure mode this whole round exists to
+  // avoid. A catalogue that cannot be read is a finding of its own, not a reason
+  // to call the pass complete.
+  let ids = [];
+  let catalogError = "";
+  try {
+    const index = await loadCatalogIndex();
+    ids = index.batches.map((b) => b.id).filter(Boolean);
+  } catch (err) {
+    catalogError = err?.message || "the catalogue index could not be read";
+  }
+
+  const started = Date.now();
+  const pass = await scanPass({
+    base,
+    batches: ids,
+    budget: params.full === "1" ? 45000 : 25000,
+    windowSize: params.full === "1" ? 12 : 6,
+  }).catch((err) => ({ error: err?.message || "the scan threw", findings: [] }));
+
+  const actions = [];
+  if (pass && !pass.error) {
+    // Sightings first: a fault the scan found is recorded even when the repair
+    // below is refused by a cooldown, or has no rung left.
+    for (const f of pass.findings) {
+      if (f.symptom && SYMPTOMS[f.symptom] && !f.blind) reportFault(f.symptom, `${f.what} — ${f.where}`);
+    }
+    const keys = [...new Set(pass.findings.map((f) => f.symptom).filter((s) => s && SYMPTOMS[s]))];
+    for (const symptom of keys) {
+      const receipt = await repair(symptom, { reason: "scheduled scan" }).catch((err) => ({
+        ok: false,
+        ran: false,
+        error: err?.message || "the repair threw",
+      }));
+      actions.push({ symptom, ...receipt });
+      if (receipt.ran && receipt.ok) {
+        for (const f of pass.findings.filter((x) => x.symptom === symptom)) clearFinding(f.key, { repaired: true });
+      }
+    }
+  }
+
+  noteExternalTick(keyed ? "scheduler" : "operator");
+  noteLog({
+    level: "info",
+    route: "scan",
+    message: `${keyed ? "scheduled" : "operator"} scan: ${pass?.checks || 0} checks, ${pass?.findings?.length || 0} finding(s), ${actions.filter((a) => a.ran).length} repair(s) in ${Date.now() - started}ms`,
+  });
+
+  const report = scheduleReport();
+  return done(pass?.error ? 502 : 200, {
+    success: !pass?.error,
+    error: pass?.error || catalogError || undefined,
+    catalogue: { batches: ids.length, error: catalogError || undefined },
+    ms: Date.now() - started,
+    scan: {
+      ...report,
+      last: pass && !pass.error ? { at: pass.at, ms: pass.ms, checks: pass.checks, scanned: pass.scanned, perMille: pass.perMille, complete: pass.complete } : report.scanner.last,
+      actions,
+    },
+  });
 }
 
 /* --------------------------------------------------------------- healer */

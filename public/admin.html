@@ -325,6 +325,43 @@
           <ol class="heal-timeline-list" id="healTimeline"></ol>
         </details>
       </section>
+
+      <section class="card pad-md admin-block admin-scan" id="scanBlock" style="grid-column:1/-1">
+        <div class="row between mb-2">
+          <div>
+            <span class="eyebrow">Full-site scanner</span>
+            <h3 id="scanVerdict">Not scanned yet</h3>
+            <p class="tiny dim" id="scanSub">Eighteen pages, ten routes and every batch, a window at a time.</p>
+          </div>
+          <div class="admin-heal-actions">
+            <span class="tiny dim" id="scanStamp">no pass yet</span>
+            <button class="btn btn-ghost btn-sm" id="scanNow" type="button">Scan now</button>
+          </div>
+        </div>
+
+        <p class="admin-error" id="scanError" role="alert" hidden></p>
+
+        <div class="scan-progress" id="scanProgress" aria-hidden="true"><span></span></div>
+        <p class="tiny dim scan-coverage" id="scanCoverage">Coverage unknown until the first pass.</p>
+
+        <div class="heal-grid">
+          <div class="heal-col">
+            <h4 class="heal-h">The clock <span class="tiny dim" id="scanClockNote"></span></h4>
+            <div class="scan-clock" id="scanClock"></div>
+          </div>
+          <div class="heal-col">
+            <h4 class="heal-h">Findings <span class="tiny dim" id="scanCount"></span></h4>
+            <div class="scan-findings" id="scanFindings"></div>
+          </div>
+        </div>
+
+        <div class="admin-kv mt-3" id="scanKv"></div>
+
+        <details class="heal-timeline">
+          <summary class="tiny dim">What has been repaired <span id="scanRepairedCount"></span></summary>
+          <ol class="scan-repaired" id="scanRepaired"></ol>
+        </details>
+      </section>
     </div>
 
     <p class="admin-note tiny dim" id="adminNote"></p>
