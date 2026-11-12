@@ -2,6 +2,50 @@
 
 ---
 
+## Round AQ — coverage audited, and the DRM lecture that lied about itself
+
+**"get all batch from there which are not on our site."** Audited properly, and
+the honest answer is that **there are none**. The reference page advertises
+18,568 batches; PW's own `/AllBatches` reports **13,631**, and our catalogue holds
+**14,201** — a superset of the real list. Every id sampled from the reference
+list (newest page, page 400, and the oldest page 680, 2021-era) was already
+present, as were all 1,401 sub-batch ids referenced by the catalogue. A new
+`scripts/audit-coverage.mjs` walks all 682 upstream pages and counts the gap
+instead of sampling it, so this is answerable on demand rather than argued.
+
+**1. `?q=` was silently ignored.** `/api/batches?q=Lakshya JEE 2025` returned
+`total: 14201` — the whole catalogue, unfiltered. A wrong parameter that answers
+with plausible data is worse than one that errors, because the page renders and
+looks like a search finding nothing. `q` is now an alias for the documented
+`search`, with `search` winning when both are present, and a blank term is not a
+term. (The site's own search box was never affected — it sends `search=` — but
+bookmarks and API callers were.)
+
+**2. DRM lectures blamed the wrong thing.** A real lecture in CA Foundation
+Khazana 2026 reported:
+
+> "This lecture is hosted outside the PW CDN, so it cannot be relayed here."
+
+about `https://d1d34p8vz63oiq.cloudfront.net/drm/7e2dfafb-…/master.mpd` — the
+CDN this site relays every day. `parseFolder()` required the uuid to follow the
+host directly, so the `/drm/` segment made it return `""`, and every caller read
+`""` as "not a PW asset". The pattern now tolerates `/drm/`, and `isDrmUrl()`
+reports the separate, true fact: the recording is Widevine-encrypted and cannot
+be relayed by anyone without a licence. The student now gets *"DRM-protected
+lecture"* with a route to the notes and DPPs — which do open — instead of a
+useless Retry button and an invitation to watch a stream that will not play.
+
+**Verified working in a batch outside the JEE/NEET set:** CA Foundation Khazana
+2026 resolves 4 subjects (Accounting 263 lectures, Business Laws 197, Quant 174,
+Business Economics 183), chapters, lecture lists, and a real 480p HLS stream for
+its non-DRM lectures. Eklavya Maharashtra 2.0 resolves 6 subjects and correctly
+reports `state: none` for an archive — PW ships no pointer there, and saying so
+is the right answer.
+
+**Tests:** 462 (was 458).
+
+---
+
 ## Round AP — every batch, and the shapes PW actually uses
 
 **"use his api convert to our api and make khazana working in everybatch."**

@@ -13,6 +13,7 @@ import {
 /**
  * GET /api/batches?page=1&pageSize=20   → the complete catalogue
  * GET /api/batches?search=arjuna        → search across every batch
+ * GET /api/batches?q=arjuna             → same thing; `q` is accepted as an alias
  * GET /api/batches?facets=1             → languages and price counts for the filters
  *
  * `lang`, `price` (free|paid) and `sort` (name|newest|price-asc|price-desc) are
@@ -58,7 +59,13 @@ export default async function handler(req, res) {
     /* a scheduler fault must not cost a catalogue page */
   }
 
-  const { page, search, pageSize, lang, price, sort, facets } = query(req);
+  const { page, search, q, pageSize, lang, price, sort, facets } = query(req);
+
+  // `?q=` is the short form bookmarks, the search box and the reference site all
+  // use. It used to be ignored, which silently answered `/api/batches?q=Lakshya`
+  // with the whole 14,201-row catalogue instead of a match — a wrong answer that
+  // looks like a working one. Accept it as an alias for the documented `search`.
+  const term = String(search ?? q ?? "").trim();
 
   try {
     if (facets) {
@@ -72,12 +79,12 @@ export default async function handler(req, res) {
     const wanted = normaliseSort(sort);
     const filters = { lang, price, sort: SORTS.has(wanted) ? wanted : "default" };
 
-    if (search || lang || (price && price !== "all")) {
+    if (term || lang || (price && price !== "all")) {
       let out = null;
       try {
         // 80 hits is a generous first page; `total` carries the real count so
         // the UI can say "showing the closest 80 of 431".
-        out = await searchLocalCatalog(search, 80, filters);
+        out = await searchLocalCatalog(term, 80, filters);
       } catch {
         out = null;
       }
@@ -85,8 +92,8 @@ export default async function handler(req, res) {
       if (!out || !out.ok) {
         // The upstream search cannot filter or see the whole catalogue, so it is
         // only a last resort when the local index is unavailable.
-        if (!search) return json(res, 503, { success: false, error: "Catalogue index unavailable" });
-        const upstream = await searchCatalog(search);
+        if (!term) return json(res, 503, { success: false, error: "Catalogue index unavailable" });
+        const upstream = await searchCatalog(term);
         if (!upstream.ok) return proxyFallback(res, upstream);
         out = { ...upstream, source: "upstream" };
       }

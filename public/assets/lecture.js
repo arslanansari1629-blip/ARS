@@ -551,6 +551,29 @@ async function startStream() {
   }
 
   if (!plan || !plan.playable || !plan.url) {
+    if (plan && plan.drm) {
+      // DRM is not a retryable failure and not a third-party host: the recording
+      // is on PW's own CDN, encrypted, with a per-device licence. Offering
+      // "Retry" or "Playback check" here would promise something that cannot
+      // happen, so lead with the one thing that does work — the notes and DPPs.
+      showMessage(
+        "DRM-protected lecture",
+        plan.reason ||
+          "This lecture is DRM-protected, so it cannot be relayed through this site. It opens in the PW app with a subscription.",
+        false,
+        `<a class="btn btn-primary" href="/chapter.html?batch=${encodeURIComponent(
+          qs("batch") || ""
+        )}&subject=${encodeURIComponent(qs("subject") || "")}&chapter=${encodeURIComponent(
+          qs("chapter") || ""
+        )}&name=${encodeURIComponent(qs("chapterName") || "")}#notes">Open the notes &amp; DPPs for this chapter</a>
+         ${
+           plan.sourceUrl
+             ? `<a class="btn btn-ghost" href="${plan.sourceUrl}" target="_blank" rel="noopener">Source stream address</a>`
+             : ""
+         }`
+      );
+      return;
+    }
     if (plan && plan.external) {
       // The upstream declined to sign this video. Say so and offer Retry; the
       // site does not hand the reader off to a third-party host.

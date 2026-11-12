@@ -291,3 +291,39 @@ test("a chapter row carries a distinct label when the names collide", async () =
   const shown = data.chapters.map((c) => c.displayName);
   assert.equal(new Set(shown).size, shown.length, "two chapters render identically");
 });
+
+test("?q= is the same search as ?search=, not a silently ignored parameter", async () => {
+  // `/api/batches?q=Lakshya` used to ignore `q` and answer with the whole
+  // catalogue — 14,201 rows in production — so a wrong parameter looked like a
+  // working search that simply could not find anything. Both spellings must
+  // now land on the same filtered answer.
+  const bySearch = await (await fetch(`${BASE}/api/batches?search=arjuna&pageSize=5`)).json();
+  const byQ = await (await fetch(`${BASE}/api/batches?q=arjuna&pageSize=5`)).json();
+
+  assert.equal(byQ.mode, "search", "?q= did not run a search");
+  assert.ok(byQ.total > 0, "?q= found nothing");
+  assert.ok(byQ.total < 10000, `?q= returned the whole catalogue (total ${byQ.total})`);
+  assert.equal(byQ.total, bySearch.total, "?q= and ?search= disagree");
+  assert.deepEqual(
+    byQ.batches.map((b) => b.id),
+    bySearch.batches.map((b) => b.id),
+    "?q= and ?search= returned different rows"
+  );
+});
+
+test("an unrecognised search parameter still cannot pass for an unfiltered browse", async () => {
+  // The refusal case: `search` wins when both are present, and whitespace alone
+  // is not a term. Neither may quietly become a full-catalogue listing.
+  const both = await (await fetch(`${BASE}/api/batches?search=arjuna&q=yakeen&pageSize=5`)).json();
+  assert.equal(both.mode, "search");
+  assert.ok(both.batches.length > 0);
+  for (const b of both.batches) {
+    assert.ok(!/yakeen/i.test(b.name), "?search= must win over ?q=");
+  }
+
+  const blank = await (await fetch(`${BASE}/api/batches?q=%20%20&pageSize=5`)).json();
+  assert.ok(
+    blank.mode !== "search" || blank.total === 0,
+    "a blank ?q= must not be treated as a real search term"
+  );
+});

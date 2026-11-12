@@ -620,3 +620,50 @@ test("the health probe names the step that broke", async () => {
   // *which* step failed instead of a generic "playback is broken".
   assert.match(out.reason, /segment answered \d{3}/);
 });
+
+test("a /drm/ address yields its folder instead of an empty string", async () => {
+  // The url shape that exposed this: a real CA Foundation Khazana 2026 lecture.
+  // The pattern required the uuid to follow the host directly, so everything
+  // after `/drm/` was unmatchable and the folder came back "". Callers read ""
+  // as "not a PW asset" and told the student a cloudfront.net stream was
+  // "hosted outside the PW CDN".
+  const { parseFolder, isDrmUrl } = await import("../lib/api-data.mjs");
+
+  const plain = "https://d1d34p8vz63oiq.cloudfront.net/33377452-995f-4091-a98e-7068cf901f0b/master.mpd";
+  const drm = "https://d1d34p8vz63oiq.cloudfront.net/drm/7e2dfafb-61ef-4b6b-a8f8-1377cb8ad26f/master.mpd";
+
+  assert.equal(parseFolder(plain), "33377452-995f-4091-a98e-7068cf901f0b");
+  assert.equal(
+    parseFolder(drm),
+    "7e2dfafb-61ef-4b6b-a8f8-1377cb8ad26f",
+    "a /drm/ url must still name the folder it belongs to"
+  );
+
+  // The DRM flag is the separate fact: relaying is impossible for a different
+  // reason, and the two must not collapse into one another.
+  assert.equal(isDrmUrl(plain), false);
+  assert.equal(isDrmUrl(drm), true);
+});
+
+test("a DRM lecture is named as DRM, not as an unknown host", async () => {
+  // The failure a reader actually saw, before the fix:
+  //   "This lecture is hosted outside the PW CDN, so it cannot be relayed here."
+  // about a `d1d34p8vz63oiq.cloudfront.net` url. The advice that followed
+  // ("use the source player link") is useless for Widevine content, and the
+  // sentence is simply false about a host the site relays every day.
+  const { resolveStream } = await import("../lib/api-data.mjs");
+
+  const drm = "https://d1d34p8vz63oiq.cloudfront.net/drm/7e2dfafb-61ef-4b6b-a8f8-1377cb8ad26f/master.mpd";
+  const plan = await resolveStream({ rawUrl: drm });
+
+  assert.equal(plan.playable, false);
+  assert.equal(plan.kind, "drm", `expected kind "drm", got "${plan.kind}"`);
+  assert.equal(plan.drm, true);
+  assert.ok(/DRM|Widevine/i.test(plan.reason), `the reason did not mention DRM: ${plan.reason}`);
+  assert.ok(
+    !/outside the PW CDN/i.test(plan.reason),
+    "a PW CDN url must never be described as outside the PW CDN"
+  );
+  // The address is still handed back so the reader can try the source player.
+  assert.equal(plan.sourceUrl, drm);
+});
