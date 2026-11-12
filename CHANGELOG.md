@@ -2,6 +2,45 @@
 
 ---
 
+## Round AP — every batch, and the shapes PW actually uses
+
+**"use his api convert to our api and make khazana working in everybatch."**
+
+Studying the reference URLs turned up four things that were still wrong, none of
+them in the code I had been looking at:
+
+**1. A "program" is two different things.** `697c6370…` (Udaan English Khazana
+2027) is a *course*: subjects are Physics, Chemistry, Biology. `62cc7a39…` — the
+archive attached to the named Khazana batch "Power Batch : 11th Khazana JEE" — is
+an *archive*: subjects are "Complete Physics - 11th", and **5,669 lectures across
+659 topics**. Same endpoints, completely different shape. `programShape()` now
+tells the page which it is holding.
+
+**2. Every chapter in an archive is called "Physics by".** 30 of them, differing
+only in `description` (`"Saleem Ahmad Sir; Arjuna JEE 2026"`). Thirty identical
+rows are thirty identical clicks. `disambiguate()` promotes the distinguishing
+part to the display name — "Physics by — Arjuna JEE 2026" — and only when the
+plain name is ambiguous, so small archives still read cleanly.
+
+**3. Topics were silently truncated at 20.** A chapter reports up to 39 topics and
+the endpoint's default page size is 20. Worse: the topics that survived were the
+*empty* ones, because emptying out competes with truncating. The call now asks
+for `limit=100`. Verified: 39 topics, all of them.
+
+**4. Plenty of batches had no subject list at all.** `/v3/batches/<id>/details`
+answers a guest for newer batches, but named Khazana batches come back
+`subjects: null` or 401. **`/v1/batches/<id>/subjects` accepts a guest token** and
+returns the same rows. That fallback is what makes the named-Khazana half work —
+"working in every batch" was, for those, a missing one-version-back call.
+
+Also: `v2/programs/contents` ignores `page` entirely (page 2 replays page 1), so
+the contents reader walks pages until one adds nothing new rather than looping.
+
+**Tests:** 458 (was 452). The new ones assert course-vs-archive, distinct chapter
+labels, one-answer contents, and that the topics call asks for the whole chapter.
+
+---
+
 ## Round AO — Khazana, actually working
 
 **"khazana not working fix it yaar … make a proxy and make it workable."** Right

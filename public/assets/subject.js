@@ -63,7 +63,7 @@ function row(c, index) {
     <a class="list-row chapter-row fade-up" href="${href}">
       <span class="index">${String(index + 1).padStart(2, "0")}</span>
       <span class="grow">
-        <span class="title">${esc(c.name)}</span>
+        <span class="title">${esc(c.displayName || c.name)}</span>
         <span class="counts">
           ${c.videos ? `<span class="count-chip v">${c.videos} lectures</span>` : ""}
           ${c.notes ? `<span class="count-chip n">${c.notes} notes</span>` : ""}
@@ -185,7 +185,17 @@ async function load() {
       subjectMeta.textContent = "";
       return;
     }
-    subjectMeta.textContent = `${chapters.length} chapters · click a chapter for lectures, notes and DPPs`;
+    // An archive program can hold more chapters than its own subject count says,
+    // because PW paginates at 30 and reports the smaller figure. Say which number
+    // the list is, so a short list never reads as "that is all there is".
+    const expected = Number(out.chapterCount) || 0;
+    const short = expected > chapters.length;
+    subjectMeta.textContent =
+      `${chapters.length} chapter${chapters.length === 1 ? "" : "s"}` +
+      (short ? ` of ${expected}` : "") +
+      (archiveMode
+        ? " · older lecture sets from the archive"
+        : " · click a chapter for lectures, notes and DPPs");
     allChapters = chapters;
     renderList(chapters);
     if (listTools) listTools.hidden = chapters.length < 6;

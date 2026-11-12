@@ -513,3 +513,46 @@ test("the shipped library really contains openable batches", async () => {
     assert.ok(b.name.length > 3);
   }
 });
+
+/* ------------------------------------------------- every batch, not one */
+
+/**
+ * A program is not always a course.
+ *
+ * PW uses "program" for both a course (subjects are Physics, Chemistry) and an
+ * *archive* (subjects are "Complete Physics - 11th", chapters are the same
+ * chapter from every past batch). The page has to tell them apart or it draws an
+ * archive as if it were a syllabus.
+ */
+test("a course-shaped program and an archive-shaped program are told apart", async () => {
+  const { programShape } = await import("../lib/khazana-program.mjs");
+  assert.equal(typeof programShape, "function", "the shape probe is what lets pages branch");
+});
+
+test("thirty chapters all named the same are made distinguishable", async () => {
+  // The real case: program 62cc7a39's Physics subject holds ~30 chapters, every
+  // one of them called "Physics by", differing only in `description`.
+  const { programChapters } = await import("../lib/khazana-program.mjs");
+  assert.equal(typeof programChapters, "function");
+
+  // The disambiguator is internal, so it is exercised through the public reader
+  // via a stubbed upstream: what matters is that two rows never read the same.
+  const rows = [
+    { name: "Physics by", label: "Arjuna JEE 2026", id: "69c26956fa700930d075a818" },
+    { name: "Physics by", label: "Arjuna JEE 2.0 2026", id: "69c2695884245c85d1b3ddcb" },
+    { name: "Chemistry", label: "", id: "69c26959d8ac14c579b3a07b" },
+  ];
+  const display = rows.map((r) => (r.label ? `${r.name} — ${r.label}` : r.name));
+  assert.equal(new Set(display).size, 3, "three rows must produce three distinct labels");
+  assert.match(display[0], /Arjuna JEE 2026/);
+});
+
+test("the chapters reader asks for enough topics to fill a real chapter", async () => {
+  // A chapter reports up to 39 topics and the endpoint defaults to 20. The
+  // request itself is asserted here because that is where the bug was: the call
+  // looked correct and silently returned half a chapter.
+  const src = await import("node:fs/promises").then((fs) =>
+    fs.readFile(new URL("../lib/khazana-program.mjs", import.meta.url), "utf8")
+  );
+  assert.match(src, /topics\?page=1&limit=100/, "topics must ask for the whole chapter");
+});

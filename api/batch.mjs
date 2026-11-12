@@ -4,10 +4,12 @@ import { readArchive, archiveVerdict, archivePointers } from "../lib/khazana.mjs
 import {
   khazanaStateLabel,
   programSubjects,
+  programShape,
+  topicContents,
+  topicContentsAll,
   programChapters,
   programTopics,
   topicSections,
-  topicContents,
 } from "../lib/khazana-program.mjs";
 
 /**
@@ -219,11 +221,19 @@ async function readProgram(programId) {
  * cache the archive read uses: these are static per program and change rarely.
  */
 const SUB_ROUTES = {
-  subjects: (q, id) => programSubjects(id),
+  // `subjects` is the one level where the answer's *kind* matters: a course lists
+  // Physics/Chemistry, an archive lists "Complete Physics - 11th". The page has
+  // to know which it is holding before it decides what to draw.
+  subjects: (q, id) => programShape(id),
   chapters: (q, id) => programChapters(id, q.subject),
   topics: (q, id) => programTopics(id, q.subject, q.chapter),
   sections: (q, id) => topicSections(id, q.subject, q.chapter, q.topic),
-  contents: (q, id) => topicContents(id, q.subject, q.chapter, q.topic, q.page),
+  // The player needs the whole topic, not the first 20 rows: a lecture clicked
+  // from page 2 has to exist in the queue for prev/next to work.
+  contents: (q, id) =>
+    q.page
+      ? topicContents(id, q.subject, q.chapter, q.topic, q.page)
+      : topicContentsAll(id, q.subject, q.chapter, q.topic),
 };
 
 const REQUIRED = {

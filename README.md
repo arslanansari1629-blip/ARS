@@ -605,6 +605,35 @@ relay:
 verdict vocabulary. The batch page's tab lists the archive's **subjects**, each
 with its real lecture count.
 
+**A "program" is two different things**, and the difference only shows up one
+level down. Reading the reference site's URLs made this plain:
+
+| | course program | archive program |
+| --- | --- | --- |
+| example | `697c6370…` Udaan English Khazana 2027 | `62cc7a39…` (linked to "Power Batch: 11th Khazana JEE") |
+| subjects are | Physics, Chemistry, Biology | "Complete Physics - 11th", "Complete Chemistry" |
+| size | 9 subjects, 284 lectures | 3 subjects, **17,429 lectures**, 659 topics |
+| chapters | one per subject | ~30 per subject, all named "Physics by" |
+
+`programShape()` classifies it; `disambiguate()` gives colliding chapter names a
+distinguishing suffix ("Physics by — Arjuna JEE 2026"), and only when they
+actually collide.
+
+**Two truncations that were silently losing content:**
+
+- `/v1/…/topics` defaults to **20 rows** and a real chapter reports 39. The call
+  now sends `limit=100`. Before this, 19 topics vanished — and because an empty
+  topic renders as "Coming soon", the survivors were the empty ones.
+- `/v2/programs/contents` **ignores `page`** (page 2 replays page 1). The reader
+  walks pages until one adds nothing new, so a paging bug upstream costs one
+  redundant request instead of an infinite loop.
+
+**Batches with no subject list.** `/v3/batches/<id>/details` answers a guest for
+newer batches, but many real ones — every named Khazana batch among them — return
+`subjects: null` or 401. **`/v1/batches/<id>/subjects` accepts a guest token** and
+carries the same rows, so `fetchBatch` falls back to it. Without that fallback
+those batches showed "no subjects yet" while the list sat one version back.
+
 **One flag is reported, not obeyed.** Some lectures come back `isPurchased: false`
 while the notes beside them are `true`. That is PW's own entitlement flag. The row
 is still listed — it is real content and the reader should know it exists — and it

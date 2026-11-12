@@ -402,7 +402,7 @@ function topicRow(topic, index) {
     <a class="list-row chapter-row fade-up" href="${href}">
       <span class="index">${String(index + 1).padStart(2, "0")}</span>
       <span class="grow">
-        <span class="title">${esc(topic.name)}</span>
+        <span class="title">${esc(topic.displayName || topic.name)}</span>
         <span class="counts">
           ${topic.lectures ? `<span class="count-chip v">${topic.lectures} lectures</span>` : ""}
           ${topic.notes ? `<span class="count-chip n">${topic.notes} notes</span>` : ""}

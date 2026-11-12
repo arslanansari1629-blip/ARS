@@ -257,3 +257,37 @@ test("an unknown archive id is reported, not invented", async () => {
   assert.ok(["missing", "error", "invalid"].includes(data.state), `got ${data.state}`);
   assert.deepEqual(data.subjects || [], [], "a failed read must not list subjects");
 });
+
+test("the subjects answer says which kind of program it is", async () => {
+  // The fixture program is course-shaped (Physics, Chemistry).
+  const data = await (await fetch(`${BASE}/api/batch?khazana=subjects&id=${PROGRAM}`)).json();
+  assert.ok(data.kind, "a page cannot branch without knowing course vs archive");
+  assert.ok(["course", "archive"].includes(data.kind), `got ${data.kind}`);
+});
+
+test("a topic's full contents come back in one answer, not a truncated page", async () => {
+  const q =
+    `khazana=contents&id=${PROGRAM}&subject=physics-936551` +
+    `&chapter=physics-by-848830&topic=abbbba-987565`;
+  const data = await (await fetch(`${BASE}/api/batch?${q}`)).json();
+  assert.equal(data.success, true);
+  // Both kinds in one list: the queue and the docs pane are filled from it.
+  assert.ok(data.items.some((i) => i.kind === "lecture"));
+  assert.ok(data.items.some((i) => i.kind === "note"));
+  // Ids are unique — the paging loop must not duplicate a replay.
+  const ids = data.items.map((i) => i.id);
+  assert.equal(new Set(ids).size, ids.length, "the contents reader duplicated a page");
+});
+
+test("a chapter row carries a distinct label when the names collide", async () => {
+  const data = await (
+    await fetch(`${BASE}/api/batch?khazana=chapters&id=${PROGRAM}&subject=698093f28655f976c4f778be`)
+  ).json();
+  assert.equal(data.success, true);
+  for (const c of data.chapters) {
+    assert.ok(c.displayName, "every chapter needs a display name");
+    assert.ok(c.displayName.length >= c.name.length);
+  }
+  const shown = data.chapters.map((c) => c.displayName);
+  assert.equal(new Set(shown).size, shown.length, "two chapters render identically");
+});
