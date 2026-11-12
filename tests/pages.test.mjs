@@ -2320,7 +2320,7 @@ test("clicking the Khazana tab opens this batch's archive, not a notice", async 
   }
 
   assert.ok(cards > 0, `the tab drew no archive subjects — ${tabBody.textContent.slice(0, 200)}`);
-  assert.match(tabBody.textContent, /From this batch's archive/);
+  assert.match(tabBody.textContent, /Older lecture sets in this batch/);
   assert.ok(
     !/No linked archive/.test(tabBody.textContent),
     "the tab claimed there is no archive on a batch that has one"
@@ -2413,7 +2413,7 @@ test("tapping Khazana before the batch loads is not undone by the batch load", a
     cards,
     "the detail call replaced the Khazana tab with the subject grid"
   );
-  assert.match(doc.getElementById("tabBody").textContent, /From this batch's archive/);
+  assert.match(doc.getElementById("tabBody").textContent, /Older lecture sets in this batch/);
   assert.ok(
     doc.querySelector('[data-tab="khazana"]').classList.contains("active"),
     "the Khazana tab lost its active state when the batch finished loading"

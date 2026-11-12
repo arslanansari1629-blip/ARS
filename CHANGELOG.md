@@ -2,6 +2,47 @@
 
 ---
 
+## Round AU — the Khazana tab, designed rather than assembled
+
+"keep it in well proper and maintained." The tab had no real design: three
+unrelated shapes depending on state — a bare `<p>` while reading, an `<h3>` plus a
+grid when it worked, an unadorned notice when it did not. Switching tabs meant the
+panel jumped height and the page moved under the reader's finger. The size of an
+archive (17,429 lectures in the big ones) was buried in a sentence.
+
+**One frame, seven states.** Everything now sits in `.khazana-panel` with an
+eyebrow ("Khazana · archive" / "Khazana · notice"), a heading and a 68ch
+explanation — the measure the rest of the site uses. The state decides only what
+fills the frame, so the panel never reflows between "loading", "empty" and "here
+it is".
+
+**The figures are stated, not embedded.** Subjects, lectures and chapters are now
+three labelled counters above the grid (`3 · 17,429 · 123`), because that is the
+one thing worth knowing before scrolling. Numbers use Indian digit grouping, the
+same as everywhere else on the site, and the header counts what the grid actually
+draws.
+
+**Cards match the Subjects tab** — same `.subject-card`, same 40px thumbnail, same
+chevron. They *are* subjects; dressing them differently would suggest they behave
+differently. Names clamp to two lines, meta lines truncate, so a long archive
+subject cannot stretch a card.
+
+**A skeleton while reading** in the shape the cards will take, so the panel does
+not jump when the archive lands. Disabled under `prefers-reduced-motion`, along
+with the shimmer.
+
+Also fixed: `subject-grid` never had a base rule (it only ever existed as a
+modifier on `.grid`), so the Khazana grid was relying on `.khazana-grid` alone.
+It now uses the site's `.grid` base. `subject-thumb` got a real rule.
+
+**Tests:** 472 (was 468). Four new ones: every state has the same frame and is
+never empty; the header counts agree with the grid and use Indian grouping; a
+card's numbers pluralise correctly ("1 chapter", not "1 chapters"); and every
+class the module emits has a rule in the stylesheet — which is what caught the two
+missing ones.
+
+---
+
 ## Round AT — a batch's Khazana tab shows that batch's archive, and nothing else
 
 The tab rendered two things: the batch's own linked archive, **and** a site-wide

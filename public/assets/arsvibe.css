@@ -9156,91 +9156,136 @@ html:not(.intro-armed) > body {
 /* ------------------------------------------------------------- khazana tab */
 
 /*
- * The archive notice. It sits above the subject grid in the same column, so the
- * tab reads the same way whether it is announcing an archive or explaining why
- * one cannot be read. The warn tone is a colour change only — a student who
- * cannot read paid content has not made a mistake, and the page must not shout.
+ * The Khazana tab is one panel, in every state, so it never reflows between
+ * "reading", "empty" and "here it is". The panel supplies the surface and the
+ * rhythm; the state decides only what fills it.
  */
-.khazana-note {
+.khazana-panel {
   display: grid;
-  gap: 0.5rem;
-  justify-items: start;
-  padding: 1rem 1.1rem;
-  margin-bottom: 1.1rem;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem 1.3rem;
   border: 1px solid var(--rule);
-  border-left: 3px solid var(--rule-2);
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
   background: var(--card-2);
 }
 
-.khazana-note.is-warn {
-  border-left-color: var(--warn, #b7791f);
-  background: var(--warn-soft, rgba(183, 121, 31, 0.06));
+.khazana-head {
+  display: grid;
+  gap: 0.3rem;
 }
 
-.khazana-note p {
+.khazana-eyebrow {
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.khazana-h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.02rem;
+  font-weight: 680;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+/* 68ch is the measure the rest of the site uses for explanatory prose. */
+.khazana-sub {
   margin: 0;
   max-width: 68ch;
-  line-height: 1.6;
+  color: var(--ink-3);
+  font-size: 0.855rem;
+  line-height: 1.62;
 }
 
-.khazana-title {
+/* ------------------------------------------------------------ figures
+   Subjects / lectures / chapters, so the size of the archive is legible before
+   any card is read. Each cell is a label above a number, the same pairing the
+   dashboard uses for its counters. */
+.khazana-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.khazana-stat {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 5.5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper-2);
+}
+
+.khazana-stat-value {
+  color: var(--ink);
+  font-family: var(--mono);
   font-size: 0.95rem;
   font-weight: 650;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
-.khazana-note code {
+.khazana-stat-label {
+  color: var(--ink-4);
   font-family: var(--mono);
-  font-size: 0.72rem;
-  padding: 0.05rem 0.3rem;
-  border-radius: 4px;
-  background: var(--card);
-  border: 1px solid var(--rule);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .khazana-note {
-    transition: none;
-  }
-}
-
-/* ------------------------------------------------------- khazana library
-   The Khazana batches that are openable in their own right. Deliberately the
-   same card language as the subject grid on the batch page: these *are* batches,
-   and dressing them differently would suggest they behave differently. */
-
-.khazana-library {
-  display: grid;
-  gap: 0.9rem;
-  margin-bottom: 1.4rem;
-}
-
-.khazana-library-head h3 {
-  margin: 0 0 0.2rem;
-  font-size: 1rem;
-  letter-spacing: -0.01em;
-}
-
-.khazana-library-head p {
-  margin: 0;
-  max-width: 68ch;
-  line-height: 1.6;
-  color: var(--muted);
-  font-size: 0.875rem;
+/* ------------------------------------------------------------- the grid
+   Same card language as the Subjects tab: these *are* subjects, and dressing
+   them differently would suggest they behave differently. */
+/* The archive state, as opposed to the notices. It marks the panel whose grid is
+   real content — used by the page tests to tell "here is the archive" from "here
+   is why there is none", and as a hook for the tighter gap the cards need. */
+.khazana-panel.khazana-archive .khazana-grid {
+  gap: 0.65rem;
 }
 
 .khazana-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 0.65rem;
+}
+
+/* The Subject tab's thumbnail. Declared beside the Khazana one because both tabs
+   draw the same card and the image box must be the same size in each, or the two
+   tabs look like two different designs. */
+.subject-card .subject-thumb {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper-2);
+}
+
+.subject-card .subject-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .khazana-card .khazana-thumb {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
+  width: 40px;
+  height: 40px;
   overflow: hidden;
-  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper-2);
 }
 
 .khazana-card .khazana-thumb img {
@@ -9250,27 +9295,151 @@ html:not(.intro-armed) > body {
 }
 
 .khazana-card-initials {
-  font-size: 0.8rem;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--muted);
 }
 
-.khazana-card .title {
+.khazana-card-body {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+/* Two lines maximum, then an ellipsis: archive subject names are long and the
+   card must not grow to fit them. */
+.khazana-card-name {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
   overflow: hidden;
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.khazana-card-meta {
+  overflow: hidden;
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 0.665rem;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.khazana-card:hover .chev {
+  color: var(--blue);
+  transform: translateX(2px);
+}
+
+/* ------------------------------------------------------------- the notice
+   The non-archive states: no pointer, locked, empty, unreachable. The warn tone
+   is a colour change only — nobody made a mistake here. */
+.khazana-note {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-2);
+  border-radius: var(--r-sm);
+  background: var(--paper-2);
+}
+
+.khazana-note.is-warn {
+  border-left-color: var(--warn, #b7791f);
+  background: var(--warn-soft, rgba(183, 121, 31, 0.06));
+}
+
+.khazana-title {
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.khazana-hint {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--ink-3);
+  font-size: 0.855rem;
+  line-height: 1.62;
 }
 
 .khazana-pointer {
-  font-size: 0.8rem;
-  color: var(--muted);
+  margin: 0;
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+}
+
+.khazana-note code {
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--card-2);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+}
+
+/* ------------------------------------------------------------- reading
+   Three grey rows in the shape the cards will take, so the panel does not jump
+   height when the archive lands. */
+.khazana-skeleton {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.khazana-skeleton-row {
+  height: 58px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: linear-gradient(90deg, var(--paper-2) 25%, var(--card) 50%, var(--paper-2) 75%);
+  background-size: 200% 100%;
+  animation: khazana-shimmer 1.4s linear infinite;
+}
+
+@keyframes khazana-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .khazana-panel {
+    padding: 0.95rem 1rem 1.1rem;
+  }
+
+  .khazana-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .khazana-stats {
+    gap: 0.4rem;
+  }
+
+  .khazana-stat {
+    min-width: 4.5rem;
+    padding: 0.42rem 0.55rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .khazana-skeleton-row {
+    animation: none;
+    background: var(--paper-2);
+  }
+
   .khazana-card,
-  .khazana-library {
+  .khazana-card .chev {
     transition: none;
   }
 }

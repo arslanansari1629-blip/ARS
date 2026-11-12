@@ -235,8 +235,8 @@ test("the reading state is visibly different from the refused state", async () =
   const { khazanaMarkup } = await import("../public/assets/khazana.js");
   const reading = khazanaMarkup({ khazana: { state: "known" }, library: [], reading: true });
   const refused = khazanaMarkup({ khazana: { state: "locked" } });
-  assert.match(reading, /Reading the linked archive/);
-  assert.equal(/Reading the linked archive/.test(refused), false, "'we have not asked' must never read as 'no'");
+  assert.match(reading, /Loading this batch's archive/);
+  assert.equal(/Loading this batch's archive/.test(refused), false, "'we have not asked' must never read as 'no'");
 });
 
 test("real subjects render as links that carry the archive id, not the batch id", async () => {
@@ -506,7 +506,7 @@ test("an archive is drawn on its own, with no cross-batch list above it", async 
     subjects: [{ name: "Physics", slug: "physics-936551", lectures: 23, chapters: 1 }],
     library: [{ id: "x", name: "SSC Khazana for Exam 2026" }],
   });
-  assert.match(html, /From this batch's archive/);
+  assert.match(html, /Older lecture sets in this batch/);
   assert.match(html, /Physics/);
   assert.ok(!/SSC Khazana for Exam 2026/.test(html), "the cross-batch list leaked into the archive view");
   // The subject link has to stay archive-addressed.
@@ -520,7 +520,7 @@ test("the in-flight state does not wait on other batches either", async () => {
     library: [{ id: "x", name: "SSC Khazana for Exam 2026" }],
     reading: true,
   });
-  assert.match(html, /Reading the linked archive/);
+  assert.match(html, /Loading this batch's archive/);
   assert.ok(!/SSC Khazana for Exam 2026/.test(html), "the cross-batch list was drawn while reading");
 });
 
@@ -579,4 +579,95 @@ test("the chapters reader asks for enough topics to fill a real chapter", async 
     fs.readFile(new URL("../lib/khazana-program.mjs", import.meta.url), "utf8")
   );
   assert.match(src, /topics\?page=1&limit=100/, "topics must ask for the whole chapter");
+});
+
+test("every state of the tab has the same frame, so it cannot reflow", async () => {
+  // The tab used to be three unrelated shapes: a bare <p> while reading, a
+  // heading + grid when it worked, a notice when it did not. Switching between
+  // them meant the panel jumped height and the page moved under the reader's
+  // finger. Every state now sits in one .khazana-panel with an eyebrow, so the
+  // frame is constant and only the contents change.
+  const { khazanaMarkup } = await import("../public/assets/khazana.js");
+
+  const states = {
+    archive: {
+      khazana: { state: "ok", programId: "697c6370cb722a4fac145ef1" },
+      subjects: [{ name: "Physics", slug: "p", lectures: 23, chapters: 1 }],
+    },
+    none: { khazana: { state: "none" } },
+    empty: { khazana: { state: "ok", programId: "x" } },
+    locked: { khazana: { state: "locked", programId: "x" } },
+    invalid: { khazana: { state: "invalid", programId: "x" } },
+    error: { khazana: { state: "error" } },
+    reading: { khazana: { state: "known" }, reading: true },
+  };
+
+  for (const [name, input] of Object.entries(states)) {
+    const html = khazanaMarkup(input);
+    assert.match(html, /class="khazana-panel/, `${name}: no panel frame`);
+    assert.match(html, /class="khazana-eyebrow"/, `${name}: no eyebrow to say which tab this is`);
+    // Every state must say *something* — no empty panel, ever.
+    const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    assert.ok(text.length > 30, `${name}: the panel is effectively empty — "${text}"`);
+  }
+});
+
+test("the archive header counts what it is about to list", async () => {
+  // The size of an archive (17,000 lectures in the big ones) is the single most
+  // useful thing to know before scrolling, and it was buried in a sentence
+  // before. It is now figures above the grid, and they have to agree with the
+  // cards underneath them — a header that says 2 subjects over 3 cards is worse
+  // than no header.
+  const { khazanaMarkup } = await import("../public/assets/khazana.js");
+  const subjects = [
+    { name: "Complete Physics - 11th", slug: "p", lectures: 5669, chapters: 26 },
+    { name: "Complete Chemistry - 11th", slug: "c", lectures: 5857, chapters: 69 },
+    { name: "Complete Mathematics - 11th", slug: "m", lectures: 5903, chapters: 28 },
+  ];
+  const html = khazanaMarkup({ khazana: { state: "ok", programId: "ARCH" }, subjects });
+
+  const stats = [...html.matchAll(/khazana-stat-value">([^<]+)</g)].map((m) => m[1].trim());
+  // Indian digit grouping, because every number on this site is written that way.
+  assert.deepEqual(stats, ["3", "17,429", "123"]);
+
+  const cards = [...html.matchAll(/khazana-card-name">([^<]+)</g)].map((m) => m[1]);
+  assert.equal(cards.length, 3, "the header counted subjects the grid did not draw");
+});
+
+test("a subject card shows its numbers without overflowing its box", async () => {
+  const { khazanaMarkup } = await import("../public/assets/khazana.js");
+  const html = khazanaMarkup({
+    khazana: { state: "ok", programId: "ARCH" },
+    subjects: [{ name: "Complete Mathematics - 11th", slug: "m", lectures: 5903, chapters: 28 }],
+  });
+  // 5903 must be grouped, and the singular/plural has to be right.
+  assert.match(html, /5,903 lectures/);
+  assert.match(html, /28 chapters/);
+  // A one-chapter subject must not say "1 chapters".
+  const one = khazanaMarkup({
+    khazana: { state: "ok", programId: "ARCH" },
+    subjects: [{ name: "Physics", slug: "p", lectures: 23, chapters: 1 }],
+  });
+  assert.match(one, /1 chapter\b/);
+  assert.ok(!/1 chapters/.test(one), "wrote '1 chapters'");
+});
+
+test("every class the tab emits has a rule in the stylesheet", async () => {
+  // Markup and CSS drift apart silently: a class with no rule renders as
+  // unstyled text and looks like a broken page, not a missing style. This is
+  // cheap and it catches the whole class.
+  const { readFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const root = path.resolve(import.meta.dirname, "..");
+  const css = await readFile(path.join(root, "public/assets/arsvibe.css"), "utf8");
+  const js = await readFile(path.join(root, "public/assets/khazana.js"), "utf8");
+
+  const defined = new Set([...css.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]));
+  const used = new Set();
+  for (const m of js.matchAll(/class="([^"$]*?)"/g)) {
+    for (const cls of m[1].split(/\s+/)) if (cls) used.add(cls);
+  }
+
+  const missing = [...used].filter((c) => !defined.has(c));
+  assert.deepEqual(missing, [], `no CSS rule for: ${missing.join(", ")}`);
 });

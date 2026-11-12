@@ -79,26 +79,39 @@ function initials(name) {
     .toUpperCase();
 }
 
-/** The notice drawn for a state that has nothing to list. */
+/**
+ * The notice drawn for a state that has nothing to list.
+ *
+ * Shaped like a panel, not a paragraph: an eyebrow that says which tab this is, a
+ * heading, and the explanation. The warn tone is a colour change only — a student
+ * who cannot read paid content has not made a mistake, and the page must not
+ * shout at them for it.
+ */
 function notice(state) {
+  const warn = state.tone === "warn";
   return `
-    <div class="khazana-note${state.tone === "warn" ? " is-warn" : ""}">
+    <div class="khazana-note${warn ? " is-warn" : ""}">
+      <span class="khazana-eyebrow">Khazana${warn ? " · notice" : ""}</span>
       <strong class="khazana-title">${esc(state.title)}</strong>
+      <p class="khazana-hint">${esc(state.hint)}</p>
       ${
         state.programId
           ? `<p class="khazana-pointer">Archive <code>${esc(state.programId)}</code></p>`
           : ""
       }
-      <p>${esc(state.hint)}</p>
     </div>`;
 }
 
 /**
  * One subject inside a linked archive.
  *
- * `batch` and `subject` are both **slugs**: the archive's chapter and topic calls
- * are slug-addressed, and this link is what the subject page will read. `name` is
- * carried so the heading is right before the first fetch lands.
+ * `programId` is the archive and `slug` is the subject *within* it — the chapter
+ * and topic calls are slug-addressed, and this link is what the subject page
+ * reads. `name` rides along so the heading is right before the first fetch lands.
+ *
+ * The card is deliberately the same `.subject-card` the Subjects tab uses: these
+ * are subjects, and dressing them differently would suggest they behave
+ * differently.
  */
 export function archiveSubjectCard(s, programId) {
   const href =
@@ -106,12 +119,12 @@ export function archiveSubjectCard(s, programId) {
     `&subject=${encodeURIComponent(s.slug || "")}` +
     `&name=${encodeURIComponent(s.name || "")}` +
     `&archive=1`;
-  const meta = [
-    s.lectures ? `${s.lectures} lectures` : "",
-    s.chapters ? `${s.chapters} chapter${s.chapters === 1 ? "" : "s"}` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+
+  const bits = [];
+  if (Number(s.lectures)) bits.push(`${Number(s.lectures).toLocaleString("en-IN")} lectures`);
+  if (Number(s.chapters)) bits.push(`${Number(s.chapters)} chapter${Number(s.chapters) === 1 ? "" : "s"}`);
+  const meta = bits.join(" · ");
+
   const img = s.image
     ? `<img src="${esc(s.image)}" alt="" loading="lazy" decoding="async">`
     : "";
@@ -120,12 +133,21 @@ export function archiveSubjectCard(s, programId) {
       <span class="subject-thumb khazana-thumb">${
         img || `<span class="khazana-card-initials">${esc(initials(s.name))}</span>`
       }</span>
-      <span class="grow">
-        <span class="title">${esc(s.name)}</span>
-        <span class="counts">${esc(meta || "Open the archive")}</span>
+      <span class="khazana-card-body">
+        <span class="khazana-card-name">${esc(s.name)}</span>
+        <span class="khazana-card-meta">${esc(meta || "Open the archive")}</span>
       </span>
-      <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+      <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
     </a>`;
+}
+
+/** A small labelled figure in the archive header — subjects, lectures, chapters. */
+function statCard(value, label) {
+  return `
+    <div class="khazana-stat">
+      <span class="khazana-stat-value">${esc(String(value))}</span>
+      <span class="khazana-stat-label">${esc(label)}</span>
+    </div>`;
 }
 
 /**
@@ -133,50 +155,66 @@ export function archiveSubjectCard(s, programId) {
  *
  * **This is this batch's archive and nothing else.** It used to also render the
  * site-wide list of openable Khazana *batches* underneath — ten cards, identical
- * on all fourteen thousand batch pages. That is not what the tab is for: a reader
- * on Brahmastra UP Board wants Brahmastra's archive, and a list of CA Foundation
- * and SSC Booster batches under it reads as "this tab shows someone else's
- * content". Those batches are still reachable from the catalogue and from the
- * Khazana library page, which is where a cross-batch list belongs.
+ * on all fourteen thousand batch pages, so a Class 10 page carried CA Foundation
+ * and SSC cards under its own archive. Those batches are ordinary catalogue
+ * entries, found by searching for "khazana"; they do not belong inside one
+ * batch's tab.
  *
- * `library` is still accepted so callers do not break, but it is deliberately not
- * drawn here.
+ * The shape is the same in every state, so the tab never reflows wildly between
+ * "reading", "empty" and "here it is": a header, optional figures, then either a
+ * subject grid or a single notice.
  */
 export function khazanaMarkup({ khazana, subjects = [], reading = false } = {}) {
-  const head = "";
-
   if (reading) {
-    return `${head}
-      <div class="khazana-note">
-        <strong class="khazana-title">Reading the linked archive…</strong>
-        <p>Asking the source which subjects this batch's archive holds.</p>
+    return `
+      <div class="khazana-panel">
+        <div class="khazana-head">
+          <span class="khazana-eyebrow">Khazana</span>
+          <h3 class="khazana-h3">Loading this batch's archive</h3>
+          <p class="khazana-sub">Asking Physics Wallah which subjects the linked archive holds. This takes a moment the first time.</p>
+        </div>
+        <div class="khazana-skeleton" aria-hidden="true">
+          ${Array.from({ length: 3 })
+            .map(() => `<div class="khazana-skeleton-row"></div>`)
+            .join("")}
+        </div>
       </div>`;
   }
 
   const state = stateOf(khazana);
 
   if (state.key === "ok" && subjects.length) {
-    const total = subjects.reduce((n, s) => n + (Number(s.lectures) || 0), 0);
-    return `${head}
-      <div class="khazana-library khazana-archive">
-        <div class="khazana-library-head">
-          <h3>From this batch's archive</h3>
-          <p>${esc(
-            `${subjects.length} subject${subjects.length === 1 ? "" : "s"}` +
-              (total ? ` · ${total} lectures` : "") +
-              " · older recordings, opened the same way as any other lecture"
-          )}</p>
+    const lectures = subjects.reduce((n, s) => n + (Number(s.lectures) || 0), 0);
+    const chapters = subjects.reduce((n, s) => n + (Number(s.chapters) || 0), 0);
+    const figures = [
+      statCard(subjects.length, subjects.length === 1 ? "subject" : "subjects"),
+      lectures ? statCard(lectures.toLocaleString("en-IN"), "lectures") : "",
+      chapters ? statCard(chapters.toLocaleString("en-IN"), chapters === 1 ? "chapter" : "chapters") : "",
+    ].join("");
+
+    return `
+      <div class="khazana-panel khazana-archive">
+        <div class="khazana-head">
+          <span class="khazana-eyebrow">Khazana · archive</span>
+          <h3 class="khazana-h3">Older lecture sets in this batch</h3>
+          <p class="khazana-sub">
+            Physics Wallah bundles previous years' recordings with this batch. They open
+            exactly like any other subject — chapter list, lectures, notes and DPPs.
+          </p>
         </div>
-        <div class="subject-grid khazana-grid">${subjects
+        <div class="khazana-stats">${figures}</div>
+        <div class="grid khazana-grid">${subjects
           .map((s) => archiveSubjectCard(s, state.programId || ""))
           .join("")}</div>
       </div>`;
   }
 
   // A 200 with no rows is not content. Say so rather than rendering nothing.
-  if (state.key === "ok") return head + notice(STATES.empty);
-
-  return head + notice({ ...state, programId: state.programId || "" });
+  const shown = state.key === "ok" ? STATES.empty : state;
+  return `
+    <div class="khazana-panel">
+      ${notice({ ...shown, programId: state.key === "ok" ? "" : state.programId || "" })}
+    </div>`;
 }
 
 /**
