@@ -17,7 +17,7 @@ import {
 } from "./app.js";
 import { trackBatch } from "./library.js";
 import { isFavourite, toggleFavourite, wireFavourites } from "./favourites.js";
-import { loadBatch as fetchBatchData, loadBatchHeader, loadAnnouncements } from "./data.js";
+import { loadBatch as fetchBatchData, loadBatchHeader, loadAnnouncements, loadKhazanaPointer } from "./data.js";
 import { mountDppPanel } from "./dpp-panel.js";
 import { mountKhazana, khazanaMarkup } from "./khazana.js";
 
@@ -307,45 +307,49 @@ function setTab(next) {
   if (tab === "announcements") renderAnnouncements();
 }
 
-/**
- * The Khazana tab.
- *
- * Two things, in the order of how likely they are to be useful:
- *
- *  1. **The Khazana batches themselves** — PW sells Khazana as its own batch
- *     ("CA Foundation Khazana 2026", "SSC Khazana for Exam 2026"), and those are
- *     ordinary batches whose chapters open exactly like any other. The list ships
- *     with the batch payload, so this block paints with the page and never waits.
- *  2. **Any archive linked to *this* batch** — `khazanaProgramId`. That one is
- *     gated upstream, so it is called only when a pointer exists.
- *
- * Leading with (2) is why an earlier build of this tab said "no Khazana" on a site
- * that had ten openable Khazana batches on it.
- */
 let khazanaRead = null;
 let khazanaLibraryCache = null;
+/** The pointer read, kept so switching tabs does not re-ask. Null = not asked. */
+let khazanaPointer = null;
 
-function renderKhazana() {
+async function renderKhazana() {
   const library = khazanaLibraryCache || [];
-  const pointer = (batch && batch.khazana && batch.khazana.programId) || "";
-  if (!pointer) {
-    tabBody.innerHTML = khazanaMarkup({ khazana: { state: "none" }, library });
-    return;
-  }
-  // Reading it again on every tab switch would spend three upstream probes per
-  // click for an answer that cannot change inside a page view.
+  const known = (batch && batch.khazana && batch.khazana.programId) || "";
+
+  // Paint something immediately: the library list needs no upstream call, and an
+  // empty tab while a fetch is in flight is what "nothing happens" looks like.
   if (khazanaRead) {
     tabBody.innerHTML = khazanaMarkup({ ...khazanaRead, library });
     return;
   }
   tabBody.innerHTML = khazanaMarkup({ khazana: { state: "known" }, library, reading: true });
-  const host = document.createElement("div");
-  tabBody.appendChild(host);
-  mountKhazana(host, { programId: pointer, library }).then((out) => {
-    khazanaRead = { khazana: (out && out.khazana) || { state: "error" }, subjects: (out && out.subjects) || [] };
-    // The reader may have switched tabs while the archive was being read.
-    if (tab === "khazana") tabBody.innerHTML = khazanaMarkup({ ...khazanaRead, library });
-  });
+
+  let pointer = known;
+  try {
+    if (khazanaPointer === null) khazanaPointer = await loadKhazanaPointer(batchId);
+    pointer = khazanaPointer.programId || "";
+  } catch {
+    // A failed pointer read must not become "no archive": that is the bug again,
+    // one layer down. Fall through with an empty pointer and let the notice say
+    // the read failed rather than inventing an absence.
+    khazanaPointer = { programId: "", state: "error", verdict: null };
+  }
+
+  if (!pointer) {
+    const state = (khazanaPointer && khazanaPointer.state) || "none";
+    tabBody.innerHTML = khazanaMarkup({
+      khazana: { state: state === "known" ? "error" : state },
+      library,
+    });
+    return;
+  }
+
+  const out = await mountKhazana(tabBody, { programId: pointer, library }).catch(() => null);
+  khazanaRead = out
+    ? { khazana: out.khazana || { state: "error" }, subjects: out.subjects || [] }
+    : { khazana: { state: "error" }, subjects: [] };
+  // The reader may have switched tabs while the archive was being read.
+  if (tab === "khazana") tabBody.innerHTML = khazanaMarkup({ ...khazanaRead, library });
 }
 
 document.querySelectorAll("[data-tab]").forEach((btn) =>
@@ -399,10 +403,10 @@ async function loadBatch() {
       return;
     }
     if (tab === "dpp") renderDpp();
-    if (tab === "khazana") renderKhazana();
-    // A reader already looking at Khazana when the catalogue list arrives must
-    // see it appear, not have to switch tabs and back.
-    if (tab === "khazana" && !khazanaRead) renderKhazana();
+    // Deliberately not re-rendering Khazana here. The tab owns its own read: it
+    // resolves the pointer, reads the archive and paints the result. Re-entering
+    // it from the batch load restarted that work while the first attempt was
+    // still in flight, so two readers raced to write the same tab body.
     rememberBatch({ id: batch.id, name: batch.name, image: batch.image });
     trackBatch({ id: batch.id, name: batch.name, image: batch.image });
     document.getElementById("detailGrid").classList.add("fade-up");

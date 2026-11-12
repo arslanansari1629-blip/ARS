@@ -2293,3 +2293,62 @@ test("the DPP tab offers Practice on every paper, and the notes tab does not", a
   }
   dom.window.close();
 });
+
+test("clicking the Khazana tab opens this batch's archive, not a notice", async () => {
+  // The reported symptom: "when I click Khazana nothing happens". Nothing was
+  // rendered because the tab read the archive pointer off the *header* payload,
+  // and the shipped catalogue has no `khazanaProgramId` column — 0 of 14,201
+  // rows. Every batch therefore concluded "no linked archive" and never spent
+  // the one read that would have disproved it.
+  //
+  // The fixture batch carries a pointer (`tests/fixtures/batch.json`), so this
+  // asserts the whole path: click → pointer read → archive read → subject cards
+  // that link into the archive's chapter list.
+  const { doc, dom, window } = await render("/batch.html?id=698ad3519549b300a5e1cc6a", {
+    waitForSelector: "#subjects .subject-card",
+  });
+
+  const tabBody = doc.getElementById("tabBody");
+  doc.querySelector('[data-tab="khazana"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+  const deadline = Date.now() + 15000;
+  let cards = 0;
+  while (Date.now() < deadline) {
+    cards = doc.querySelectorAll(".khazana-archive .khazana-card").length;
+    if (cards) break;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+
+  assert.ok(cards > 0, `the tab drew no archive subjects — ${tabBody.textContent.slice(0, 200)}`);
+  assert.match(tabBody.textContent, /From this batch's archive/);
+  assert.ok(
+    !/No linked archive/.test(tabBody.textContent),
+    "the tab claimed there is no archive on a batch that has one"
+  );
+
+  // The card has to point at the archive, and name it as an archive — otherwise
+  // the subject page resolves chapters against the batch instead of the program.
+  const href = doc.querySelector(".khazana-archive .khazana-card").getAttribute("href");
+  assert.match(href, /^\/subject\.html\?/);
+  assert.match(href, /archive=1/);
+  assert.match(href, /batch=697c6370cb722a4fac145ef1/, `wrong archive in ${href}`);
+
+  // The openable-batch list is not a substitute for the archive and must still
+  // be there underneath it.
+  assert.ok(doc.querySelectorAll(".khazana-library:not(.khazana-archive) .khazana-card").length > 0);
+
+  dom.window.close();
+});
+
+test("the Khazana tab is reachable from a #khazana link", async () => {
+  // A shareable link to the tab must land on the archive, not on Subjects.
+  const { doc, dom } = await render("/batch.html?id=698ad3519549b300a5e1cc6a#khazana", {
+    waitForSelector: "#tabBody",
+    settle: 1200,
+  });
+  assert.ok(
+    doc.querySelector('[data-tab="khazana"]').classList.contains("active"),
+    "the #khazana fragment did not open the tab"
+  );
+  dom.window.close();
+});

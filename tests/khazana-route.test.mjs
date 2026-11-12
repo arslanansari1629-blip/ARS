@@ -327,3 +327,30 @@ test("an unrecognised search parameter still cannot pass for an unfiltered brows
     "a blank ?q= must not be treated as a real search term"
   );
 });
+
+test("the pointer read answers the batch's real archive, not the batch id", async () => {
+  // The bug behind "the Khazana tab does nothing": the client read the pointer
+  // from the *header* payload, and the shipped catalogue carries no
+  // `khazanaProgramId` on any of its 14,201 rows — so the tab concluded "no
+  // archive" on every batch and never asked. It now asks this route instead.
+  //
+  // Two ways this can go wrong, both pinned here:
+  //   1. `id` is a batch and no `program=` is sent  → the route must look the
+  //      pointer up. Answering the batch id as its own archive is a pointer that
+  //      resolves to nothing.
+  //   2. `program=` IS sent → the caller already knows, so it must be respected
+  //      without a lookup.
+  const looked = await (await fetch(`${BASE}/api/batch?khazana=1&id=${BATCH}`)).json();
+  assert.equal(looked.success, true);
+  assert.ok(looked.khazana, "no verdict was returned");
+  assert.notEqual(
+    looked.programId,
+    BATCH,
+    "the route answered the batch id as its own archive pointer"
+  );
+
+  const told = await (
+    await fetch(`${BASE}/api/batch?khazana=1&id=fixtureprogram0000000001&program=fixtureprogram0000000001`)
+  ).json();
+  assert.equal(told.programId, "fixtureprogram0000000001", "a known program was not respected");
+});

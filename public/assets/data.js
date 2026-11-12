@@ -162,7 +162,12 @@ export async function loadKhazana(programId, what, params = {}) {
   const qs = new URLSearchParams({
     id: programId,
     khazana: what,
-    program: programId,
+    // `program=` means "the id above *is* an archive id, skip the lookup". That is
+    // right for every level below the program, and wrong for the pointer read,
+    // where the id is a *batch* and the whole question is which archive it names.
+    // Sending it unconditionally made `?khazana=1` answer with the batch id as its
+    // own archive — a pointer that resolves to nothing.
+    ...(what === "1" ? {} : { program: programId }),
     ...Object.fromEntries(
       Object.entries(params).filter(([, v]) => v !== undefined && v !== null && String(v) !== "")
     ),
@@ -173,6 +178,26 @@ export async function loadKhazana(programId, what, params = {}) {
     throw new Error((data && (data.error || data.note)) || "The archive did not answer.");
   }
   return data;
+}
+
+/**
+ * Is a Khazana archive linked to this batch, and if so which one?
+ *
+ * This has to exist as its own call because the *header* payload cannot answer
+ * it. The shipped catalogue row carries no `khazanaProgramId` — the pointer only
+ * ever arrives with the live `/BatchInfo` document — so a tab that trusts the
+ * header's `batch.khazana` concludes "no archive" on every batch on the site and
+ * never spends the one read that would prove otherwise. That is exactly the bug
+ * this replaces: the Khazana tab said "No linked archive" for Lakshya JEE 2025,
+ * whose pointer is `62cd3a81c521a200190acaca` and whose archive has 17,000
+ * lectures behind it.
+ *
+ * `?khazana=1` answers the state without content, so this is cheap.
+ */
+export async function loadKhazanaPointer(id) {
+  const data = await loadKhazana(id, "1");
+  const state = (data.khazana && data.khazana.state) || "none";
+  return { programId: data.programId || "", state, verdict: data.khazana || null };
 }
 
 export async function loadLecture(batch, subject, id) {

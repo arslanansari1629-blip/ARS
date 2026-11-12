@@ -1,4 +1,59 @@
-{"success":true,"data":{"_id":"698ad3519549b300a5e1cc6a","name":"Arjuna JEE 2027","batchName":"Arjuna JEE 2027","byName":"For IIT-JEE Aspirants","description":"<b>Course</b> details here","shortDescription":"Short info","language":"Hinglish","startDate":"2026-04-12T18:30:00.000Z","endDate":"2028-06-30T18:29:59.000Z","feeTotal":3199,"exam":["IIT-JEE"],"class":"11","slug":"arjuna-jee-2027-243495","previewImage":{"_id":"6a670042354afd415fa080cb","baseUrl":"https://static.pw.live/","key":"5eb393ee95fab7468a79d189/ADMIN/bb464a1b.jpeg"},"config":{"card":{"files":[{"url":"https://static.pw.live/banner1.png"}]}},"subjects":[
-{"_id":"6a6b44faf834f38ed6f9120d","subject":"Physics By Saleem Ahmad Sir","subjectId":"688dd9660fb5f084935d611f","slug":"physics-by-saleem-ahmad-sir-886822","displayOrder":3,"lectureCount":242,"tagCount":32,"imageId":{"baseUrl":"https://static.pw.live/","key":"5eb393ee95fab7468a79d189/ADMIN/7a67.png"}},
-{"_id":"6992","subject":"Notices","subjectId":"5f821b41c94a920018e76340","slug":"notices-281427","displayOrder":15,"lectureCount":29,"tagCount":14}
-]}}
+{
+  "success": true,
+  "data": {
+    "_id": "698ad3519549b300a5e1cc6a",
+    "name": "Arjuna JEE 2027",
+    "batchName": "Arjuna JEE 2027",
+    "byName": "For IIT-JEE Aspirants",
+    "description": "<b>Course</b> details here",
+    "shortDescription": "Short info",
+    "language": "Hinglish",
+    "startDate": "2026-04-12T18:30:00.000Z",
+    "endDate": "2028-06-30T18:29:59.000Z",
+    "feeTotal": 3199,
+    "exam": [
+      "IIT-JEE"
+    ],
+    "class": "11",
+    "slug": "arjuna-jee-2027-243495",
+    "previewImage": {
+      "_id": "6a670042354afd415fa080cb",
+      "baseUrl": "https://static.pw.live/",
+      "key": "5eb393ee95fab7468a79d189/ADMIN/bb464a1b.jpeg"
+    },
+    "config": {
+      "card": {
+        "files": [
+          {
+            "url": "https://static.pw.live/banner1.png"
+          }
+        ]
+      }
+    },
+    "subjects": [
+      {
+        "_id": "6a6b44faf834f38ed6f9120d",
+        "subject": "Physics By Saleem Ahmad Sir",
+        "subjectId": "688dd9660fb5f084935d611f",
+        "slug": "physics-by-saleem-ahmad-sir-886822",
+        "displayOrder": 3,
+        "lectureCount": 242,
+        "tagCount": 32,
+        "imageId": {
+          "baseUrl": "https://static.pw.live/",
+          "key": "5eb393ee95fab7468a79d189/ADMIN/7a67.png"
+        }
+      },
+      {
+        "_id": "6992",
+        "subject": "Notices",
+        "subjectId": "5f821b41c94a920018e76340",
+        "slug": "notices-281427",
+        "displayOrder": 15,
+        "lectureCount": 29,
+        "tagCount": 14
+      }
+    ],
+    "khazanaProgramId": "697c6370cb722a4fac145ef1"
+  }
+}

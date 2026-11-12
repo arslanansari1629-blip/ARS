@@ -2,6 +2,47 @@
 
 ---
 
+## Round AR — the Khazana tab that "did nothing", and why
+
+**"when i click khazana nothing happen."** It was not a styling problem or a
+dead button: the tab rendered a *notice* and stopped.
+
+The tab decided whether to read an archive from `batch.khazana.programId`. That
+field arrives with the full `/BatchInfo` document — but the batch page paints
+from the **header** payload, and the header is served from the shipped catalogue,
+which has **no `khazanaProgramId` column at all** (0 of 14,201 rows). So on every
+batch on the site the tab found no pointer, wrote "No linked archive", and never
+spent the one read that would have proved otherwise. Lakshya JEE 2025 was
+reported as having no archive while `62cd3a81c521a200190acaca` sat behind it with
+17,185 lectures across 4 subjects.
+
+Worse, this path was never tested: the fixture batch carried no pointer either,
+so every Khazana test exercised the *notice* branch and passed.
+
+**1. The tab asks instead of assuming.** It now calls `?khazana=1`, which answers
+the pointer without content, and only then reads the archive. A failed pointer
+read reports "could not be reached" rather than inventing an absence — asserting
+"no archive" is exactly the bug, one layer down.
+
+**2. `program=` was being sent on the pointer read.** That parameter means "the id
+above *is* an archive id, skip the lookup", which is right for every level below
+the program and wrong for the one call whose whole job is to resolve a batch to
+its archive. It made `?khazana=1` answer the batch id as its own pointer — a
+pointer that resolves to nothing.
+
+**3. The tab no longer re-renders itself from the batch load.** It owns its read
+now; re-entering it while the first attempt was in flight raced two readers onto
+the same tab body.
+
+The fixture batch carries a pointer, and two new page tests click the tab for
+real: the archive's subject cards must appear, must not say "No linked archive",
+and must link to `/subject.html?…&archive=1` with the *program* id. Reverting the
+fix makes the first one fail, which is the point of it.
+
+**Tests:** 465 (was 462).
+
+---
+
 ## Round AQ — coverage audited, and the DRM lecture that lied about itself
 
 **"get all batch from there which are not on our site."** Audited properly, and
