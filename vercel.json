@@ -88,6 +88,22 @@
     },
     {
       "source": "/api/batch",
+      "has": [
+        {
+          "type": "query",
+          "key": "today",
+          "value": "1"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, s-maxage=30, stale-while-revalidate=30"
+        }
+      ]
+    },
+    {
+      "source": "/api/batch",
       "headers": [
         {
           "key": "Cache-Control",

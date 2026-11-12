@@ -156,3 +156,27 @@ test("a batch the shipped catalogue has never heard of still gets a day", async 
   assert.notEqual(data.today.state, "none", "the strip concluded the batch has no subjects");
   assert.ok(data.today.scanned.subjects > 0, "no subject listing was read");
 });
+
+test("today's day is edge-cached for seconds, not minutes", async () => {
+  // `/api/batch` answers with a five-minute shared cache, which is right for a
+  // batch's subjects and wrong for "is this class on right now": a strip that is
+  // five minutes behind shows a live badge on a class that has ended. The
+  // `today=1` request therefore gets its own, much shorter, edge TTL.
+  const { readFile } = await import("node:fs/promises");
+  const conf = JSON.parse(await readFile(path.join(ROOT, "vercel.json"), "utf8"));
+  const rules = (conf.headers || []).filter(
+    (r) => r.source === "/api/batch" && (r.has || []).some((h) => h.key === "today")
+  );
+  assert.equal(rules.length, 1, "no edge-cache rule for the day");
+  const cache = rules[0].headers.find((h) => h.key === "Cache-Control").value;
+  const sMaxAge = Number(/s-maxage=(\d+)/.exec(cache)?.[1] || 0);
+  assert.ok(sMaxAge > 0 && sMaxAge <= 60, `the day may sit in the edge cache for ${sMaxAge}s`);
+
+  // And the rule has to come *before* the generic one, because the first match
+  // wins.
+  const order = (conf.headers || []).filter((r) => r.source === "/api/batch");
+  assert.ok(
+    (order[0].has || []).some((h) => h.key === "today"),
+    "the generic /api/batch rule shadows the day's shorter cache"
+  );
+});
