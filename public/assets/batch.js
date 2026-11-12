@@ -308,21 +308,19 @@ function setTab(next) {
 }
 
 let khazanaRead = null;
-let khazanaLibraryCache = null;
 /** The pointer read, kept so switching tabs does not re-ask. Null = not asked. */
 let khazanaPointer = null;
 
 async function renderKhazana() {
-  const library = khazanaLibraryCache || [];
   const known = (batch && batch.khazana && batch.khazana.programId) || "";
 
-  // Paint something immediately: the library list needs no upstream call, and an
-  // empty tab while a fetch is in flight is what "nothing happens" looks like.
+  // Paint the in-flight state immediately: an empty tab while a fetch is in
+  // flight is what "nothing happens" looks like.
   if (khazanaRead) {
-    tabBody.innerHTML = khazanaMarkup({ ...khazanaRead, library });
+    tabBody.innerHTML = khazanaMarkup(khazanaRead);
     return;
   }
-  tabBody.innerHTML = khazanaMarkup({ khazana: { state: "known" }, library, reading: true });
+  tabBody.innerHTML = khazanaMarkup({ khazana: { state: "known" }, reading: true });
 
   let pointer = known;
   try {
@@ -337,19 +335,16 @@ async function renderKhazana() {
 
   if (!pointer) {
     const state = (khazanaPointer && khazanaPointer.state) || "none";
-    tabBody.innerHTML = khazanaMarkup({
-      khazana: { state: state === "known" ? "error" : state },
-      library,
-    });
+    tabBody.innerHTML = khazanaMarkup({ khazana: { state: state === "known" ? "error" : state } });
     return;
   }
 
-  const out = await mountKhazana(tabBody, { programId: pointer, library }).catch(() => null);
+  const out = await mountKhazana(tabBody, { programId: pointer }).catch(() => null);
   khazanaRead = out
     ? { khazana: out.khazana || { state: "error" }, subjects: out.subjects || [] }
     : { khazana: { state: "error" }, subjects: [] };
   // The reader may have switched tabs while the archive was being read.
-  if (tab === "khazana") tabBody.innerHTML = khazanaMarkup({ ...khazanaRead, library });
+  if (tab === "khazana") tabBody.innerHTML = khazanaMarkup(khazanaRead);
 }
 
 document.querySelectorAll("[data-tab]").forEach((btn) =>
@@ -369,7 +364,6 @@ if ((location.hash || "").replace("#", "").toLowerCase() === "khazana") {
 
 async function loadHeader() {
   const header = await loadBatchHeader(batchId).catch(() => null);
-  if (header && Array.isArray(header.library)) khazanaLibraryCache = header.library;
   // If the detailed record beat us here, its render is the better one.
   if (!header || batch) return;
   batch = header.batch;
@@ -391,7 +385,6 @@ async function loadBatch() {
     const out = await fetchBatchData(batchId);
     batch = out.batch;
     batch.subjects = out.subjects || [];
-    if (Array.isArray(out.library) && out.library.length) khazanaLibraryCache = out.library;
     renderDetail();
     // Only paint the tab that is actually open. This used to be an unconditional
     // `renderSubjects()`, which meant a detail call landing after the reader had

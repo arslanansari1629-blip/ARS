@@ -216,7 +216,7 @@ function dom() {
 test("a batch with no archive says so instead of showing an empty grid", async () => {
   const { khazanaMarkup } = await import("../public/assets/khazana.js");
   const html = khazanaMarkup({ khazana: { state: "none" } });
-  assert.match(html, /No linked archive/);
+  assert.match(html, /No Khazana archive in this batch/);
   assert.equal(/subject-card/.test(html), false, "an empty grid would look like content");
 });
 
@@ -273,7 +273,7 @@ test("mounting with no pointer makes no request at all", async () => {
     },
   });
   assert.equal(calls, 0, "the common case must not spend a request");
-  assert.match(host.innerHTML, /No linked archive/);
+  assert.match(host.innerHTML, /No Khazana archive in this batch/);
 });
 
 test("mounting with a pointer reads it and renders the answer", async () => {
@@ -472,32 +472,56 @@ test("an empty catalogue yields an empty library rather than throwing", async ()
   assert.deepEqual(khazanaLibrary([]), []);
 });
 
-test("the library renders openable links to real batch pages", async () => {
+test("a batch's tab shows that batch's archive and no other batch", async () => {
+  // The rule, stated as a test: the Khazana tab belongs to *one* batch.
+  //
+  // It used to also render a site-wide list of ten openable Khazana batches
+  // underneath the archive. On a Class 10 UP Board page that meant CA Foundation
+  // and SSC Booster cards — content from other exams, in another batch's tab,
+  // identical on all 14,201 pages. A caller that still passes `library` must not
+  // resurrect it.
   const { khazanaMarkup } = await import("../public/assets/khazana.js");
   const html = khazanaMarkup({
     khazana: { state: "none" },
     library: [
-      { id: "6970a2f313f87bdb24cd4934", name: "CA Foundation Khazana 2026", isFree: true, language: "Hinglish" },
+      { id: "6970a2f313f87bdb24cd4934", name: "CA Foundation Khazana 2026", isFree: true },
+      { id: "6881f5ec021fa11ef316143b", name: "SSC Khazana for Exam 2026" },
     ],
   });
-  assert.match(html, /Khazana batches you can open/);
-  assert.match(html, /batch\.html\?id=6970a2f313f87bdb24cd4934/, "a card must open the batch");
-  assert.match(html, /CA Foundation Khazana 2026/);
-  assert.match(html, /Free/);
-  // "There is no Khazana here" must never be the whole answer while the site has
-  // Khazana batches to open.
-  assert.match(html, /No linked archive/);
+  assert.ok(
+    !/CA Foundation Khazana 2026|SSC Khazana for Exam 2026/.test(html),
+    "another batch's Khazana was rendered inside this batch's tab"
+  );
+  assert.ok(!/batch\.html\?id=6970a2f313f87bdb24cd4934/.test(html), "a cross-batch link was drawn");
+  // The notice still explains the situation, and says where to find those
+  // batches instead of pretending they do not exist.
+  assert.match(html, /No Khazana archive in this batch/);
+  assert.match(html, /khazana/i);
 });
 
-test("the library is drawn even when a linked archive is being read", async () => {
+test("an archive is drawn on its own, with no cross-batch list above it", async () => {
+  const { khazanaMarkup } = await import("../public/assets/khazana.js");
+  const html = khazanaMarkup({
+    khazana: { state: "ok", programId: "697c6370cb722a4fac145ef1" },
+    subjects: [{ name: "Physics", slug: "physics-936551", lectures: 23, chapters: 1 }],
+    library: [{ id: "x", name: "SSC Khazana for Exam 2026" }],
+  });
+  assert.match(html, /From this batch's archive/);
+  assert.match(html, /Physics/);
+  assert.ok(!/SSC Khazana for Exam 2026/.test(html), "the cross-batch list leaked into the archive view");
+  // The subject link has to stay archive-addressed.
+  assert.match(html, /archive=1/);
+});
+
+test("the in-flight state does not wait on other batches either", async () => {
   const { khazanaMarkup } = await import("../public/assets/khazana.js");
   const html = khazanaMarkup({
     khazana: { state: "known" },
     library: [{ id: "x", name: "SSC Khazana for Exam 2026" }],
     reading: true,
   });
-  assert.match(html, /SSC Khazana for Exam 2026/, "the working list must not wait on the gated one");
   assert.match(html, /Reading the linked archive/);
+  assert.ok(!/SSC Khazana for Exam 2026/.test(html), "the cross-batch list was drawn while reading");
 });
 
 test("the shipped library really contains openable batches", async () => {

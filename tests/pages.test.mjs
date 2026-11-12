@@ -2333,9 +2333,14 @@ test("clicking the Khazana tab opens this batch's archive, not a notice", async 
   assert.match(href, /archive=1/);
   assert.match(href, /batch=697c6370cb722a4fac145ef1/, `wrong archive in ${href}`);
 
-  // The openable-batch list is not a substitute for the archive and must still
-  // be there underneath it.
-  assert.ok(doc.querySelectorAll(".khazana-library:not(.khazana-archive) .khazana-card").length > 0);
+  // This tab is *this batch's* archive. The site-wide list of other Khazana
+  // batches used to be drawn underneath it, which put CA Foundation and SSC
+  // Booster cards inside a Class 10 UP Board page. Assert it is gone.
+  assert.equal(
+    doc.querySelectorAll(".khazana-library:not(.khazana-archive) .khazana-card").length,
+    0,
+    "another batch's Khazana was rendered inside this batch's tab"
+  );
 
   dom.window.close();
 });

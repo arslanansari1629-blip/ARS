@@ -26,8 +26,8 @@ import { esc } from "./app.js";
 /** The linked-archive states, worded once so the tab and the panel cannot drift. */
 export const STATES = {
   none: {
-    title: "No linked archive",
-    hint: "This batch does not carry a Khazana archive pointer. The Khazana batches that *can* be opened are listed below.",
+    title: "No Khazana archive in this batch",
+    hint: "Physics Wallah has not attached an archive of older lectures to this batch. Its own subjects and chapters are unaffected — use the Subjects tab. Separately, PW sells Khazana as its own batch; those are ordinary batches and can be found by searching the catalogue for \"khazana\".",
     tone: "quiet",
   },
   known: {
@@ -77,25 +77,6 @@ function initials(name) {
     .toUpperCase();
 }
 
-/** One Khazana batch, as a card that opens the batch page. */
-function libraryCard(b) {
-  const meta = [b.exam && b.exam[0], b.language, b.isFree ? "Free" : ""]
-    .filter(Boolean)
-    .join(" · ");
-  const img = b.image
-    ? `<img src="${esc(b.image)}" alt="" loading="lazy" decoding="async">`
-    : `<span class="khazana-card-initials">${esc(initials(b.name))}</span>`;
-  return `
-    <a class="subject-card khazana-card" href="/batch.html?id=${encodeURIComponent(b.id)}">
-      <span class="subject-thumb khazana-thumb">${img}</span>
-      <span class="grow">
-        <span class="title">${esc(b.name)}</span>
-        <span class="counts">${esc(meta || "Recorded lecture library")}</span>
-      </span>
-      <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
-    </a>`;
-}
-
 /** The notice drawn for a state that has nothing to list. */
 function notice(state) {
   return `
@@ -107,27 +88,6 @@ function notice(state) {
           : ""
       }
       <p>${esc(state.hint)}</p>
-    </div>`;
-}
-
-/**
- * The library block: every Khazana batch on the site, as openable cards.
- *
- * It is never empty — `lib/khazana.mjs` ships the list with the catalogue — and
- * it does not wait on the archive read, so it is drawn first.
- */
-export function libraryMarkup(library) {
-  const rows = Array.isArray(library) ? library : [];
-  if (!rows.length) return "";
-  return `
-    <div class="khazana-library">
-      <div class="khazana-library-head">
-        <h3>Khazana batches you can open</h3>
-        <p>Physics Wallah also sells Khazana as its own batch. Each one below is a
-           real, openable batch: pick a subject, then a chapter, then a lecture —
-           the same route as everything else on this site.</p>
-      </div>
-      <div class="subject-grid khazana-grid">${rows.map(libraryCard).join("")}</div>
     </div>`;
 }
 
@@ -169,12 +129,19 @@ export function archiveSubjectCard(s, programId) {
 /**
  * The tab's markup.
  *
- * `reading` is the in-flight state for a linked archive. The library block is
- * drawn regardless — whether this batch has a pointer has no bearing on which
- * Khazana batches exist.
+ * **This is this batch's archive and nothing else.** It used to also render the
+ * site-wide list of openable Khazana *batches* underneath — ten cards, identical
+ * on all fourteen thousand batch pages. That is not what the tab is for: a reader
+ * on Brahmastra UP Board wants Brahmastra's archive, and a list of CA Foundation
+ * and SSC Booster batches under it reads as "this tab shows someone else's
+ * content". Those batches are still reachable from the catalogue and from the
+ * Khazana library page, which is where a cross-batch list belongs.
+ *
+ * `library` is still accepted so callers do not break, but it is deliberately not
+ * drawn here.
  */
-export function khazanaMarkup({ khazana, subjects = [], library = [], reading = false } = {}) {
-  const head = libraryMarkup(library);
+export function khazanaMarkup({ khazana, subjects = [], reading = false } = {}) {
+  const head = "";
 
   if (reading) {
     return `${head}

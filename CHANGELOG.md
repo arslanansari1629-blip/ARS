@@ -2,6 +2,33 @@
 
 ---
 
+## Round AT — a batch's Khazana tab shows that batch's archive, and nothing else
+
+The tab rendered two things: the batch's own linked archive, **and** a site-wide
+list of the ten openable Khazana *batches*. That list was identical on all 14,201
+batch pages, so a Class 10 UP Board student on Brahmastra got CA Foundation, JAIIB
+and SSC Booster cards underneath their own archive — other exams' content, in
+someone else's tab.
+
+Removed from the tab. `khazanaMarkup` now renders one batch's archive and nothing
+else, and `libraryMarkup` / `libraryCard` are gone rather than left as dead code
+that a future caller could re-wire. `mountKhazana` still accepts `library` so call
+sites do not break, but it is deliberately not drawn.
+
+Those ten batches are unchanged and still reachable: `?search=khazana` returns all
+of them from the shipped catalogue, which is where a cross-batch list belongs.
+
+The empty state was rewritten to match — it no longer promises "the Khazana
+batches that *can* be opened are listed below", because nothing is listed below it
+any more. It says the batch has no archive, that its own subjects are unaffected,
+and points at the catalogue search for the standalone Khazana batches.
+
+**Tests:** 468. Three new ones assert the cross-batch list is *absent* — including
+when a caller passes `library` anyway — and the page test now checks the tab for a
+batch with an archive draws its own cards and zero foreign ones.
+
+---
+
 ## Round AS — why the fix was deployed and you still saw the old page
 
 Two separate reasons, both now fixed.
