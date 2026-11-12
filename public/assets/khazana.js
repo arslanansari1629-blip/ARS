@@ -17,8 +17,10 @@
    2. **Sold as its own batch** — "CA Foundation Khazana 2026", "SSC Khazana for
       Exam 2026". Ordinary batches, ordinary routes.
 
-   So the tab leads with this batch's own archive when it has one, and always
-   carries the list of openable Khazana batches underneath.
+   The tab shows **this batch's archive and nothing else**. It does not list other
+   Khazana batches: that list was identical on all 14,201 batch pages, so a Class
+   10 page carried CA Foundation and SSC cards under its own archive. Those
+   batches are ordinary catalogue entries, found by searching for "khazana".
    ========================================================================= */
 
 import { esc } from "./app.js";
@@ -180,9 +182,11 @@ export function khazanaMarkup({ khazana, subjects = [], reading = false } = {}) 
 /**
  * Fetch and render the archive into a container.
  *
- * `programId` is the batch's `khazanaProgramId`, already on the page from the
- * batch payload, so no lookup is needed to know *whether* to ask. Only the read
- * itself costs a request, and only for a batch that has a pointer.
+ * `programId` must be resolved *before* calling — `?khazana=1` answers it. It is
+ * not on the batch payload the page paints from: the header comes from the
+ * shipped catalogue, which has no `khazanaProgramId` column on any of its 14,201
+ * rows. Trusting the payload there is what made this tab say "no archive" on
+ * every batch for a whole round.
  */
 export async function mountKhazana(host, { programId = "", library = [], fetchImpl } = {}) {
   if (!host) return null;
