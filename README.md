@@ -572,6 +572,13 @@ would otherwise have to guess between:
 
 `none` · `known` · `locked` · `invalid` · `empty` · `ok` · `error`
 
+**Listed is not the same as openable.** Chapters are read from
+`SubjectInfo?BatchId=<id>`, which only speaks batch ids. So when an archive answers
+in *program* form, the tab does not claim success: a row a reader cannot open is
+not content, and this site's whole job is that a click on a chapter works. That
+answer is reported as `invalid`, with the reason, rather than as a grid of dead
+links.
+
 **How it turns on.** Set `PW_TOKEN` to a bearer from a **subscribed** account.
 No code change, no redeploy of anything but the env var: `lib/khazana.mjs` starts
 returning subjects on the `ok` path and the tab lists the archive. Refusals are

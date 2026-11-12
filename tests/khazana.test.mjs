@@ -380,3 +380,45 @@ test("every state a person can act on is attention, and only those", async () =>
     assert.equal(KHAZANA_ATTENTION.has(quiet), false, `"${quiet}" is a normal state, not a fault`);
   }
 });
+
+/* ---------------------------------------------------------------------------
+ * "Listed" and "openable" are different claims.
+ *
+ * Chapters come from `SubjectInfo?BatchId=<id>`, which only speaks batch ids. So
+ * an archive that answers in *program* form would hand the tab rows that look
+ * like content and 404 on click — the precise failure this round exists to
+ * prevent: a feature that lists what it cannot open is not delivered.
+ * ------------------------------------------------------------------------- */
+
+test("rows that could not be opened are not reported as available", async () => {
+  const subjects = { ok: true, status: 200, data: { data: { subjects: [
+    { _id: "s1", subject: "Physics", slug: "physics", lectureCount: 12 },
+  ] } } };
+  const probe = tableProbe({
+    "/v3/batches/X/subjects": notFound,
+    "/v3/programs/X/subjects": subjects,
+    "/v3/batches/X/details": badRequest,
+  });
+  const out = await readArchive("X", { probe });
+
+  assert.equal(out.state, "invalid", "listed but unopenable is not a deliverable");
+  assert.equal(out.subjects.length, 0, "never hand the page a row that cannot be opened");
+  assert.match(out.note, /batch ids/, "the note must say why it cannot be opened");
+});
+
+test("a locked credential does not disqualify a batch-shaped archive", async () => {
+  // The opener probe asks the batch shape first. A 401 there means "paid", not
+  // "not a batch" — refusing to render in that case would hide real content
+  // behind the one state that is actually correct to show it in.
+  const probe = tableProbe({
+    "/v3/batches/X/subjects": refusal,
+    "/v3/programs/X/subjects": {
+      ok: true,
+      status: 200,
+      data: { data: { subjects: [{ _id: "s1", subject: "Physics", slug: "physics" }] } },
+    },
+  });
+  const out = await readArchive("X", { probe });
+  assert.equal(out.state, "ok");
+  assert.equal(out.subjects.length, 1);
+});

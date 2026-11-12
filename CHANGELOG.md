@@ -49,11 +49,24 @@ and labels it Khazana:
 **What turns it on.** `PW_TOKEN` holding a subscribed bearer. No code change:
 the `ok` path starts returning subjects and the tab lists them.
 
+**A defect the deploy caught.** The first live read said "the archive could not be
+reached — this is a network read" for an archive that was answering 401.
+`upstreamJson` returned `status: 0` for every failed request whatever the HTTP
+status was, so a refusal, a bad pointer, a missing shape and a dead socket were
+one value — and the tab told a student the site was broken when the truth was
+"this content is paid". It now carries the upstream's own status and reserves 0
+for "no answer arrived". The refusal path is fixtured and pinned at both layers.
+
 **Two defects the tests caught.** `slug` fell back to `_id`, producing links that
 look like content and 404 on click — a row that cannot be opened is not content.
 And `archiveVerdict` reported an unrecognised state as healthy; it now fails safe.
 
-**Gates.** `npm test` **434/434** (was 402) · build 14,201 batches / 18 pages /
+**"Working" meant more than listing.** Chapters come from `SubjectInfo?BatchId=`,
+so an archive that answers in program form would have produced rows that 404 on
+click. The reader now checks whether the id can actually be opened before it
+claims `ok`, and reports `invalid` with the reason instead of a grid of dead links.
+
+**Gates.** `npm test` **440/440** (was 402) · build 14,201 batches / 18 pages /
 10 API functions / 46 assets · `check-modules` 32 modules.
 
 ---
