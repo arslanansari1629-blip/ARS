@@ -19,6 +19,21 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const FIX = path.join(ROOT, "tests", "fixtures");
 const PORT = Number(process.env.FIXTURE_PORT || 4010);
 
+/**
+ * The Khazana program surface.
+ *
+ * Recorded from the live source and served here so the whole five-level walk —
+ * subjects → chapters → topics → sections → contents — is exercised without
+ * network access. The paths are matched in order because they overlap: the
+ * contents call is `/v2/programs/contents` and every level above it is
+ * `/v1|v2/programs/<id>/…`.
+ */
+const programFixture = JSON.parse(
+  await readFile(path.join(FIX, "program.json"), "utf8")
+);
+
+const PROGRAM_ID = "697c6370cb722a4fac145ef1";
+
 const routes = [
   { match: /\/AllBatches/, file: "catalog.json" },
   { match: /\/searchBatch/, file: "catalog.json" },
@@ -37,6 +52,28 @@ const routes = [
         ? "notes-unkeyed.json"
         : "notes.json";
     },
+  },
+  // --- Khazana program surface, most specific first -----------------------
+  {
+    // The lecture/notes list. Addressed by query, not by path.
+    match: /\/v2\/programs\/contents/,
+    json: () => programFixture.contents,
+  },
+  {
+    match: new RegExp(`/v1/programs/${PROGRAM_ID}/subjects/[^/]+/chapters/[^/]+/topics/[^/]+/contents/sub-topic`),
+    json: () => programFixture.sections,
+  },
+  {
+    match: new RegExp(`/v1/programs/${PROGRAM_ID}/subjects/[^/]+/chapters/[^/]+/topics`),
+    json: () => programFixture.topics,
+  },
+  {
+    match: new RegExp(`/v2/programs/${PROGRAM_ID}/subjects/[^/]+/chapters`),
+    json: () => programFixture.chapters,
+  },
+  {
+    match: new RegExp(`/v1/programs/${PROGRAM_ID}/subjects`),
+    json: () => programFixture.subjects,
   },
   { match: /GetPdf/, file: "getpdf.json" },
   { match: /\/Schedule\?/, file: "schedule.json" },
@@ -79,7 +116,9 @@ http
     // a guest, no matter which shape asks. The fixture has to say so, or a test
     // of the reader would pass against a 404 and never exercise the refusal path
     // that production actually hits.
-    if (/v3\/(batches|programs)\/62cc7a39ea773600110bec2f(\/|$)/i.test(url.pathname)) {
+    if (
+      /v3\/(batches|programs)\/62cc7a39ea773600110bec2f(\/|$)/i.test(url.pathname)
+    ) {
       res.statusCode = 401;
       res.setHeader("Content-Type", "application/json");
       return res.end(
@@ -91,6 +130,13 @@ http
       res.statusCode = 404;
       res.setHeader("Content-Type", "application/json");
       return res.end(JSON.stringify({ success: false, error: "fixture not found", url: req.url }));
+    }
+
+    // An inline route: the program fixture is one document with five levels.
+    if (route.json) {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/json");
+      return res.end(JSON.stringify(route.json(req.url)));
     }
 
     const name = typeof route.file === "function" ? route.file(req.url) : route.file;

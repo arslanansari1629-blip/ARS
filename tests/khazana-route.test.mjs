@@ -162,3 +162,98 @@ test("both batch payloads carry the openable Khazana list", async () => {
     assert.match(first.name, /khazana/i, "the list is other people's content");
   }
 });
+
+/* ------------------------------------------- the archive, level by level */
+
+/**
+ * The whole point of this route: a linked archive is *browsable*.
+ *
+ * These five calls are the chain the pages make — Khazana tab → subject →
+ * chapter → topic → lecture. Each one goes through `/api/batch?khazana=…`, which
+ * is this deployment's own proxy against PW's v1/v2 program surface. If any link
+ * breaks, the tab renders a notice instead of subjects, which is exactly the
+ * state this suite exists to keep from shipping again.
+ */
+const PROGRAM = "697c6370cb722a4fac145ef1";
+
+test("the archive lists its subjects, through our own proxy", async () => {
+  const res = await fetch(`${BASE}/api/batch?khazana=subjects&id=${PROGRAM}&program=${PROGRAM}`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.success, true);
+  assert.equal(data.state, "ok");
+  assert.ok(data.subjects.length >= 2, "an archive with no subjects cannot be browsed");
+
+  const physics = data.subjects[0];
+  assert.equal(physics.name, "Physics");
+  assert.match(physics.id, /^[0-9a-f]{24}$/);
+  // The slug is what the next two levels are addressed by; an id alone is not
+  // enough, and a subject row without one leads to a 404 on click.
+  assert.ok(physics.slug, "a subject with no slug cannot be opened");
+  assert.equal(typeof physics.lectures, "number");
+});
+
+test("subject → chapter → topic → lecture walks without a dead link", async () => {
+  const subjects = await (await fetch(`${BASE}/api/batch?khazana=subjects&id=${PROGRAM}`)).json();
+  const subject = subjects.subjects[0];
+
+  const chapters = await (
+    await fetch(`${BASE}/api/batch?khazana=chapters&id=${PROGRAM}&subject=${subject.id}`)
+  ).json();
+  assert.equal(chapters.state, "ok", "the subject listed no chapters");
+  const chapter = chapters.chapters[0];
+  assert.ok(chapter.slug, "a chapter with no slug cannot be opened");
+  assert.match(chapter.id, /^[0-9a-f]{24}$/);
+
+  const topics = await (
+    await fetch(
+      `${BASE}/api/batch?khazana=topics&id=${PROGRAM}&subject=${subject.slug}&chapter=${chapter.slug}`
+    )
+  ).json();
+  assert.equal(topics.state, "ok", "the chapter listed no topics");
+  const topic = topics.topics[0];
+  assert.ok(topic.slug);
+
+  const contents = await (
+    await fetch(
+      `${BASE}/api/batch?khazana=contents&id=${PROGRAM}&subject=${subject.slug}` +
+        `&chapter=${chapter.slug}&topic=${topic.slug}`
+    )
+  ).json();
+  assert.equal(contents.state, "ok");
+  assert.ok(contents.items.length >= 1, "the topic holds nothing");
+
+  const lectures = contents.items.filter((i) => i.kind === "lecture");
+  assert.ok(lectures.length >= 1, "no lecture came back — the row would have nothing to play");
+  const lecture = lectures[0];
+  assert.match(lecture.id, /^[0-9a-f]{24}$/);
+  // This is the field the player signs. A lecture row without it is a dead click.
+  assert.match(lecture.videoUrl, /^https:\/\/.+\.mpd$/, "no playable url on the lecture");
+  assert.ok(lecture.title);
+});
+
+test("a topic's tabs are named, so the page can say what exists", async () => {
+  const q = `khazana=sections&id=${PROGRAM}&subject=physics-936551&chapter=physics-by-848830&topic=abbbba-987565`;
+  const data = await (await fetch(`${BASE}/api/batch?${q}`)).json();
+  assert.equal(data.success, true);
+  assert.ok(data.sections.length >= 2);
+  const names = data.sections.map((s) => s.name);
+  assert.ok(names.includes("Lectures"), `unexpected tabs: ${names.join(", ")}`);
+});
+
+test("a missing parent is a 400 that names the field, not an upstream call", async () => {
+  const res = await fetch(`${BASE}/api/batch?khazana=contents&id=${PROGRAM}&subject=physics-936551`);
+  assert.equal(res.status, 400);
+  const data = await res.json();
+  assert.equal(data.success, false);
+  assert.match(data.error, /chapter/);
+});
+
+test("an unknown archive id is reported, not invented", async () => {
+  const data = await (
+    await fetch(`${BASE}/api/batch?khazana=subjects&id=000000000000000000000000`)
+  ).json();
+  assert.equal(data.success, false);
+  assert.ok(["missing", "error", "invalid"].includes(data.state), `got ${data.state}`);
+  assert.deepEqual(data.subjects || [], [], "a failed read must not list subjects");
+});

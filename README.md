@@ -567,32 +567,58 @@ GET /api/pw?path=/v3/batches/<batchId>/details
 renders from the pointer the page already has and only spends an upstream request
 when there is something to read.
 
-**The refusal, stated plainly.** Khazana is paid content and the tokens this
-deployment can mint are guest tokens. Verified against the live API before the
-feature was written:
+**The linked archive is readable — and this was wrong for a long time.** The
+`khazanaProgramId` pointer is a *program*, and the surface that serves a program
+is `v1`/`v2`, not `v3`. `v3/programs/*` answers 404 for every id; probing only
+that surface made a perfectly readable archive look like paid content that needs
+a subscriber. It does not. A guest credential is enough:
 
-| shape | guest answer |
-| --- | --- |
-| `/v3/batches/<archive>/subjects` | **401 Unauthorised** |
-| `/v3/batches/<archive>/details` | **400 Invalid Batch** |
-| `/v3/programs/<archive>/subjects` | **404 Not Found** |
-| every mirror host | 404 / not this API |
-| with a freshly minted guest token | still **401** |
+| level | call | gives |
+| --- | --- | --- |
+| subjects | `/v1/programs/<program>/subjects?page=1` | name, slug, lecture count |
+| chapters | `/v2/programs/<program>/subjects/<subjectId>/chapters?page=1&limit=20` | chapter name, slug, lecture count |
+| topics | `/v1/programs/<program>/subjects/<subjectSlug>/chapters/<chapterSlug>/topics?page=1` | topic name, slug, lecture count |
+| tabs | `/v1/…/topics/<topicSlug>/contents/sub-topic?page=1` | Lectures · Notes · Dpp's · Dpp's Sol |
+| lectures | `/v2/programs/contents?programId=&subjectId=&chapterId=&topicId=&page=1` | `videoUrl` (CloudFront `master.mpd`) + notes PDFs |
 
-There is no endpoint, mirror or guest path that serves it. So the tab does not
-draw an empty grid and call it Khazana — it names which of seven states the batch
-is in, because "this batch has no archive", "the archive is paid", "the pointer
-is broken" and "the archive is unreachable" are four different things a student
-would otherwise have to guess between:
+Verified end to end on `697c6370cb722a4fac145ef1` ("Udaan English Khazana 2027",
+the archive linked from Brahmastra UP Board 2027): 9 subjects, 23 Physics
+lectures, and a 1h 01m lecture whose `master.mpd` resolves to a playable HLS plan
+through this deployment's own `/api/stream?url=`. **The archive plays.**
 
-`none` · `known` · `locked` · `invalid` · `empty` · `ok` · `error`
+Note the two address shapes: the topic call takes **slugs**, the lecture call
+takes **ids**. Both travel in the page links, so no page has to guess.
 
-**Listed is not the same as openable.** Chapters are read from
-`SubjectInfo?BatchId=<id>`, which only speaks batch ids. So when an archive answers
-in *program* form, the tab does not claim success: a row a reader cannot open is
-not content, and this site's whole job is that a click on a chapter works. That
-answer is reported as `invalid`, with the reason, rather than as a grid of dead
-links.
+All five levels are proxied by this deployment, on `/api/batch` (one function, to
+stay inside the function cap) — never by pointing a browser at a third-party
+relay:
+
+```
+/api/batch?khazana=subjects&id=<program>
+/api/batch?khazana=chapters&id=<program>&subject=<subjectId>
+/api/batch?khazana=topics&id=<program>&subject=<subjectSlug>&chapter=<chapterSlug>
+/api/batch?khazana=sections&id=<program>&subject=<slug>&chapter=<slug>&topic=<slug>
+/api/batch?khazana=contents&id=<program>&subject=<slug>&chapter=<slug>&topic=<slug>
+```
+
+`lib/khazana-program.mjs` normalises each level; `lib/khazana.mjs` keeps the
+verdict vocabulary. The batch page's tab lists the archive's **subjects**, each
+with its real lecture count.
+
+**One flag is reported, not obeyed.** Some lectures come back `isPurchased: false`
+while the notes beside them are `true`. That is PW's own entitlement flag. The row
+is still listed — it is real content and the reader should know it exists — and it
+is still openable, because the CloudFront URL is served regardless. Rows are never
+filtered out on that flag. What this site will not do is draw a row that 404s on
+click; that is why the archive is browsed through the program surface rather than
+the batch surface, which speaks a different id space.
+
+**States.** `none` · `known` · `locked` · `invalid` · `empty` · `ok` · `error` —
+the tab names which one the batch is in, because "no archive", "the source refused
+the credential", "the pointer is broken" and "unreachable" are four different
+things a student would otherwise have to guess between. `locked` now means the
+upstream refused this deployment's credential, which is an operational fact
+(settable with `PW_TOKEN`), not a claim about what Khazana costs.
 
 **How it turns on.** Set `PW_TOKEN` to a bearer from a **subscribed** account.
 No code change, no redeploy of anything but the env var: `lib/khazana.mjs` starts

@@ -16,7 +16,7 @@ import {
 } from "./app.js";
 import { trackLecture } from "./library.js";
 import { award } from "./progress.js";
-import { loadLecture, loadContents } from "./data.js";
+import { loadLecture, loadContents, loadKhazana } from "./data.js";
 import { upstream as upstreamJson } from "./client-api.js";
 import { ProPlayer, fmtTime, folderOf } from "./player.js";
 
@@ -26,6 +26,26 @@ const batchId = qs("batch");
 const subjectSlug = qs("subject");
 const lectureId = qs("id");
 const titleParam = qs("title");
+
+/**
+ * Khazana lectures arrive by a different road.
+ *
+ * A Khazana archive is a *program*, so `?batch=` is the program id and the
+ * schedule route (`/Schedule?BatchId=…`) answers nothing for it. The topic and
+ * chapter travel in the query instead, and `/api/batch?khazana=contents` is what
+ * returns them — the same endpoint the chapter list used to draw the row the
+ * reader clicked. Nothing else about this page changes: the stream resolver,
+ * the player and the notes viewer are the ones already used everywhere.
+ */
+const programId = qs("program");
+const archiveMode = programId ? "1" : "";
+const topicSlug = qs("topic");
+const chapterSlug = qs("chapter");
+/**
+ * Archive links carry the subject *slug*, because the topics and contents calls
+ * are slug-addressed; the chapter page carries the chapter slug the same way.
+ */
+const khazanaSubject = programId ? subjectSlug : "";
 
 const $ = (id) => document.getElementById(id);
 
@@ -103,6 +123,11 @@ let queue = { ids: [], index: -1 };
 /** Stream resolution attempts; each one bypasses the resolver's cache. */
 let attempt = 0;
 let currentPlan = null;
+/** The CloudFront URL of a Khazana lecture, read once from the contents call. */
+let knownVideoUrl = "";
+/** Every row of the archive topic this lecture belongs to. */
+let archiveItems = [];
+let archiveLectures = [];
 let pro = null;
 let durations = { elapsed: true };
 let statsVisible = false;
@@ -205,6 +230,71 @@ if (!batchId || !subjectSlug || !lectureId) {
 
 /* ------------------------------- boot / data ------------------------------ */
 
+/**
+ * Read one Khazana lecture out of its topic, and keep the list for the queue.
+ *
+ * The contents call returns the whole topic — lectures and notes together — so
+ * one request gives the title, the video URL, the attached PDFs *and* the order
+ * of the surrounding lectures. That is why this page needs no second lookup.
+ */
+async function loadArchiveLecture() {
+  const data = await loadKhazana(programId, "contents", {
+    subject: khazanaSubject,
+    chapter: chapterSlug,
+    topic: topicSlug,
+  });
+  archiveItems = Array.isArray(data.items) ? data.items : [];
+  archiveLectures = archiveItems.filter((i) => i.kind === "lecture");
+
+  const l = archiveItems.find((i) => i.id === lectureId) || null;
+  if (!l) return null;
+
+  // The URL the stream resolver will sign.
+  knownVideoUrl = l.videoUrl || "";
+
+  return {
+    lecture: {
+      id: l.id,
+      title: l.title || titleParam || "Lecture",
+      description: "",
+      thumbnail: l.thumbnail || "",
+      duration: l.duration || "",
+      topicInfo: "Khazana archive",
+      tags: topicSlug ? [topicSlug] : [],
+    },
+    // PW marks some archive lectures as not purchased. The lecture is still
+    // listed and still opens when the source serves the video; when it does not,
+    // the player reports the source's own refusal rather than a guess.
+    docs: archiveItems
+      .filter((i) => i.kind === "note" && i.fileUrl)
+      .map((i) => ({ name: i.fileName || "Notes", url: i.fileUrl, kind: "pdf" })),
+  };
+}
+
+/**
+ * Prev/next inside a Khazana topic.
+ *
+ * This is a *separate* function from `loadQueue` because the batch queue asks a
+ * different endpoint with a different address shape. Reusing it would have meant
+ * a branch inside it that reads the archive's parameters — the kind of coupling
+ * that later looks like a bug.
+ */
+function loadArchiveQueue() {
+  const ids = archiveLectures.map((l) => l.id).filter(Boolean);
+  queue = { ids, index: ids.indexOf(lectureId) };
+  const hasPrev = queue.index > 0;
+  const hasNext = queue.index >= 0 && queue.index < queue.ids.length - 1;
+  if (prevBtn) prevBtn.style.display = hasPrev ? "" : "none";
+  if (nextBtn) nextBtn.style.display = hasNext ? "" : "none";
+  if (queueNav) {
+    queueNav.innerHTML =
+      queue.index >= 0
+        ? `<span class="pill">${queue.index + 1} of ${queue.ids.length}</span>`
+        : "";
+  }
+  return queue;
+}
+
 async function boot() {
   showLoading("Preparing your lecture…", "Fetching stream details from Physics Wallah.");
 
@@ -218,7 +308,7 @@ async function boot() {
 
   let detail = null;
   try {
-    detail = await loadLecture(batchId, subjectSlug, lectureId);
+    detail = archiveMode ? await loadArchiveLecture() : await loadLecture(batchId, subjectSlug, lectureId);
   } catch {
     // Lecture metadata is optional — the schedule endpoint may rate-limit.
     detail = null;
@@ -267,7 +357,8 @@ async function boot() {
       chapter: (l.tags && l.tags[0]) || titleParam || "",
     });
     renderDocs(detail.docs || []);
-    loadQueue((l.tags && l.tags[0]) || "");
+    if (archiveMode) loadArchiveQueue();
+    else loadQueue((l.tags && l.tags[0]) || "");
   } else {
     metaEl.textContent = "Lecture details are loading from the chapter list.";
     docsEl.innerHTML = `<div class="attach-empty">No attachments could be loaded for this lecture.</div>`;
@@ -340,6 +431,22 @@ function isPermanent(reason) {
 }
 
 async function resolvePlan(n, level) {
+  // A Khazana lecture has no schedule to look up: the contents call the chapter
+  // list already made returns the CloudFront `master.mpd` directly, and
+  // `/api/stream?url=` turns that into a signed HLS plan. Asking the schedule
+  // route first would spend two refused upstream calls before reaching the same
+  // place.
+  if (archiveMode && knownVideoUrl) {
+    let plan = await api(`/api/stream?url=${encodeURIComponent(knownVideoUrl)}`);
+    if (plan && !plan.playable && !plan.retryAfter && silent < SILENT_ATTEMPTS) {
+      // Signing is rate-limited now and then; one refresh is cheaper than an
+      // error the reader cannot act on.
+      silent += 1;
+      plan = await api(`/api/stream?url=${encodeURIComponent(knownVideoUrl)}&attempt=${n || 1}&cb=${Date.now().toString(36)}`);
+    }
+    return plan;
+  }
+
   // On a retry, name the folder we already know.
   //
   // The video folder is the only thing a plan is actually derived from, and the

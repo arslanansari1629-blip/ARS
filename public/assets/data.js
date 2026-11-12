@@ -148,6 +148,33 @@ export async function loadAnnouncements(batch) {
   );
 }
 
+/**
+ * One read of the Khazana program surface.
+ *
+ * `what` is the level: subjects · chapters · topics · sections · contents. Every
+ * one goes through `/api/batch?khazana=<what>`, which is our own proxy against
+ * PW's v1/v2 program routes — never a third-party relay and never the batch-id
+ * routes, which 404 for a program id.
+ *
+ * Throws on a refused read so callers can keep their existing error branches.
+ */
+export async function loadKhazana(programId, what, params = {}) {
+  const qs = new URLSearchParams({
+    id: programId,
+    khazana: what,
+    program: programId,
+    ...Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && String(v) !== "")
+    ),
+  });
+  const res = await fetch(`/api/batch?${qs.toString()}`, { headers: { accept: "application/json" } });
+  const data = await res.json();
+  if (!data || data.success === false) {
+    throw new Error((data && (data.error || data.note)) || "The archive did not answer.");
+  }
+  return data;
+}
+
 export async function loadLecture(batch, subject, id) {
   return fetchData(
     `/api/lecture?batch=${encodeURIComponent(batch)}&subject=${encodeURIComponent(subject)}&id=${encodeURIComponent(id)}`,

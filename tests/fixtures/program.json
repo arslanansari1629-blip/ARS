@@ -1,0 +1,144 @@
+{
+  "_comment": "The Khazana program surface, recorded from the live source (program 697c6370cb722a4fac145ef1) and trimmed to two subjects / one chapter / two topics. Every level is here because the site walks all five: subjects → chapters → topics → sections → contents. Shapes are as the source returns them, including the fields the normalisers read.",
+
+  "subjects": {
+    "success": true,
+    "data": [
+      {
+        "_id": "698093f28655f976c4f778be",
+        "name": "Physics",
+        "slug": "physics-936551",
+        "displayOrder": 1,
+        "totalChapters": 1,
+        "totalTopics": 5,
+        "totalLectures": 23,
+        "backgroundImage": "https://static.pw.live/physics.jpg",
+        "isPurchased": false
+      },
+      {
+        "_id": "698093f36215d94f99128b8b",
+        "name": "Chemistry",
+        "slug": "chemistry-013981",
+        "displayOrder": 2,
+        "totalChapters": 1,
+        "totalTopics": 7,
+        "totalLectures": 32,
+        "isPurchased": false
+      }
+    ]
+  },
+
+  "chapters": {
+    "success": true,
+    "data": [
+      {
+        "_id": "698093fd54cf6b7d7255d789",
+        "name": "Physics by",
+        "slug": "physics-by-848830",
+        "displayOrder": 1,
+        "description": "Akash Shravan Sir; Udaan UP Board English 2026 (Class 10th)",
+        "totalTopics": 5,
+        "totalLectures": 23,
+        "isPurchased": true
+      }
+    ]
+  },
+
+  "topics": {
+    "success": true,
+    "data": [
+      {
+        "_id": "6980944888aa3db484b78d83",
+        "name": "Reflection and Refraction of Light",
+        "slug": "abbbba-987565",
+        "displayOrder": 1,
+        "totalLectures": 7,
+        "totalConcepts": 14
+      },
+      {
+        "_id": "6980944bc49f48f148c3d37b",
+        "name": "Human eye and colorful world",
+        "slug": "cabaac-075415",
+        "displayOrder": 2,
+        "totalLectures": 5,
+        "totalConcepts": 9
+      }
+    ]
+  },
+
+  "sections": {
+    "success": true,
+    "data": [
+      { "_id": "s1", "name": "Lectures", "slug": "lectures-334648", "displayOrder": 1, "totalLectures": 7, "totalConcepts": 0 },
+      { "_id": "s2", "name": "Notes", "slug": "notes-949727", "displayOrder": 2, "totalLectures": 0, "totalConcepts": 7 },
+      { "_id": "s3", "name": "Dpp's", "slug": "dpp-s-674192", "displayOrder": 3, "totalLectures": 0, "totalConcepts": 7 }
+    ]
+  },
+
+  "contents": {
+    "success": true,
+    "data": [
+      {
+        "_id": "69809449462b49546247a95f",
+        "title": "Reflection and Refraction of Light 01 : Introduction to Light",
+        "type": "Lecture",
+        "displayOrder": 1,
+        "isPurchased": false,
+        "content": [
+          {
+            "text": "Reflection and Refraction of Light 01 : Introduction to Light",
+            "videoUrl": "https://d1d34p8vz63oiq.cloudfront.net/9cf0f329-9b3e-4f7e-9dca-37cd74f38b51/master.mpd",
+            "videoType": "penpencilvdo",
+            "videoDetails": {
+              "_id": "6838623bb233a7e4c52ed59d",
+              "name": "Reflection and Refraction of Light 01 : Introduction to Light",
+              "image": "https://static.pw.live/thumb.png",
+              "videoUrl": "https://d1d34p8vz63oiq.cloudfront.net/9cf0f329-9b3e-4f7e-9dca-37cd74f38b51/master.mpd",
+              "duration": "01:01:02",
+              "status": "Ready",
+              "types": ["DASH", "HLS"]
+            }
+          }
+        ]
+      },
+      {
+        "_id": "6980944a8721f3d1fca024ec",
+        "title": "Reflection and Refraction of Light 02 : Reflection of light",
+        "type": "Lecture",
+        "displayOrder": 2,
+        "isPurchased": true,
+        "content": [
+          {
+            "text": "Reflection and Refraction of Light 02 : Reflection of light",
+            "videoUrl": "https://d1d34p8vz63oiq.cloudfront.net/d8f8f6e9-2cfa-404f-be1c-a995825f847a/master.mpd",
+            "videoType": "penpencilvdo",
+            "videoDetails": {
+              "name": "Reflection and Refraction of Light 02 : Reflection of light",
+              "duration": "01:03:56",
+              "status": "Ready",
+              "types": ["DASH", "HLS"]
+            }
+          }
+        ]
+      },
+      {
+        "_id": "6980944ae7ca0806ec8d603d",
+        "title": "Reflection and Refraction of Light 01 : Class Notes",
+        "type": "Concept",
+        "displayOrder": 1,
+        "isPurchased": true,
+        "content": [
+          {
+            "text": "Reflection and Refraction of Light 01 : Class Notes",
+            "fileId": {
+              "_id": "68393fd70d1927cfa21f1a61",
+              "name": "Reflection and Refraction of Light 01 - Class Notes.pdf",
+              "baseUrl": "https://static.pw.live/",
+              "key": "5eb393ee95fab7468a79d189/ADMIN/1c127294-0cdf-4ad3-8eb1-00b20884f735.pdf"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

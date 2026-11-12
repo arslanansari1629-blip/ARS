@@ -11,13 +11,23 @@ import {
   clamp,
   ORIGIN,
 } from "./app.js";
-import { loadContents } from "./data.js";
+import { loadContents, loadKhazana } from "./data.js";
 
 mountChrome("batches");
 
 const batchId = qs("batch");
 const subjectSlug = qs("subject");
+/**
+ * A chapter reached from a Khazana archive.
+ *
+ * Two ids arrive, because the archive addresses its two levels differently:
+ * `chapter` is the chapter **slug** (the topics call needs it) and `cid` is the
+ * chapter **id** (the lecture call needs it). In a plain batch they are the same
+ * string, so nothing outside `archiveMode` reads `cid`.
+ */
+const archiveMode = qs("archive") === "1";
 const chapterId = qs("chapter");
+const chapterRefId = qs("cid") || chapterId;
 const chapterName = qs("name");
 
 const TAB_LABELS = {
@@ -26,9 +36,10 @@ const TAB_LABELS = {
   DppNotes: "DPPs",
   DppVideos: "DPP solutions",
 };
-const subjectHref = `/subject.html?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
-  subjectSlug
-)}`;
+const subjectHref =
+  `/subject.html?batch=${encodeURIComponent(batchId)}` +
+  `&subject=${encodeURIComponent(subjectSlug)}` +
+  (qs("archive") === "1" ? "&archive=1" : "");
 
 const body = document.getElementById("body");
 const chapterNameEl = document.getElementById("chapterName");
@@ -37,6 +48,21 @@ const crumbs = document.getElementById("crumbs");
 const tabs = document.getElementById("tabs");
 
 let type = "videos";
+
+/**
+ * In an archive the four tabs collapse to one.
+ *
+ * A program chapter holds *topics*, and each topic holds its own lectures, notes
+ * and DPPs — so "Notes" for the whole chapter is not a list the source can give.
+ * Hiding the tabs is honest; leaving them there would make three of four look
+ * broken.
+ */
+if (archiveMode) {
+  tabs.querySelectorAll(".tab").forEach((t) => {
+    if (t.dataset.type === "videos") return;
+    t.hidden = true;
+  });
+}
 /**
  * `type -> { items, partial }`.
  *
@@ -85,9 +111,21 @@ function buildCrumbs() {
 }
 
 function watchUrl(item) {
-  return `/lecture.html?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
-    subjectSlug
-  )}&id=${encodeURIComponent(item.id)}&title=${encodeURIComponent(item.title)}`;
+  const base =
+    `/lecture.html?batch=${encodeURIComponent(batchId)}` +
+    `&subject=${encodeURIComponent(subjectSlug)}` +
+    `&id=${encodeURIComponent(item.id)}` +
+    `&title=${encodeURIComponent(item.title)}`;
+  // An archive lecture has no schedule entry, so the player needs to know which
+  // topic to read it out of: the contents call is addressed by program + subject
+  // slug + chapter slug + topic slug, and all four travel here.
+  if (!archiveMode) return base;
+  return (
+    base +
+    `&program=${encodeURIComponent(batchId)}` +
+    `&chapter=${encodeURIComponent(chapterId)}` +
+    `&topic=${encodeURIComponent(item.topicSlug || qs("topic") || "")}`
+  );
 }
 
 /**
@@ -193,6 +231,188 @@ function docItemRow(item) {
     </div>`;
 }
 
+/**
+ * A Khazana chapter is a list of *topics*, and each topic is where the lectures,
+ * notes and DPPs actually live.
+ *
+ * `renderArchiveTopics` is separate from `render` on purpose: the batch renderer
+ * draws *items* (lectures, files) under a chapter, while an archive chapter holds
+ * one more level. Forcing them into one function would have meant a branch at the
+ * top of every section of it.
+ */
+async function renderArchiveTopics() {
+  body.innerHTML = `<div class="list">${Array.from({ length: 5 })
+    .map(() => `<div class="skeleton sk-row"></div>`)
+    .join("")}</div>`;
+
+  let topics = [];
+  try {
+    const out = await loadKhazana(batchId, "topics", {
+      subject: subjectSlug,
+      chapter: chapterId,
+    });
+    topics = out.topics || out.items || [];
+  } catch (err) {
+    chapterMeta.textContent = "The archive did not answer. This is the source, not this site.";
+    body.innerHTML = emptyState(
+      "Could not load this chapter",
+      err.message,
+      `<button class="btn btn-primary btn-sm" type="button" data-retry="videos">Try again</button>`
+    );
+    return;
+  }
+
+  if (!topics.length) {
+    chapterMeta.textContent = "";
+    body.innerHTML = emptyState(
+      "No topics in this chapter",
+      "The archive lists this chapter but publishes no topics under it yet.",
+      `<a class="btn btn-ghost btn-sm" href="${subjectHref}">All chapters in this subject</a>`
+    );
+    return;
+  }
+
+  chapterMeta.innerHTML = `${topics.length} topic${topics.length === 1 ? "" : "s"} · every one holds its own lectures, notes and DPPs`;
+  body.innerHTML = `<div class="list">${topics.map(topicRow).join("")}</div>`;
+}
+
+/**
+ * The lectures and notes inside one archive topic.
+ *
+ * The call returns both kinds in one list — `Lecture` rows carry a CloudFront
+ * video URL, `Concept` rows carry a PDF — so one read fills the whole page. Each
+ * lecture row links to the player with the four slugs it needs; each note row
+ * links straight to the PDF through the same viewer every other note uses.
+ */
+async function renderArchiveContents() {
+  body.innerHTML = `<div class="list">${Array.from({ length: 5 })
+    .map(() => `<div class="skeleton sk-row"></div>`)
+    .join("")}</div>`;
+
+  let items = [];
+  try {
+    const out = await loadKhazana(batchId, "contents", {
+      subject: subjectSlug,
+      chapter: chapterId,
+      topic: qs("topic"),
+    });
+    items = out.items || [];
+  } catch (err) {
+    chapterMeta.textContent = "The archive did not answer. This is the source, not this site.";
+    body.innerHTML = emptyState(
+      "Could not load this topic",
+      err.message,
+      `<button class="btn btn-primary btn-sm" type="button" data-retry="videos">Try again</button>`
+    );
+    return;
+  }
+
+  if (!items.length) {
+    chapterMeta.textContent = "";
+    body.innerHTML = emptyState(
+      "Nothing published in this topic",
+      "The archive lists this topic but has released no lecture or note in it yet.",
+      `<a class="btn btn-ghost btn-sm" href="${subjectHref}">All chapters in this subject</a>`
+    );
+    return;
+  }
+
+  const lectures = items.filter((i) => i.kind === "lecture");
+  const notes = items.filter((i) => i.kind === "note" && i.fileUrl);
+
+  chapterMeta.innerHTML =
+    `${lectures.length} lecture${lectures.length === 1 ? "" : "s"}` +
+    (notes.length ? ` · ${notes.length} notes` : "") +
+    " · older recordings from the archive";
+
+  body.innerHTML = `<div class="list">${lectures
+    .map((l, i) => archiveLectureRow(l, i))
+    .join("")}</div>${
+    notes.length
+      ? `<h2 class="h3 mt-6">Notes and DPPs</h2>
+         <div class="list">${notes.map((n, i) => archiveNoteRow(n, i)).join("")}</div>`
+      : ""
+  }`;
+}
+
+/**
+ * One archive lecture.
+ *
+ * `isPurchased: false` is shown, not hidden: the row is real, the video exists,
+ * and the reader deserves to know the source may refuse it rather than discover
+ * that by clicking. Nothing is filtered out on that flag.
+ */
+function archiveLectureRow(item, index) {
+  const href =
+    `/lecture.html?batch=${encodeURIComponent(batchId)}` +
+    `&subject=${encodeURIComponent(subjectSlug)}` +
+    `&id=${encodeURIComponent(item.id)}` +
+    `&title=${encodeURIComponent(item.title)}` +
+    `&program=${encodeURIComponent(batchId)}` +
+    `&chapter=${encodeURIComponent(chapterId)}` +
+    `&topic=${encodeURIComponent(qs("topic"))}`;
+  const badge = item.videoUrl
+    ? `<span class="badge-live">Video ready</span>`
+    : `<span class="badge-soon">No video</span>`;
+  return `
+    <a class="list-row fade-up" href="${href}">
+      <span class="index">${String(index + 1).padStart(2, "0")}</span>
+      <span class="grow">
+        <span class="title">${esc(item.title)}</span>
+        <span class="meta">
+          ${item.duration ? `<span>${esc(item.duration)}</span>` : ""}
+          <span>Archive</span>
+          ${badge}
+          ${item.isPurchased === false ? `<span class="badge-soon">Source says locked</span>` : ""}
+        </span>
+      </span>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--brand-2)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5z" fill="var(--brand-2)" stroke="none"/></svg>
+    </a>`;
+}
+
+/** One archive note or DPP → the PDF, through the site's own viewer. */
+function archiveNoteRow(item, index) {
+  // `viewer.js` reads `url` + `name`; the archive's PDFs are absolute
+  // `static.pw.live` links, which it opens without a proxy hop.
+  const href =
+    `/viewer.html?name=${encodeURIComponent(item.fileName || item.title)}` +
+    `&url=${encodeURIComponent(item.fileUrl)}`;
+  return `
+    <a class="list-row fade-up" href="${href}">
+      <span class="index">${String(index + 1).padStart(2, "0")}</span>
+      <span class="grow">
+        <span class="title">${esc(item.title)}</span>
+        <span class="meta"><span>PDF</span><span>Archive</span></span>
+      </span>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--brand-2)" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+    </a>`;
+}
+
+/** One archive topic → a row that opens its lecture list. */
+function topicRow(topic, index) {
+  const href =
+    `/chapter.html?batch=${encodeURIComponent(batchId)}` +
+    `&subject=${encodeURIComponent(subjectSlug)}` +
+    `&chapter=${encodeURIComponent(chapterId)}` +
+    `&cid=${encodeURIComponent(chapterRefId)}` +
+    `&topic=${encodeURIComponent(topic.slug || "")}` +
+    `&name=${encodeURIComponent(topic.name)}` +
+    `&archive=1`;
+  return `
+    <a class="list-row chapter-row fade-up" href="${href}">
+      <span class="index">${String(index + 1).padStart(2, "0")}</span>
+      <span class="grow">
+        <span class="title">${esc(topic.name)}</span>
+        <span class="counts">
+          ${topic.lectures ? `<span class="count-chip v">${topic.lectures} lectures</span>` : ""}
+          ${topic.notes ? `<span class="count-chip n">${topic.notes} notes</span>` : ""}
+          ${!topic.lectures && !topic.notes ? `<span class="count-chip">Coming soon</span>` : ""}
+        </span>
+      </span>
+      <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+    </a>`;
+}
+
 async function load(nextType, { refresh = false } = {}) {
   type = nextType;
   // The tab strip is a real tab widget, so it has to say so: `aria-selected` is
@@ -227,6 +447,11 @@ async function load(nextType, { refresh = false } = {}) {
     .join("")}</div>`;
 
   try {
+    if (archiveMode) {
+      // `topic` in the query means this page is *inside* one topic, so the list is
+      // its lectures and notes — not the chapter's topic list.
+      return qs("topic") ? renderArchiveContents() : renderArchiveTopics();
+    }
     const out = await loadContents(batchId, subjectSlug, chapterId, type);
     // A notes/DPP tab resolves one storage key per attachment. When PW's
     // rate-limited lookup gives up partway, the tab renders a *shorter* list

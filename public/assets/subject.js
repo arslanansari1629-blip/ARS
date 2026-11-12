@@ -10,13 +10,23 @@ import {
   clamp,
   ORIGIN,
 } from "./app.js";
-import { loadBatch, loadChapters } from "./data.js";
+import { loadBatch, loadChapters, loadKhazana } from "./data.js";
 
 mountChrome("batches");
 
 const batchId = qs("batch");
 const subjectSlug = qs("subject");
 const subjectNameParam = qs("name");
+
+/**
+ * A subject page reached from a Khazana archive.
+ *
+ * `archive=1` means `batch` is a *program* id and `subject` is a subject **slug**,
+ * not a batch id and a subject slug. Different surface, so a different loader;
+ * the rows it produces are the same rows the rest of the page knows how to draw,
+ * and each one links on to the chapter page with `archive=1` still attached.
+ */
+const archiveMode = qs("archive") === "1";
 
 const list = document.getElementById("list");
 const subjectName = document.getElementById("subjectName");
@@ -40,9 +50,15 @@ if (!batchId || !subjectSlug) {
 }
 
 function row(c, index) {
-  const href = `/chapter.html?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
-    subjectSlug
-  )}&chapter=${encodeURIComponent(c.id)}&name=${encodeURIComponent(c.name)}`;
+  const href =
+    `/chapter.html?batch=${encodeURIComponent(batchId)}` +
+    `&subject=${encodeURIComponent(subjectSlug)}` +
+    `&chapter=${encodeURIComponent(c.slug || c.id)}` +
+    `&cid=${encodeURIComponent(c.id)}` +
+    `&name=${encodeURIComponent(c.name)}` +
+    // The chapter page needs both: `chapter` is the slug the archive's topic call
+    // is addressed by, `cid` is the id its lecture call is addressed by.
+    (archiveMode ? "&archive=1" : "");
   return `
     <a class="list-row chapter-row fade-up" href="${href}">
       <span class="index">${String(index + 1).padStart(2, "0")}</span>
@@ -120,6 +136,21 @@ async function load() {
   try {
     // batch meta for breadcrumbs (name)
     try {
+      if (archiveMode) {
+        // The archive is a program; `/api/batch?id=` would answer a batch it does
+        // not know. The subject name is already in the link, so use it.
+        crumbs.innerHTML = `<a href="/">Home</a> <span>/</span> <a href="/batches.html">Batches</a> <span>/</span>
+          <span class="truncate">${esc(subjectNameParam || "Khazana archive")}</span> <span>/</span>
+          <span>${esc(subjectNameParam || "Subject")}</span>`;
+        document.title = `${subjectNameParam || "Khazana archive"} — ArsVibe PW`;
+        setPageMeta({
+          title: `${subjectNameParam || "Khazana archive"} — ArsVibe PW`,
+          description: clamp(
+            `The ${subjectNameParam || "Khazana"} archive: every chapter and lecture it holds, with class notes.`
+          ),
+        });
+        throw { archive: true };
+      }
       const b = await loadBatch(batchId);
       if (b.batch) {
         crumbs.innerHTML = `<a href="/">Home</a> <span>/</span> <a href="/batches.html">Batches</a> <span>/</span>
@@ -134,12 +165,21 @@ async function load() {
           canonical: `${ORIGIN}/subject?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(subjectSlug)}`,
         });
       }
-    } catch {
-      /* breadcrumb is cosmetic */
+    } catch (err) {
+      // `{ archive: true }` is the branch above finishing early, not a failure.
+      if (!(err && err.archive)) {
+        /* breadcrumb is cosmetic */
+      }
     }
 
-    const out = await loadChapters(batchId, subjectSlug);
-    const chapters = out.chapters || [];
+    const out = archiveMode
+      ? await loadKhazana(batchId, "chapters", { subject: subjectSlug })
+      : await loadChapters(batchId, subjectSlug);
+    // The archive names its lecture count `lectures`; the batch surface calls it
+    // `videos`. One shape reaches the row renderer either way.
+    const chapters = (out.chapters || out.items || []).map((c) =>
+      archiveMode ? { ...c, videos: Number(c.lectures) || 0, notes: 0, exercises: 0 } : c
+    );
     if (!chapters.length) {
       list.innerHTML = emptyState("No chapters yet", "This subject has no chapter list published yet. Check back after the next upload.");
       subjectMeta.textContent = "";

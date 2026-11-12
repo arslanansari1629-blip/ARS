@@ -220,12 +220,12 @@ test("a batch with no archive says so instead of showing an empty grid", async (
   assert.equal(/subject-card/.test(html), false, "an empty grid would look like content");
 });
 
-test("a paid archive names the reason and the fix, and asks for no subscription", async () => {
+test("a refused read names the fix and the pointer, and draws no rows", async () => {
   const { khazanaMarkup } = await import("../public/assets/khazana.js");
   const html = khazanaMarkup({
     khazana: { state: "locked", programId: "62cc7a39", needsSubscriberToken: true },
   });
-  assert.match(html, /paid content|needs a subscriber/i);
+  assert.match(html, /refused this deployment/i);
   assert.match(html, /PW_TOKEN/, "the reader must learn what would unlock it");
   assert.match(html, /62cc7a39/, "the pointer is the evidence for the verdict");
   assert.equal(/subject-card/.test(html), false);
@@ -243,13 +243,14 @@ test("real subjects render as links that carry the archive id, not the batch id"
   const { khazanaMarkup } = await import("../public/assets/khazana.js");
   const html = khazanaMarkup({
     khazana: { state: "ok", programId: "ARCHIVE1" },
-    subjects: [{ name: "Physics", slug: "physics-1", lectureCount: 40, tagCount: 12 }],
+    subjects: [{ name: "Physics", slug: "physics-1", lectures: 40, chapters: 12 }],
   });
   assert.match(html, /subject-card/);
   assert.match(html, /Physics/);
   assert.match(html, /batch=ARCHIVE1/, "the subject page must fetch the archive's chapters");
   assert.match(html, /archive=1/);
   assert.match(html, /40 lectures/);
+  assert.match(html, /12 chapters/);
 });
 
 test("a 200 with no usable rows renders as empty, never as success", async () => {
@@ -288,13 +289,16 @@ test("mounting with a pointer reads it and renders the answer", async () => {
         json: async () => ({
           success: true,
           khazana: { state: "ok", programId: "ARCH" },
-          subjects: [{ name: "Maths", slug: "maths-1", lectureCount: 9 }],
+          subjects: [{ name: "Maths", slug: "maths-1", lectures: 9, chapters: 1 }],
         }),
       };
     },
   });
   assert.equal(asked.length, 1);
-  assert.match(asked[0], /khazana=read/);
+  // The verified surface is the program's subject list. `khazana=read` was the
+  // v3 ladder, which answered 404 for every program id — asking it would have
+  // made a readable archive look paid.
+  assert.match(asked[0], /khazana=subjects/);
   assert.equal(out.state, "ok");
   assert.match(host.innerHTML, /Maths/);
 });
