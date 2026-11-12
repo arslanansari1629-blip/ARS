@@ -2439,3 +2439,53 @@ test("the service worker version bumps when a cached asset changes", async () =>
     assert.ok(sw.includes(`"${asset}"`), `${asset} is not pre-cached`);
   }
 });
+
+test("today's classes are drawn above the tabs, on the batch page", async () => {
+  // The reported request was "add live class in every batch" — the source site
+  // puts today's classes at the top of a batch page, and a page that buries them
+  // inside a tab has effectively hidden them.
+  //
+  // The clock is pinned to the same day the fixture upstream anchors its rows
+  // to, so this asserts the *rendering* path rather than whatever time the suite
+  // happens to run at. Every `/api/batch?today=1` request from the page is
+  // rewritten to carry the pin.
+  const PINNED = "2026-11-13T16:15:00Z";
+  const { doc, dom } = await render("/batch.html?id=698ad3519549b300a5e1cc6a", {
+    fetchWrap: (target) => {
+      if (target.pathname === "/api/batch" && target.searchParams.get("today")) {
+        const url = new URL(target.toString());
+        url.searchParams.set("at", PINNED);
+        return nativeFetch(url, { headers: { accept: "application/json" } });
+      }
+      return null;
+    },
+    waitForSelector: "#todaySection:not([hidden]) .today-class",
+    settle: 600,
+  });
+
+  const strip = doc.getElementById("todayStrip");
+  const rows = strip.querySelectorAll(".today-class");
+  assert.ok(rows.length >= 2, `the strip drew ${rows.length} class(es)`);
+
+  // The strip is above the tab strip, which is what makes it a schedule rather
+  // than another tab.
+  const section = doc.getElementById("todaySection");
+  assert.ok(
+    section.compareDocumentPosition(doc.querySelector("[data-tab]")) &
+      window.Node.DOCUMENT_POSITION_FOLLOWING,
+    "the classes were drawn below the tabs"
+  );
+
+  // A live class is named as live and is not a link: there is nothing recorded
+  // to open yet.
+  const live = strip.querySelector(".today-class.is-live");
+  assert.ok(live, "no class is marked live");
+  assert.match(live.textContent, /Live now/);
+  assert.equal(live.querySelector("a"), null, "a class on air was offered as a recording");
+
+  // The time is IST and says so — a schedule without a timezone is a guess.
+  assert.match(strip.textContent, /IST/);
+  assert.match(strip.textContent, /\d{2}:\d{2}/);
+
+  dom.window.close();
+});

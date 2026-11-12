@@ -1,6 +1,7 @@
 import { json, cors, query, badRequest, methodNotAllowed, proxyFallback } from "../lib/http.mjs";
 import { fetchBatch, fetchBatchHeader } from "../lib/api-data.mjs";
 import { readArchive, archiveVerdict, archivePointers } from "../lib/khazana.mjs";
+import { fetchToday } from "../lib/today.mjs";
 import {
   khazanaStateLabel,
   programSubjects,
@@ -18,6 +19,7 @@ import {
  * GET /api/batch?id=<batchId>&khazana=1  the batch's Khazana archive
  * GET /api/batch?id=<batchId>&khazana=read&program=<programId>
  * GET /api/batch?id=<b>&khazana=subjects|chapters|topics|sections|contents
+ * GET /api/batch?id=<batchId>&today=1   the classes scheduled for today (IST)
  *
  * The page calls `header=1` first: it is one indexed lookup against the local
  * catalogue, so the hero paints in milliseconds instead of waiting on a slow
@@ -28,8 +30,12 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.end();
   if (req.method !== "GET") return methodNotAllowed(res);
 
-  const { id, header, khazana } = query(req);
+  const { id, header, khazana, today } = query(req);
   if (!id) return badRequest(res, "id is required");
+
+  // The live-class strip. Its own route would be a thirteenth function, so it
+  // rides here like Khazana does.
+  if (today) return todayRoute(req, res, id, today);
 
   // Khazana lives on this route rather than in a twelfth function: it is a read
   // of one batch's archive, and the deployment's function cap is not negotiable.
@@ -51,6 +57,102 @@ export default async function handler(req, res) {
     return json(res, 200, { success: true, ...out }, 300);
   } catch (err) {
     return json(res, 500, { success: false, error: err?.message || "Unexpected error" });
+  }
+}
+
+
+/* --------------------------------------------------------------- today */
+
+/**
+ * Cache the day per batch, not per second.
+ *
+ * Reading a day costs one upstream listing per subject — up to twelve of them —
+ * and the answer changes at most when a class starts or ends. A minute is short
+ * enough that a class going live is visible while a student is on the page, and
+ * long enough that refreshing does not become an attack on the source.
+ */
+const todayCache = new Map();
+const TODAY_TTL_MS = 60 * 1000;
+
+function cachedToday(key, read) {
+  const hit = todayCache.get(key);
+  const now = Date.now();
+  if (hit && now - hit.at < TODAY_TTL_MS) return Promise.resolve(hit.value);
+  return read().then((value) => {
+    if (todayCache.size > 200) todayCache.delete(todayCache.keys().next().value);
+    todayCache.set(key, { at: now, value });
+    return value;
+  });
+}
+
+/**
+ * `GET /api/batch?id=<batch>&today=1`
+ *
+ * `today=at` accepts `now` — an ISO timestamp the caller can pin the clock with.
+ * It exists because "is this class live" is a question about the current minute,
+ * and a feature whose whole job is that question has to be testable at a fixed
+ * minute rather than only at whatever time CI happens to run.
+ */
+async function todayRoute(req, res, batchId, mode) {
+  if (req.method !== "GET") return methodNotAllowed(res);
+
+  // `?at=` and `?now=` are the same switch. `now` is the spelling the fixture
+  // upstream is asked with (see `lib/today.mjs`), so accepting it here means one
+  // name for the clock rather than two that have to be kept in step.
+  const q = query(req);
+  const pinned = q.at || q.now || "";
+  const parsed = pinned ? new Date(/^\d+$/.test(pinned) ? Number(pinned) : pinned) : new Date();
+  const clock = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+
+  try {
+    // The subject list is needed to know what to read, and there is only one
+    // place to get it: the batch document. The shipped catalogue row does not
+    // carry subjects at all (it has `subBatches`), so a "fast header" shortcut
+    // here would be dead code dressed as an optimisation — it is not written.
+    //
+    // The cost is contained instead:
+    //
+    //  * the batch page already asks for this document, so on a normal visit the
+    //    read below is served from the five-minute upstream cache;
+    //  * the strip is mounted without blocking the rest of the page, so a slow
+    //    detail call delays the classes and nothing else;
+    //  * the day itself is cached for a minute per batch, so a refresh inside the
+    //    same minute costs nothing at all.
+    // An eight-second cap: `fetchBatch` itself allows nine for a cold detail
+    // call, and a strip that waits nine seconds has missed the class it exists to
+    // announce. Timing out leaves `subjects` empty, which the reader reports as
+    // "no subjects to read" — an absence, not a claim about the schedule.
+    const detail = await Promise.race([
+      fetchBatch(batchId).catch(() => null),
+      new Promise((resolve) => setTimeout(() => resolve(null), 8000)),
+    ]);
+    const subjects = detail && detail.ok && Array.isArray(detail.subjects) ? detail.subjects : [];
+
+    const key = `${batchId}|${Math.floor(clock.getTime() / TODAY_TTL_MS)}|${subjects.map((s) => s.slug).join(",").length}`;
+    const day = await cachedToday(key, () => fetchToday(batchId, { now: clock, subjects }));
+
+    return json(
+      res,
+      200,
+      { success: true, batchId, today: day },
+      // A day that is in progress is worth keeping for a minute; one that has
+      // not started or is over can be kept longer, but the difference is not
+      // worth a second code path.
+      60
+    );
+  } catch (err) {
+    return json(res, 200, {
+      success: false,
+      batchId,
+      today: {
+        ok: false,
+        state: "error",
+        day: "",
+        classes: [],
+        next: null,
+        error: err?.message || "Today's classes could not be read",
+      },
+    });
   }
 }
 

@@ -9153,6 +9153,247 @@ html:not(.intro-armed) > body {
   }
 }
 
+/* ---------------------------------------------------------- today's classes */
+
+/*
+ * The live-class strip, above a batch's tabs.
+ *
+ * It is the only part of a batch page with a deadline, so it is built to be read
+ * in a glance: the time in a fixed column, the class in the middle, the action on
+ * the right. Nothing here is decorative — a student who has thirty seconds before
+ * class needs the room, the teacher and whether it is live, in that order.
+ */
+.today-section {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+.today-strip {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem 0.95rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card-2);
+}
+
+/* On air: a single accent edge, the same language the rest of the site uses for
+   "this is happening now" rather than a second palette. */
+.today-strip.is-on-air {
+  border-left: 3px solid var(--brand-2);
+}
+
+.today-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.today-eyebrow {
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.today-strip.is-on-air .today-eyebrow {
+  color: var(--brand-2);
+}
+
+.today-day {
+  color: var(--ink-3);
+  font-size: 0.78rem;
+}
+
+.today-count,
+.today-next {
+  margin-left: auto;
+  color: var(--ink-4);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+}
+
+/* A quiet day is one line, not a panel of its own. */
+.today-strip.is-quiet {
+  padding: 0.7rem 1rem;
+  background: var(--paper-2);
+}
+
+.today-strip.is-quiet .today-day {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.today-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.today-class {
+  display: grid;
+  grid-template-columns: 4.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--paper-2);
+}
+
+/* The clock is the scan column: monospaced and tabular so the times line up
+   down the list instead of stepping in and out. */
+.today-clock {
+  display: grid;
+  gap: 0.02rem;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.today-clock b {
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.today-clock i {
+  color: var(--ink-4);
+  font-size: 0.58rem;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+
+.today-body {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.today-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.855rem;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.today-meta {
+  overflow: hidden;
+  color: var(--ink-4);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-class.is-live {
+  border-color: var(--brand-2);
+  background: var(--card-2);
+}
+
+.today-class.is-done .today-title {
+  color: var(--ink-2);
+}
+
+.today-badge {
+  padding: 0.16rem 0.45rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.today-badge.is-live {
+  border-color: var(--brand-2);
+  background: var(--brand-2);
+  color: #fff;
+}
+
+.today-badge.is-next {
+  border-color: var(--rule-2);
+  color: var(--ink-2);
+}
+
+.today-open {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule-2);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.today-open:hover {
+  border-color: var(--brand-2);
+  color: var(--brand-2);
+}
+
+/* The "next class" line, shown only once the day is over. */
+.today-after {
+  margin: 0;
+  padding-top: 0.1rem;
+  color: var(--ink-3);
+  font-size: 0.76rem;
+}
+
+.today-after b {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+/* Reading: one row in the shape the first class will take. */
+.today-skeleton {
+  height: 54px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--paper-2) 25%, var(--card) 50%, var(--paper-2) 75%);
+  background-size: 200% 100%;
+  animation: khazana-shimmer 1.4s linear infinite;
+}
+
+@media (max-width: 560px) {
+  .today-class {
+    grid-template-columns: 3.9rem minmax(0, 1fr);
+    gap: 0.55rem;
+  }
+
+  /* The action drops under the class rather than squeezing the title to three
+     characters — the room and the teacher are what the row is for. */
+  .today-class > :last-child {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .today-count,
+  .today-next {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .today-skeleton {
+    animation: none;
+    background: var(--paper-2);
+  }
+}
+
 /* ------------------------------------------------------------- khazana tab */
 
 /*

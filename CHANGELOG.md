@@ -2,6 +2,78 @@
 
 ---
 
+## Round AV — today's classes, on every batch
+
+"add live class in everybatch." The source site opens a batch page with today's
+timetable; this one buried the schedule a level deeper, inside each chapter's
+lecture list, where nobody looks at 10:25.
+
+**What was actually missing was an endpoint.** PW has no batch-level schedule
+route that answers a guest. Every spelling was probed against production:
+
+```
+/v1/batches/<id>/schedule       404   (route does not exist)
+/v2/batches/<id>/schedule       401
+/v3/batches/<id>/schedule       401
+/v2/batches/<id>/contents       401   (no subject)
+/batch-schedule/batch/<id>      404
+```
+
+What *does* answer is the per-subject contents listing — the call the chapter pages
+already make — and every row in it carries `startTime`, `endTime`, `lectureType`
+and the video's real `duration`. So a batch's day is read the way PW's own app
+reads it: one listing per subject, keep the rows that fall on today. `lib/today.mjs`
+records that surface and the cap (ten subjects) that stops a forty-subject batch
+from becoming forty upstream calls.
+
+**A day is an IST day.** PW schedules against Indian time. The first version of
+this used the device clock, which put a 21:30 class in yesterday for anyone
+outside India — and made the feature impossible to test. `?now=` pins the clock, so
+a test asserts "this class is live at 21:35" instead of only passing when CI
+happens to run at the right minute.
+
+**`endTime` cannot be trusted.** On a scheduled class PW copies `startTime` into
+`endTime`, so a class is zero minutes long and "is it on now" answers *no* for
+every class, always. The window comes from the duration (with a plausibility check
+on a stated end), which is the only field that describes how long a class runs.
+
+**Three states, three honest answers.**
+
+- *Live / upcoming / finished* — the day's classes, on air first, each row saying
+  which it is. A class that has not happened is **not** offered as a recording,
+  even when a stream is attached to the row: that sends a student to a player
+  holding an empty manifest. A finished class with a recording gets "Watch".
+- *Nothing today* — one line, plus the next class by date and time. An empty day is
+  ordinary; it does not get a panel, and 14,000 batch pages must not each open
+  with an apology.
+- *Every listing refused* — **no strip at all.** "No classes today" on a refusal is
+  a claim made on no evidence, and it is the kind of quiet lie that makes someone
+  miss a class. The distinction between `empty` and `error` is pinned by a test.
+
+Once the whole day is over, the strip adds one line naming the next class, because
+three classes you cannot attend is not an answer on its own.
+
+**Cost is contained.** The day is cached for a minute per batch, the listings for
+ninety seconds, the detail read that finds the subjects bursts out at eight
+seconds, and the strip is mounted without blocking the rest of the page — the hero
+and the tabs do not wait for it.
+
+**Tests:** 507 (was 472). 27 unit tests on the reader and the strip, 7 through the
+dev server, 1 in jsdom on the real page. The fixture had to grow a `today.json`
+that anchors its rows to the request's clock, because a fixture with fixed 2025
+dates cannot test anything about "now" — and it serves them only for the batch the
+day is demonstrated on, so a strip test cannot pass by reading a chapter's old
+lectures as a timetable.
+
+Two real bugs were caught by those tests while writing them: `parseDuration` read
+`"45:00"` as 45 hours (three days in the future), and a `return` inside a
+`forEach` silently listed only the first class of each subject and dropped the
+rest.
+
+Service worker `arsvibe-v6` → `v7`; `today.js` is pre-cached.
+
+---
+
 ## Round AU — the Khazana tab, designed rather than assembled
 
 "keep it in well proper and maintained." The tab had no real design: three

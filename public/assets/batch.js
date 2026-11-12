@@ -20,6 +20,7 @@ import { isFavourite, toggleFavourite, wireFavourites } from "./favourites.js";
 import { loadBatch as fetchBatchData, loadBatchHeader, loadAnnouncements, loadKhazanaPointer } from "./data.js";
 import { mountDppPanel } from "./dpp-panel.js";
 import { mountKhazana, khazanaMarkup } from "./khazana.js";
+import { mountToday } from "./today.js";
 
 mountChrome("batches");
 wireFavourites();
@@ -36,11 +37,38 @@ let tab = "subjects";
 if (!batchId) {
   detailGrid.innerHTML = emptyState("No batch selected", "Open a batch from the catalogue.", `<a class="btn btn-primary" href="/batches.html">Browse batches</a>`);
 } else {
-  // Two requests, deliberately. The hero is painted from the shipped catalogue
-  // row (a local lookup, tens of milliseconds), so the page is never a blank
-  // skeleton while `/BatchInfo` is slow; the subject list then fills in behind
-  // it. Superseded hero renders are ignored so the upstream record always wins.
+  // Three reads, deliberately, and this is why:
+  //
+  //  * the hero is painted from the shipped catalogue row (a local lookup, tens
+  //    of milliseconds) so the page is never a blank skeleton while
+  //    `/BatchInfo` is slow;
+  //  * the subject list then fills in behind it;
+  //  * today's classes are asked for *first* and painted independently, because
+  //    they are the only thing on this page with a deadline. A class at 10:30 is
+  //    useless at 10:31, so the strip must not wait for two other reads.
+  //
+  // Superseded hero renders are ignored so the upstream record always wins.
+  loadToday();
   loadBatch();
+}
+
+/**
+ * Today's classes, above the tabs.
+ *
+ * The section is `hidden` in the markup and unhidden only when there is
+ * something to say: a batch with no classes today gets no strip and no gap where
+ * one would be. `mountToday` returns the verdict, so the page can tell a quiet
+ * day (a strip saying so, with the next class) from a source that refused (no
+ * strip at all — "no classes" would be a claim made on no evidence).
+ */
+async function loadToday() {
+  const section = document.getElementById("todaySection");
+  const host = document.getElementById("todayStrip");
+  if (!section || !host) return;
+  const day = await mountToday(host, { batchId }).catch(() => null);
+  const worthShowing = day && day.state === "ok" && (day.classes || []).length;
+  const quiet = day && day.state === "empty";
+  section.hidden = !worthShowing && !quiet;
 }
 
 function initials(name) {
