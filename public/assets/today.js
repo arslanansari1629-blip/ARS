@@ -123,7 +123,7 @@ export function todayMarkup(day, { reading = false, batchId = "" } = {}) {
         <div class="today-head">
           <span class="today-eyebrow">${esc(eyebrow)}</span>
           ${d.day ? `<span class="today-day">${esc(fmtDate(`${d.day}T00:00:00+05:30`))}</span>` : ""}
-          <span class="today-count">${classes.length} class${classes.length === 1 ? "" : "es"} scheduled</span>
+          <span class="today-count">${classes.length} class${classes.length === 1 ? "" : "es"} published today</span>
         </div>
         <ul class="today-list">${classes.map((c) => classRow(c, batchId)).join("")}</ul>
         ${afterDay(d, classes)}
@@ -138,12 +138,16 @@ export function todayMarkup(day, { reading = false, batchId = "" } = {}) {
       ? `Next: ${esc(fmtDate(next.start))}${next.startClock ? ` at ${esc(next.startClock)} ${TZ_LABEL}` : ""}${
           next.subject ? ` — ${esc(next.subject)}` : ""
         }`
-      : "Nothing else is scheduled in this batch yet.";
+      : // Deliberately "published", not "scheduled". The only surface a guest can
+        // read lists the classes the source has *created*; a slot PW has not
+        // published yet is invisible here, and claiming there is nothing else
+        // would be a claim about a calendar we cannot see.
+        "No further classes are published in this batch yet.";
     return `
       <section class="today-strip is-quiet">
         <div class="today-head">
           <span class="today-eyebrow">Live</span>
-          <span class="today-day">No classes scheduled today</span>
+          <span class="today-day">No classes published for today</span>
           <span class="today-next">${when}</span>
         </div>
       </section>`;

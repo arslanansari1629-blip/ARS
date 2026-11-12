@@ -364,7 +364,7 @@ test("a quiet day is one line that names the next class", () => {
     classes: [],
     next: { start: "2026-11-16T10:30:00.000Z", startClock: "16:00", subject: "Physics" },
   });
-  assert.match(html, /No classes scheduled today/);
+  assert.match(html, /No classes published for today/);
   assert.match(html, /16 Nov 2026 at 16:00/);
   assert.doesNotMatch(html, /today-class/, "a quiet day drew class rows");
 });

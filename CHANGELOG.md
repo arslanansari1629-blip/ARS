@@ -45,7 +45,10 @@ on a stated end), which is the only field that describes how long a class runs.
   holding an empty manifest. A finished class with a recording gets "Watch".
 - *Nothing today* — one line, plus the next class by date and time. An empty day is
   ordinary; it does not get a panel, and 14,000 batch pages must not each open
-  with an apology.
+  with an apology. The wording is "published", not "scheduled": the only surface a
+  guest can read lists classes the source has *created*, so a slot PW has not
+  published yet is invisible — and "nothing else is scheduled" would be a claim
+  about a calendar this site cannot see.
 - *Every listing refused* — **no strip at all.** "No classes today" on a refusal is
   a claim made on no evidence, and it is the kind of quiet lie that makes someone
   miss a class. The distinction between `empty` and `error` is pinned by a test.
