@@ -523,6 +523,73 @@ curl -sS -X POST "https://your-deployment.vercel.app/api/scan" -H "x-scan-key: $
 directory of everything that is broken. `POST /api/admin?action=site` does the
 same pass behind the operator session. **No pass ever runs on a GET.**
 
+## Khazana (the older-lecture archive on every batch)
+
+**What it is.** Khazana is Physics Wallah's archive of *older* lecture sets,
+bundled inside newer batches — the same syllabus taught in a previous year, kept
+so a chapter can be revised from a different teacher. PW's own product copy
+describes it as "Khazana Video Library Access — available in Infinity plans",
+and that second half is the part that matters here.
+
+**Where the pointer lives.** Every batch document already carries it, so
+attaching Khazana to a batch costs no extra request:
+
+```
+GET /api/pw?path=/v3/batches/<batchId>/details
+  → "khazanaProgramId": "62cc7a39ea773600110bec2f"
+  → "pitaraProgramId":  "65409470e66ab5001863bbd8"   (PW's other archive)
+```
+
+`/api/batch?id=<batch>` now reports it on every batch as `batch.khazana`:
+
+| field | meaning |
+| --- | --- |
+| `programId` | the archive pointer, or `""` |
+| `state` | one of the six states below |
+| `attention` | whether a person can act on it |
+
+**The tab.** Every batch page has a **Khazana** tab (`/batch?id=…#khazana`). It
+renders from the pointer the page already has and only spends an upstream request
+when there is something to read.
+
+**The refusal, stated plainly.** Khazana is paid content and the tokens this
+deployment can mint are guest tokens. Verified against the live API before the
+feature was written:
+
+| shape | guest answer |
+| --- | --- |
+| `/v3/batches/<archive>/subjects` | **401 Unauthorised** |
+| `/v3/batches/<archive>/details` | **400 Invalid Batch** |
+| `/v3/programs/<archive>/subjects` | **404 Not Found** |
+| every mirror host | 404 / not this API |
+| with a freshly minted guest token | still **401** |
+
+There is no endpoint, mirror or guest path that serves it. So the tab does not
+draw an empty grid and call it Khazana — it names which of six states the batch
+is in, because "this batch has no archive", "the archive is paid", "the pointer
+is broken" and "the archive is unreachable" are four different things a student
+would otherwise have to guess between:
+
+`none` · `known` · `locked` · `invalid` · `empty` · `ok` · `error`
+
+**How it turns on.** Set `PW_TOKEN` to a bearer from a **subscribed** account.
+No code change, no redeploy of anything but the env var: `lib/khazana.mjs` starts
+returning subjects on the `ok` path and the tab lists the archive. Refusals are
+cached for 60 s and content for 5 minutes, so the change lands promptly.
+
+**Endpoints.**
+
+```
+GET /api/batch?id=<batch>&khazana=1     the pointer + state, no upstream spend
+GET /api/batch?id=<batch>&khazana=read  walks the content shapes; answers with
+                                        the state, the subjects, and `tried`
+                                        (what each shape said) as evidence
+```
+
+Both live on `/api/batch` rather than in a new function: the deployment holds ten
+of the twelve serverless functions the plan allows, and an archive is a read of
+one batch.
+
 ## Downloading lectures for offline use
 
 > **Status: blocked upstream, not by this code.** Everything below is built and

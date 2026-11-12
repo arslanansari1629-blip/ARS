@@ -5,6 +5,59 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AL — Khazana on every batch page
+
+**The request.** "now add khazan in every batch like this vidcloud.eu.org — do this
+and add working khazana in every batch."
+
+**What Khazana turned out to be.** Not a page, not a player: Physics Wallah's
+**archive of older lecture sets**, bundled inside newer batches. It is in the API
+this site already speaks to, and nearly every real batch carries a pointer:
+
+```
+/v3/batches/<id>/details → "khazanaProgramId": "62cc7a39ea773600110bec2f"
+                         → "pitaraProgramId":  "65409470e66ab5001863bbd8"
+```
+
+**The part that decided the design.** Attaching the pointer is free. Reading the
+archive is not. Verified against the live upstream before any code was written:
+`/v3/batches/<archive>/subjects` → **401**, `/details` → **400 Invalid Batch**,
+four program shapes → **404**, all five mirror hosts → 404, and a freshly minted
+guest token → **still 401**. Khazana is paid content; this deployment mints guest
+tokens. There is no endpoint or mirror that changes that.
+
+So the honest deliverable is a tab that is **correct in every state and complete
+the moment a subscriber token exists**, rather than one that draws an empty grid
+and labels it Khazana:
+
+- **`lib/khazana.mjs` — the reader.** Classifies every answer into one of
+  `none · known · locked · invalid · empty · ok · error`. One refusal does not
+  stop the ladder (the first shape answering 401 must not hide a later shape
+  answering 200), a 200 with unusable rows falls through instead of becoming a
+  successful blank grid, and an unknown state fails *safe* — attention, not
+  healthy.
+- **`/api/batch?khazana=1|read`.** On the existing function, not a new one: the
+  deployment holds ten of twelve. `1` returns the pointer and spends nothing;
+  `read` walks the shapes and returns the state, the subjects, and `tried` — what
+  each shape said — as evidence an operator can disagree with.
+- **The tab, on all 14,201 batches.** `Khazana` beside DPP Tests, plus a
+  `#khazana` deep link. Renders from the pointer the page already has; a batch
+  without one makes **no request at all**, which is most of the catalogue.
+- **Archive subject links carry the archive id**, not the batch id — a batch id
+  there would silently list the current year's chapters under an archive heading.
+
+**What turns it on.** `PW_TOKEN` holding a subscribed bearer. No code change:
+the `ok` path starts returning subjects and the tab lists them.
+
+**Two defects the tests caught.** `slug` fell back to `_id`, producing links that
+look like content and 404 on click — a row that cannot be opened is not content.
+And `archiveVerdict` reported an unrecognised state as healthy; it now fails safe.
+
+**Gates.** `npm test` **434/434** (was 402) · build 14,201 batches / 18 pages /
+10 API functions / 46 assets · `check-modules` 32 modules.
+
+---
+
 ## Round AK — the browser is finally an instrument
 
 **The request.** "upgrade player and self healing system so know it can detect any

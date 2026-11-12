@@ -9152,3 +9152,55 @@ html:not(.intro-armed) > body {
     transition: none;
   }
 }
+
+/* ------------------------------------------------------------- khazana tab */
+
+/*
+ * The archive notice. It sits above the subject grid in the same column, so the
+ * tab reads the same way whether it is announcing an archive or explaining why
+ * one cannot be read. The warn tone is a colour change only — a student who
+ * cannot read paid content has not made a mistake, and the page must not shout.
+ */
+.khazana-note {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.1rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule-2);
+  border-radius: var(--r-sm);
+  background: var(--card-2);
+}
+
+.khazana-note.is-warn {
+  border-left-color: var(--warn, #b7791f);
+  background: var(--warn-soft, rgba(183, 121, 31, 0.06));
+}
+
+.khazana-note p {
+  margin: 0;
+  max-width: 68ch;
+  line-height: 1.6;
+}
+
+.khazana-title {
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.khazana-note code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .khazana-note {
+    transition: none;
+  }
+}

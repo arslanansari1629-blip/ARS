@@ -19,6 +19,7 @@ import { trackBatch } from "./library.js";
 import { isFavourite, toggleFavourite, wireFavourites } from "./favourites.js";
 import { loadBatch as fetchBatchData, loadBatchHeader, loadAnnouncements } from "./data.js";
 import { mountDppPanel } from "./dpp-panel.js";
+import { mountKhazana, khazanaMarkup } from "./khazana.js";
 
 mountChrome("batches");
 wireFavourites();
@@ -301,8 +302,42 @@ function setTab(next) {
   }
   if (tab === "subjects") renderSubjects();
   if (tab === "dpp") renderDpp();
+  if (tab === "khazana") renderKhazana();
   if (tab === "about") renderAbout();
   if (tab === "announcements") renderAnnouncements();
+}
+
+/**
+ * The Khazana tab.
+ *
+ * Rendered from the pointer the batch payload already carries, so opening the tab
+ * costs nothing until there is something to read. A batch without a pointer never
+ * makes a request — which is most of the catalogue — and says so in a sentence
+ * rather than showing an empty grid.
+ */
+let khazanaRead = null;
+
+function renderKhazana() {
+  const pointer = (batch && batch.khazana && batch.khazana.programId) || "";
+  if (!pointer) {
+    tabBody.innerHTML = khazanaMarkup({ khazana: { state: "none" } });
+    return;
+  }
+  // Reading it again on every tab switch would spend three upstream probes per
+  // click for an answer that cannot change inside a page view.
+  if (khazanaRead) {
+    tabBody.innerHTML = khazanaMarkup(khazanaRead);
+    return;
+  }
+  tabBody.innerHTML = khazanaMarkup({ khazana: { state: "known" }, reading: true });
+  const host = document.createElement("div");
+  tabBody.innerHTML = "";
+  tabBody.appendChild(host);
+  mountKhazana(host, { programId: pointer }).then((out) => {
+    khazanaRead = { khazana: (out && out.khazana) || { state: "error" }, subjects: (out && out.subjects) || [] };
+    // The reader may have switched tabs while the archive was being read.
+    if (tab === "khazana") tabBody.innerHTML = khazanaMarkup(khazanaRead);
+  });
 }
 
 document.querySelectorAll("[data-tab]").forEach((btn) =>
@@ -313,6 +348,11 @@ document.querySelectorAll("[data-tab]").forEach((btn) =>
 // `#dpp` opens its DPP list — the same fragment means the same thing on both pages.
 if ((location.hash || "").replace("#", "").toLowerCase() === "dpp") {
   setTab("dpp");
+}
+// The same fragment means the same thing here as it does on a chapter: `#khazana`
+// opens the archive tab, so a link can point at it.
+if ((location.hash || "").replace("#", "").toLowerCase() === "khazana") {
+  setTab("khazana");
 }
 
 async function loadHeader() {
@@ -349,6 +389,7 @@ async function loadBatch() {
       return;
     }
     if (tab === "dpp") renderDpp();
+    if (tab === "khazana") renderKhazana();
     rememberBatch({ id: batch.id, name: batch.name, image: batch.image });
     trackBatch({ id: batch.id, name: batch.name, image: batch.image });
     document.getElementById("detailGrid").classList.add("fade-up");
