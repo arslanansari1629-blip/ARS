@@ -86,14 +86,23 @@ test("the day is read from the subject listings, and is today's", async () => {
   const day = data.today;
   assert.equal(day.state, "ok", `the fixture day did not read: ${JSON.stringify(day).slice(0, 300)}`);
   assert.equal(day.day, "2026-11-13");
-  // The fixture's Physics listing holds two classes on the pinned day: one that
-  // started ten minutes before the clock and one later in the evening.
-  assert.equal(day.classes.length, 2, `expected the day's two classes, got ${day.classes.length}`);
+  // The fixture's Physics listing holds three rows on the pinned day: one that
+  // started ten minutes before the clock, a cancelled slot 45 minutes later, and
+  // a real class in the evening.
+  assert.equal(day.classes.length, 3, `expected the day's three rows, got ${day.classes.length}`);
   assert.deepEqual(
     day.classes.map((c) => c.status),
-    ["live", "upcoming"],
+    ["live", "upcoming", "upcoming"],
     "the day is not ordered live-first, or a class lost its status"
   );
+  // A cancelled slot keeps its place on the day and loses its status, end to end
+  // through the route — not only in the reader's unit tests.
+  assert.deepEqual(
+    day.classes.map((c) => Boolean(c.cancelled)),
+    [false, true, false],
+    "the cancelled slot is not marked, or a real class was marked"
+  );
+  assert.equal(day.scanned.cancelled.count, 1);
   // Every row is on the pinned day, in IST — not in the server's timezone.
   for (const c of day.classes) assert.equal(day.day, "2026-11-13");
   // One of them started ten minutes before the pinned clock and has not ended:

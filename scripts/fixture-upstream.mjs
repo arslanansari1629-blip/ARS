@@ -109,6 +109,38 @@ function todayFeed(url) {
         isVideoLecture: true,
         isLocked: false,
       },
+      {
+        // A cancelled slot the way PW actually serves one: the page is retitled
+        // and the lecture type is left as LIVE, with no status flag anywhere.
+        // Read literally it is a class at +45 minutes, so without the
+        // cancellation read the strip told a student to be there.
+        _id: "6a6b462b26b614560bceb74d",
+        status: "PENDING",
+        date: at(45),
+        startTime: at(45),
+        endTime: at(45),
+        isDPPNotes: false,
+        restrictedSchedule: false,
+        tags: [{ _id: "6a6b4631ce4ac4e9ab51eed5", name: "Units and Dimension" }],
+        teachers: ["688dd9660fb5f084935d611f"],
+        topic: "Class Cancelled: Due to some issue",
+        url: "",
+        urlType: "penpencilvdo",
+        lectureType: "LIVE",
+        videoDetails: {
+          _id: "6818add7edc3eae1486792e3",
+          name: "Class Cancelled: Due to some issue",
+          image: "",
+          videoUrl: "",
+          description: "",
+          duration: "",
+          status: "PENDING",
+          types: [],
+          drmProtected: false,
+        },
+        isVideoLecture: true,
+        isLocked: true,
+      },
     ],
   };
 }

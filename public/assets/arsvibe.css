@@ -9328,6 +9328,31 @@ html:not(.intro-armed) > body {
   color: var(--ink-2);
 }
 
+/* Called off: still on the day, no longer something to turn up for. Quiet, and
+   deliberately not red — a student did not do anything wrong, and a red row on
+   fourteen thousand batch pages would read as an error state. */
+.today-class.is-off {
+  border-style: dashed;
+  background: transparent;
+}
+
+.today-class.is-off .today-clock b {
+  color: var(--ink-3);
+}
+
+.today-class.is-off .today-title {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--rule-2);
+}
+
+.today-badge.is-off {
+  border-style: dashed;
+  border-color: var(--rule-2);
+  color: var(--ink-3);
+}
+
 .today-open {
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--rule-2);

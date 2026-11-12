@@ -2,6 +2,30 @@
 
 ---
 
+## Round AW — a cancelled class is not a class
+
+Reading the real batch page found the strip telling students to attend a class
+that had been called off. PW cancels a class by **retitling the row** — "Class
+Cancelled: Due to some issue" — and changes nothing else: the slot keeps its
+time, `lectureType` stays `LIVE`, and there is no status flag to read. So the
+only way to know is to read the title, and until now nothing did.
+
+- The cancelled slot stays on the day (it is part of the timetable) but is drawn
+  as the announcement it is: dashed border, struck-through title, "Called off",
+  never a live badge, never a Watch link.
+- It can never become the day's *next* class, which is the expensive half: "be
+  there at 16:10" for a class that is not happening.
+- The count line tells both halves — "2 classes published today · 1 called off",
+  or "1 class called off today" when that was the whole day.
+- `scanned.fullyListed` is `false` when a row could not be placed in time, since
+  that also means the listing holds something earlier than anything read and a
+  cancellation could repeat a class being recommended. Reported, never guessed.
+- Firmware note for the browser: the service worker is now `arsvibe-v8`, because
+  `today.js` is served cache-first.
+
+Tests 507 → 516 (reader, renderer, route and jsdom strip, plus a guard that every
+class the strip can emit has a CSS rule).
+
 ## Round AV — today's classes, on every batch
 
 "add live class in everybatch." The source site opens a batch page with today's

@@ -431,3 +431,171 @@ test("a day still in progress does not try to sell tomorrow", () => {
   );
   assert.doesNotMatch(html, /today-after/, "tomorrow was offered while today is still running");
 });
+
+/* ------------------------------------------------------- called-off classes */
+
+/**
+ * PW cancels a class by retitling the row. Nothing else changes: the slot keeps
+ * its time, `lectureType` stays `LIVE`, and there is no status flag to read. So a
+ * cancelled class is indistinguishable from a real one unless the title is read,
+ * and a strip that does not read it tells a student to be somewhere at 16:10 for
+ * a class that was called off — the single most expensive kind of wrong this
+ * feature can be.
+ */
+
+const CANCEL_SUBJECTS = [
+  {
+    name: "Physics: Saleem Sir",
+    slug: "physics-by-saleem-ahmad-sir-886822",
+    teachers: [{ id: "t1", name: "Saleem Ahmad Sir" }],
+  },
+];
+
+/** Read one physics subject's listing as if it were today's. */
+const readDay = (rows, nowMs) =>
+  withProbe(feeds({ "physics-by-saleem-ahmad-sir-886822": rows }), (m) =>
+    m.fetchToday("anybatch", { now: nowMs, subjects: CANCEL_SUBJECTS })
+  );
+
+const row = (over) => ({
+  _id: "r1",
+  date: "2026-11-13T12:30:00Z",
+  startTime: "2026-11-13T12:30:00Z",
+  endTime: "2026-11-13T12:30:00Z",
+  lectureType: "LIVE",
+  topic: "Units and Dimension 11",
+  videoDetails: { name: "Units and Dimension 11", duration: "01:30:00" },
+  teachers: ["t1"],
+  ...over,
+});
+
+test("a cancelled slot is recognised from the title, in every spelling PW uses", async () => {
+  const { isCancelled } = await import("../lib/today.mjs");
+  assert.equal(isCancelled(row({ topic: "Class Cancelled: Due to some issue", videoDetails: {} })), true);
+  assert.equal(isCancelled(row({ topic: "Cancelled", videoDetails: {} })), true);
+  assert.equal(isCancelled(row({ topic: "cancelled : due to rain", videoDetails: {} })), true);
+  // A real class is not a cancellation, however the words fall.
+  assert.equal(isCancelled(row({ topic: "Chemical Reactions and Equations 2 : Recorded" })), false);
+  assert.equal(isCancelled(row({ topic: "Electromagnetic Induction", videoDetails: { name: "Electromagnetic Induction" } })), false);
+  assert.equal(isCancelled(null), false);
+});
+
+test("a cancelled class is still listed, marked off, and keeps its slot", async () => {
+  const out = await readDay(
+    [
+      row({ _id: "off", topic: "Class Cancelled: Due to some issue", videoDetails: { duration: "" } }),
+      row({ _id: "on", startTime: "2026-11-13T13:30:00Z", date: "2026-11-13T13:30:00Z", topic: "Units 12" }),
+      row({ _id: "later", startTime: "2026-11-13T15:00:00Z", date: "2026-11-13T15:00:00Z", topic: "Units 13" }),
+    ],
+    "2026-11-13T09:00:00Z"
+  );
+
+  assert.equal(out.state, "ok");
+  assert.equal(out.classes.length, 3, "a called-off class still happened on the calendar");
+  const off = out.classes.find((c) => c.id === "off");
+  assert.equal(off.cancelled, true);
+  assert.equal(off.startClock, "18:00", "the slot keeps its time; only the promise goes");
+  // Every row is today, so there is no *later* class to name — the cancelled one
+  // must not become it either.
+  assert.equal(out.next, null);
+  assert.equal(out.scanned.cancelled.count, 1);
+  assert.equal(out.scanned.fullyListed, true);
+});
+
+test("a cancelled slot never becomes the next class", async () => {
+  // Tomorrow holds a cancelled class and, later the same day, a real one. The
+  // next class worth naming is the real one.
+  const out = await readDay(
+    [
+      row({
+        _id: "off",
+        startTime: "2026-11-14T05:00:00Z",
+        date: "2026-11-14T05:00:00Z",
+        topic: "Class Cancelled: Due to some issue",
+        videoDetails: { duration: "" },
+      }),
+      row({ _id: "real", startTime: "2026-11-14T09:30:00Z", date: "2026-11-14T09:30:00Z", topic: "Units 14" }),
+    ],
+    "2026-11-13T09:00:00Z"
+  );
+  assert.equal(out.state, "empty", "nothing today");
+  assert.equal(out.next.id, "real");
+  assert.equal(out.next.startClock, "15:00");
+});
+
+test("a listing that could not be walked to the start does not claim it saw every cancellation", async () => {
+  // A row with no start time cannot be placed in the day, which also means the
+  // listing holds something earlier than anything we read — so a class we are
+  // about to recommend might be the repeat of a cancelled one. The route says so
+  // rather than guessing.
+  const out = await readDay(
+    [
+      row({ _id: "off", topic: "Class Cancelled: Due to some issue", videoDetails: { duration: "" } }),
+      row({ _id: "undated", date: "", startTime: "", endTime: "", topic: "Unscheduled" }),
+    ],
+    "2026-11-13T09:00:00Z"
+  );
+  assert.equal(out.scanned.fullyListed, false);
+});
+
+test("a day of nothing but cancellations still says it had a class", async () => {
+  // "No classes today" would be wrong twice over: there was a class, and it was
+  // called off. The count line carries both halves.
+  const out = await readDay(
+    [row({ _id: "off", topic: "Class Cancelled: Due to some issue", videoDetails: { duration: "" } })],
+    "2026-11-13T09:00:00Z"
+  );
+  const { todayMarkup } = await import("../public/assets/today.js");
+  const html = todayMarkup(out, { batchId: "b" });
+  assert.match(html, /1 class called off today/);
+  assert.match(html, /Called off/);
+  assert.doesNotMatch(html, /Upcoming/, "a called-off class must not read as upcoming");
+  assert.doesNotMatch(html, /Live now/);
+  assert.doesNotMatch(html, /today-open/, "no link: there is nothing to open");
+});
+
+test("the count line says both halves on a mixed day", async () => {
+  const { todayMarkup } = await import("../public/assets/today.js");
+  const html = todayMarkup(
+    {
+      state: "ok",
+      day: "2026-11-13",
+      classes: [
+        { id: "a", title: "Units 12", status: "upcoming", startClock: "15:00" },
+        { id: "b", title: "Class Cancelled: Due to some issue", status: "upcoming", startClock: "16:00", cancelled: true },
+      ],
+      next: null,
+    },
+    { batchId: "b" }
+  );
+  assert.match(html, /1 class published today · 1 called off/);
+});
+
+test("every class the strip can emit has a rule that draws it", async () => {
+  // The failure this guards is quiet: a new tone without CSS renders as an
+  // unstyled row that looks like a layout bug on fourteen thousand pages.
+  const { readFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const css = await readFile(path.join(import.meta.dirname, "..", "public", "assets", "arsvibe.css"), "utf8");
+  for (const sel of [".today-class.is-off", ".today-badge.is-off", ".today-class.is-live", ".today-after"]) {
+    // Either the class itself or something scoped by it counts as a rule.
+    const hit = new RegExp(`${sel.replace(/\./g, "\\.")}(\\s|\\{|,|\\.)`).test(css);
+    assert.ok(hit, `${sel} has no rule`);
+  }
+});
+
+test("a finished day names the next class, and an empty day does too", async () => {
+  const { todayMarkup } = await import("../public/assets/today.js");
+  const next = { start: "2026-11-16T05:00:00Z", startClock: "10:30", subject: "Physics", teacher: "Saleem Sir" };
+  const done = todayMarkup(
+    { state: "ok", day: "2026-11-13", classes: [{ id: "a", title: "Units 12", status: "done", startClock: "10:00" }], next },
+    { batchId: "b" }
+  );
+  assert.match(done, /today-after/);
+  assert.match(done, /Physics · Saleem Sir/);
+
+  const empty = todayMarkup({ state: "empty", day: "2026-11-13", classes: [], next }, { batchId: "b" });
+  assert.match(empty, /No classes published for today/);
+  assert.match(empty, /Next:/, "an empty day's useful half is when the next class is");
+  assert.doesNotMatch(empty, /No further classes are published/);
+});

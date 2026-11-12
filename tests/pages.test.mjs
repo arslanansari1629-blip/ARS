@@ -2467,6 +2467,16 @@ test("today's classes are drawn above the tabs, on the batch page", async () => 
   const rows = strip.querySelectorAll(".today-class");
   assert.ok(rows.length >= 2, `the strip drew ${rows.length} class(es)`);
 
+  // A cancelled slot is drawn as an announcement, in the strip, with no live
+  // badge and nothing to open — the fixture's third row is one.
+  const off = strip.querySelector(".today-class.is-off");
+  assert.ok(off, "the cancelled slot was not marked as called off");
+  assert.match(off.textContent, /Called off/);
+  assert.doesNotMatch(off.textContent, /Live now|Upcoming/);
+  assert.equal(off.querySelector("a"), null, "a called-off class was offered as a recording");
+  // And the day's count says so instead of quietly counting it as a class.
+  assert.match(strip.textContent, /called off/);
+
   // The strip is above the tab strip, which is what makes it a schedule rather
   // than another tab.
   const section = doc.getElementById("todaySection");

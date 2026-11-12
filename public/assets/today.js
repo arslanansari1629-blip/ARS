@@ -41,6 +41,9 @@ const TZ_LABEL = "IST";
  * would send a student to a player holding an empty stream.
  */
 function action(c, batchId) {
+  if (c.cancelled) {
+    return `<span class="today-badge is-off">Called off</span>`;
+  }
   if (c.status === "live") {
     return `<span class="today-badge is-live">Live now</span>`;
   }
@@ -61,8 +64,11 @@ function action(c, batchId) {
 function classRow(c, batchId) {
   const who = [c.subject, c.teacher].filter(Boolean).join(" · ");
   const meta = [who, c.chapter].filter(Boolean).join(" · ");
+  // A cancelled slot keeps its time but not its promise: it is drawn as the
+  // announcement it is, never with a live badge and never with a Watch link.
+  const tone = c.cancelled ? "off" : c.status || "upcoming";
   return `
-    <li class="today-class is-${esc(c.status || "upcoming")}">
+    <li class="today-class is-${esc(tone)}">
       <span class="today-clock">
         <b>${esc(c.startClock || "")}</b>
         <i>${TZ_LABEL}</i>
@@ -76,6 +82,19 @@ function classRow(c, batchId) {
 }
 
 /**
+ * "Monday, 4 May at 10:30 IST — Physics · Saleem Sir", or "" when unknown.
+ *
+ * One builder for both places it is needed: the tail of a finished day and the
+ * quiet line of an empty one. Two copies would drift apart.
+ */
+function nextText(next) {
+  if (!next || !next.start) return "";
+  const when = `${fmtDate(next.start)}${next.startClock ? ` at ${next.startClock} ${TZ_LABEL}` : ""}`;
+  const what = [next.subject, next.teacher].filter(Boolean).join(" · ");
+  return { when, what };
+}
+
+/**
  * What comes after today, once today is over.
  *
  * A day that has finished is still the right thing to show — it is what the page
@@ -84,13 +103,30 @@ function classRow(c, batchId) {
  * only when every class on the strip is already over: while anything is live or
  * still to come, "next" would be competing with the class that matters now.
  */
-function afterDay(d, classes) {
-  if (!classes.length || !classes.every((c) => c.status === "done")) return "";
-  const next = d.next;
-  if (!next || !next.start) return "";
-  const when = `${fmtDate(next.start)}${next.startClock ? ` at ${next.startClock} ${TZ_LABEL}` : ""}`;
-  const what = [next.subject, next.teacher].filter(Boolean).join(" · ");
-  return `<div class="today-after">Next: <b>${esc(when)}</b>${what ? ` — ${esc(what)}` : ""}</div>`;
+function afterDay(d, classes, state) {
+  const pending = classes.some((c) => !c.cancelled && (c.status === "live" || c.status === "upcoming"));
+  if (pending) return "";
+  // An empty day still wants the next class — that is the useful half of it.
+  if (!classes.length && state !== "empty") return "";
+  const next = nextText(d.next);
+  if (!next) return "";
+  return `<div class="today-after">Next: <b>${esc(next.when)}</b>${next.what ? ` — ${esc(next.what)}` : ""}</div>`;
+}
+
+/**
+ * How to describe the day's size.
+ *
+ * A day of "3 classes" where one of the three was called off overstates it, and
+ * quietly dropping the cancelled one would hide the reason a student missed a
+ * class. Both halves are said.
+ */
+function countLine(classes) {
+  const off = classes.filter((c) => c.cancelled).length;
+  const on = classes.length - off;
+  const noun = (n) => `${n} class${n === 1 ? "" : "es"}`;
+  if (!off) return `${noun(classes.length)} published today`;
+  if (!on) return `${noun(off)} called off today`;
+  return `${noun(on)} published today · ${off} called off`;
 }
 
 /**
@@ -123,26 +159,24 @@ export function todayMarkup(day, { reading = false, batchId = "" } = {}) {
         <div class="today-head">
           <span class="today-eyebrow">${esc(eyebrow)}</span>
           ${d.day ? `<span class="today-day">${esc(fmtDate(`${d.day}T00:00:00+05:30`))}</span>` : ""}
-          <span class="today-count">${classes.length} class${classes.length === 1 ? "" : "es"} published today</span>
+          <span class="today-count">${countLine(classes)}</span>
         </div>
         <ul class="today-list">${classes.map((c) => classRow(c, batchId)).join("")}</ul>
-        ${afterDay(d, classes)}
+        ${afterDay(d, classes, state)}
       </section>`;
   }
 
   if (state === "empty") {
     // One line, not a panel: an empty day is ordinary, and 14,000 batch pages
     // must not each open with an apology. The next class is the useful half.
-    const next = d.next;
+    const next = nextText(d.next);
+    // Deliberately "published", not "scheduled". The only surface a guest can
+    // read lists the classes the source has *created*; a slot PW has not
+    // published yet is invisible here, and claiming there is nothing else would
+    // be a claim about a calendar we cannot see.
     const when = next
-      ? `Next: ${esc(fmtDate(next.start))}${next.startClock ? ` at ${esc(next.startClock)} ${TZ_LABEL}` : ""}${
-          next.subject ? ` — ${esc(next.subject)}` : ""
-        }`
-      : // Deliberately "published", not "scheduled". The only surface a guest can
-        // read lists the classes the source has *created*; a slot PW has not
-        // published yet is invisible here, and claiming there is nothing else
-        // would be a claim about a calendar we cannot see.
-        "No further classes are published in this batch yet.";
+      ? `Next: <b>${esc(next.when)}</b>${next.what ? ` — ${esc(next.what)}` : ""}`
+      : "No further classes are published in this batch yet.";
     return `
       <section class="today-strip is-quiet">
         <div class="today-head">
