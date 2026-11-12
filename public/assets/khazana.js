@@ -1,61 +1,67 @@
 /* =========================================================================
-   The Khazana tab.
+   The Khazana tab — the part of it that works.
 
-   Khazana is Physics Wallah's archive of *older* lecture sets, bundled inside
-   newer batches — the same syllabus taught in a previous year, kept so a chapter
-   can be revised from a different teacher. Every batch document points at it:
+   Khazana is Physics Wallah's library of *older* lecture sets: previous years'
+   recordings, kept so a chapter can be revised from a different teacher. PW sells
+   it to itself, inside newer batches.
 
-       /v3/batches/<id>/details → "khazanaProgramId": "62cc7a…"
+   There are two ways it reaches a student, and only one of them is reachable
+   from here:
 
-   The pointer is free; the content is not. Khazana is paid material, and the
-   tokens this deployment can mint are guest tokens, so the upstream refuses every
-   content shape with a 401. That refusal was verified against the live API before
-   this file existed, and it is not something a tab can be clever about.
+   1. **Linked to a batch** — the batch document carries `khazanaProgramId`
+      (`/v3/batches/<id>/details`). The pointer is free; the content is not. Every
+      content shape for a program id answers a guest credential with 401, and no
+      mirror changes that. So this path is left where it was: named, explained,
+      and reported honestly rather than drawn as an empty grid.
 
-   So this module has one job and does it honestly: it renders whichever of the
-   seven states the batch is in, says what that state means in a sentence a student
-   can act on, and renders the real subject grid the moment the archive answers.
-   It never draws an empty grid and calls it "Khazana" — a student who cannot find
-   last year's lectures needs to know why, not to be told there are none.
+   2. **Sold as its own batch** — "CA Foundation Khazana 2026", "SSC Khazana for
+      Exam 2026", "CA Inter Sep 2026 Group 1 Khazana". These are ordinary batches
+      with ordinary subjects and chapters, and they open exactly like any other
+      batch on this site. Before this module was rewritten the tab ignored them
+      entirely, which is why a site with real Khazana on it said "no Khazana
+      here". That was the bug: not a broken endpoint, a missed case.
+
+   So the tab now leads with the readable Khazana batches and treats the linked
+   archive as the footnote it is.
    ========================================================================= */
 
 import { esc } from "./app.js";
 
-/** The seven states, worded once, here, so the tab and the panel cannot drift. */
+/** The linked-archive states, worded once so the tab and the panel cannot drift. */
 export const STATES = {
   none: {
-    title: "No Khazana archive",
-    hint: "Physics Wallah has not attached an archive of older lectures to this batch. Everything this batch does have is in the Subjects tab.",
+    title: "No linked archive",
+    hint: "This batch does not carry a Khazana archive pointer. The Khazana batches that *can* be opened are listed above.",
     tone: "quiet",
   },
   known: {
-    title: "Khazana archive linked",
-    hint: "This batch carries a Khazana archive of older lecture sets. Open it to see what the source will serve.",
+    title: "Archive linked to this batch",
+    hint: "Physics Wallah points this batch at an archive of older lectures. Open it to see what the source will serve.",
     tone: "quiet",
   },
   locked: {
-    title: "Khazana is paid content",
+    title: "Linked archive needs a subscriber",
     hint: "The archive exists, but Physics Wallah serves it only to a subscribed account — a guest token is refused. An operator can unlock it by setting a subscribed PW_TOKEN; nothing else about the site changes when that happens.",
     tone: "warn",
   },
   invalid: {
-    title: "Khazana pointer unusable",
-    hint: "The archive id on this batch is a program, and no content shape accepts it. This is a defect in the source batch, not something a reader can fix.",
+    title: "Linked archive is not openable",
+    hint: "The archive id on this batch is a program, and the chapter routes here speak batch ids. Rows from it would 404 on click, so they are not shown.",
     tone: "warn",
   },
   empty: {
-    title: "Khazana archive is empty",
+    title: "Linked archive is empty",
     hint: "The archive answered, but it holds no subjects yet. It will fill in on its own once the source publishes.",
     tone: "quiet",
   },
   error: {
-    title: "Khazana could not be reached",
+    title: "Linked archive could not be reached",
     hint: "The archive did not answer this time. This is a network read rather than a missing archive — try again in a moment.",
     tone: "warn",
   },
   ok: {
-    title: "Khazana",
-    hint: "Older lecture sets for this batch, taught alongside the current one.",
+    title: "Linked archive",
+    hint: "Older lecture sets attached to this batch.",
     tone: "good",
   },
 };
@@ -66,75 +72,120 @@ export function stateOf(khazana) {
   return { key, ...(STATES[key] || STATES.error), ...(khazana || {}) };
 }
 
-/**
- * The tab's markup.
- *
- * `reading` is the in-flight state: the pointer is known and we are asking the
- * archive. It is a distinct render rather than a spinner inside every other
- * state, because "we have not asked yet" and "we asked and were refused" are the
- * two things a reader most needs to be able to tell apart.
- */
-export function khazanaMarkup({ khazana, subjects = [], reading = false } = {}) {
-  if (reading) {
-    return `
-      <div class="khazana-note">
-        <span class="pill">Khazana</span>
-        <p class="tiny dim">Reading the archive…</p>
-      </div>
-      <div class="grid grid-subjects">
-        ${Array.from({ length: 3 })
-          .map(() => `<div class="skeleton sk-card"></div>`)
-          .join("")}
-      </div>`;
-  }
-
-  const state = stateOf(khazana);
-
-  if (state.key === "ok" && subjects.length) {
-    return `
-      <div class="khazana-note">
-        <span class="pill pill-accent">Khazana</span>
-        <p class="tiny dim">${esc(state.hint || STATES.ok.hint)}</p>
-      </div>
-      <div class="grid grid-subjects">${subjects.map((s) => subjectCard(s, state)).join("")}</div>`;
-  }
-
-  if (state.key === "ok") {
-    // A 200 with no rows is not content. Say so rather than rendering nothing.
-    return notice(STATES.empty, state);
-  }
-
-  return notice(state, state);
+/** One Khazana batch, as a card that opens the batch page. */
+function libraryCard(b) {
+  const meta = [b.exam && b.exam[0], b.language, b.isFree ? "Free" : ""]
+    .filter(Boolean)
+    .join(" · ");
+  const img = b.image
+    ? `<img src="${esc(b.image)}" alt="" loading="lazy" decoding="async">`
+    : `<span class="khazana-card-initials">${esc(initials(b.name))}</span>`;
+  return `
+    <a class="subject-card khazana-card" href="/batch.html?id=${encodeURIComponent(b.id)}">
+      <span class="subject-thumb khazana-thumb">${img}</span>
+      <span class="grow">
+        <span class="title">${esc(b.name)}</span>
+        <span class="counts">${esc(meta || "Recorded lecture library")}</span>
+      </span>
+      <svg class="chev" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+    </a>`;
 }
 
-function notice(state, full) {
-  // The title is the line a reader scans; the hint is what they read next. Drawing
-  // only the hint left every state opening with a paragraph, so nothing said which
-  // state it was.
+function initials(name) {
+  return String(name || "?")
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
+
+/** The notice drawn for a linked-archive state. */
+function notice(state) {
   return `
-    <div class="khazana-note ${state.tone === "warn" ? "is-warn" : ""}">
-      <span class="pill">Khazana</span>
+    <div class="khazana-note${state.tone === "warn" ? " is-warn" : ""}">
       <strong class="khazana-title">${esc(state.title)}</strong>
       ${
-        full && full.programId
-          ? `<p class="tiny dim">Archive <code>${esc(full.programId)}</code></p>`
+        state.programId
+          ? `<p class="khazana-pointer">Archive <code>${esc(state.programId)}</code></p>`
           : ""
       }
       <p>${esc(state.hint)}</p>
       ${
-        full && full.needsSubscriberToken
-          ? `<p class="tiny dim">Operators can enable this with a subscribed <code>PW_TOKEN</code>; the tab then lists the archive without any other change.</p>`
+        state.needsSubscriberToken
+          ? `<p class="khazana-fix">Operators can enable this with a subscribed <code>PW_TOKEN</code>; the tab then lists the archive without any other change.</p>`
           : ""
       }
     </div>`;
 }
 
 /**
- * One archive subject, as a card.
+ * The library block: every Khazana batch on the site, as openable cards.
  *
- * The link carries the archive id, not the batch id, because the subject page
- * must fetch chapters from the archive that owns them — a batch id there would
- * silently list the *current* year's chapters under an archive heading.
+ * This is the working half of the feature, so it comes first and it is never
+ * empty — `lib/khazana.mjs` ships the list with the catalogue whether or not the
+ * catalogue is otherwise reachable.
+ */
+export function libraryMarkup(library) {
+  const rows = Array.isArray(library) ? library : [];
+  if (!rows.length) return "";
+  return `
+    <div class="khazana-library">
+      <div class="khazana-library-head">
+        <h3>Khazana batches you can open</h3>
+        <p>Physics Wallah sells Khazana as its own batch. Each one below is a real,
+           openable batch: pick a subject, then a chapter, then a lecture — the same
+           route as everything else on this site.</p>
+      </div>
+      <div class="subject-grid khazana-grid">${rows.map(libraryCard).join("")}</div>
+    </div>`;
+}
+
+/**
+ * The tab's markup.
+ *
+ * `reading` is the in-flight state for a *linked* archive: the pointer is known
+ * and we are asking it. The library block does not wait for that request and is
+ * drawn first — the list of openable Khazana batches does not depend on whether
+ * this particular batch has a pointer.
+ */
+export function khazanaMarkup({ khazana, subjects = [], library = [], reading = false } = {}) {
+  const head = libraryMarkup(library);
+
+  if (reading) {
+    return `${head}
+      <div class="khazana-note">
+        <strong class="khazana-title">Reading the linked archive…</strong>
+        <p>Asking the source what it will serve for this batch.</p>
+      </div>`;
+  }
+
+  const state = stateOf(khazana);
+
+  if (state.key === "ok" && subjects.length) {
+    return `${head}
+      <div class="khazana-library">
+        <div class="khazana-library-head">
+          <h3>From this batch's archive</h3>
+        </div>
+        <div class="subject-grid khazana-grid">${subjects
+          .map((s) => subjectCard(s, state))
+          .join("")}</div>
+      </div>`;
+  }
+
+  // A 200 with no rows is not content. Say so rather than rendering nothing.
+  if (state.key === "ok") return head + notice(STATES.empty);
+
+  return head + notice({ ...state, programId: state.programId || "" });
+}
+
+/**
+ * One subject from a *linked* archive.
+ *
+ * The link carries the archive id, not the batch id, and `archive=1` so the
+ * subject page knows the difference. Rows from an archive whose id is a program
+ * never reach here — `readArchive` refuses to call those `ok`.
  */
 function subjectCard(s, state) {
   const href =
@@ -146,43 +197,32 @@ function subjectCard(s, state) {
     .filter(Boolean)
     .join(" · ");
   return `
-    <a class="subject-card fade-up" href="${href}">
-      <div class="icon">${esc(initials(s.name))}</div>
-      <div class="grow">
-        <div class="name">${esc(s.name)}</div>
-        <div class="sub">${esc(meta || "Open the archive")}</div>
-      </div>
-      <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+    <a class="subject-card khazana-card" href="${href}">
+      <span class="subject-thumb khazana-thumb"><span class="khazana-card-initials">${esc(initials(s.name))}</span></span>
+      <span class="grow">
+        <span class="title">${esc(s.name)}</span>
+        <span class="counts">${esc(meta || "Open the archive")}</span>
+      </span>
     </a>`;
-}
-
-function initials(name) {
-  return (name || "?")
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
 }
 
 /**
  * Fetch and render the archive into a container.
  *
- * Two requests, on purpose. The pointer comes from the batch payload the page
- * already has, so the tab paints instantly with the state it can know; `read`
- * then spends the upstream probes. A batch with no pointer never makes a request
- * at all, which is most of the catalogue.
+ * `library` is passed in by the caller (it comes with the batch payload, so it is
+ * already on the page). Only the *linked* archive costs a request, and only when
+ * this batch has one — a batch with no pointer spends nothing.
  */
-export async function mountKhazana(host, { programId = "", fetchImpl } = {}) {
+export async function mountKhazana(host, { programId = "", library = [], fetchImpl } = {}) {
   if (!host) return null;
   const doFetch = fetchImpl || ((...args) => fetch(...args));
 
   if (!programId) {
-    host.innerHTML = khazanaMarkup({ khazana: { state: "none" } });
-    return { state: "none", subjects: [] };
+    host.innerHTML = khazanaMarkup({ khazana: { state: "none" }, library });
+    return { state: "none", subjects: [], library };
   }
 
-  host.innerHTML = khazanaMarkup({ khazana: { state: "known" }, reading: true });
+  host.innerHTML = khazanaMarkup({ khazana: { state: "known" }, library, reading: true });
 
   try {
     const res = await doFetch(
@@ -190,16 +230,12 @@ export async function mountKhazana(host, { programId = "", fetchImpl } = {}) {
     );
     const data = await res.json();
     if (!data || data.success === false) throw new Error((data && data.error) || "unavailable");
-    const answer = { khazana: data.khazana, subjects: data.subjects || [] };
+    const answer = { khazana: data.khazana, subjects: data.subjects || [], library };
     host.innerHTML = khazanaMarkup(answer);
-    // Return what was *rendered* in the shape the caller's cache expects, not the
-    // raw response: a caller that has to know the API's nesting to read `state`
-    // will eventually read it wrong, and a tab that caches the wrong thing shows
-    // the previous batch's archive.
     return { ...answer, state: (data.khazana && data.khazana.state) || "error" };
   } catch {
-    const failed = { state: "error" };
-    host.innerHTML = khazanaMarkup({ khazana: failed });
-    return failed;
+    const failed = { state: "error", programId };
+    host.innerHTML = khazanaMarkup({ khazana: failed, library });
+    return { ...failed, library };
   }
 }

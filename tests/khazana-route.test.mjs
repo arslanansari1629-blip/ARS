@@ -147,3 +147,18 @@ test("a hostile program id cannot be used to reach another host", async () => {
   assert.equal("token" in data, false);
   assert.equal("traffic" in data, false);
 });
+
+test("both batch payloads carry the openable Khazana list", async () => {
+  // The tab is painted from whichever payload wins the race, so the list has to
+  // ride on both. It was on neither in the build that shipped "no Khazana here".
+  for (const q of [`id=${BATCH}`, `id=${BATCH}&header=1`]) {
+    const res = await fetch(`${BASE}/api/batch?${q}`);
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.ok(Array.isArray(data.library), `${q} carries no Khazana list`);
+    assert.ok(data.library.length >= 1, `${q} carries an empty list`);
+    const first = data.library[0];
+    assert.match(first.id, /^[0-9a-f]{24}$/, "a card with no batch id cannot be opened");
+    assert.match(first.name, /khazana/i, "the list is other people's content");
+  }
+});

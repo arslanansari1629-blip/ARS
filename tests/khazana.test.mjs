@@ -216,7 +216,7 @@ function dom() {
 test("a batch with no archive says so instead of showing an empty grid", async () => {
   const { khazanaMarkup } = await import("../public/assets/khazana.js");
   const html = khazanaMarkup({ khazana: { state: "none" } });
-  assert.match(html, /No Khazana archive/);
+  assert.match(html, /No linked archive/);
   assert.equal(/subject-card/.test(html), false, "an empty grid would look like content");
 });
 
@@ -225,7 +225,7 @@ test("a paid archive names the reason and the fix, and asks for no subscription"
   const html = khazanaMarkup({
     khazana: { state: "locked", programId: "62cc7a39", needsSubscriberToken: true },
   });
-  assert.match(html, /paid content/i);
+  assert.match(html, /paid content|needs a subscriber/i);
   assert.match(html, /PW_TOKEN/, "the reader must learn what would unlock it");
   assert.match(html, /62cc7a39/, "the pointer is the evidence for the verdict");
   assert.equal(/subject-card/.test(html), false);
@@ -233,10 +233,10 @@ test("a paid archive names the reason and the fix, and asks for no subscription"
 
 test("the reading state is visibly different from the refused state", async () => {
   const { khazanaMarkup } = await import("../public/assets/khazana.js");
-  const reading = khazanaMarkup({ khazana: { state: "known" }, reading: true });
+  const reading = khazanaMarkup({ khazana: { state: "known" }, library: [], reading: true });
   const refused = khazanaMarkup({ khazana: { state: "locked" } });
-  assert.match(reading, /Reading the archive/);
-  assert.equal(/Reading the archive/.test(refused), false, "'we have not asked' must never read as 'no'");
+  assert.match(reading, /Reading the linked archive/);
+  assert.equal(/Reading the linked archive/.test(refused), false, "'we have not asked' must never read as 'no'");
 });
 
 test("real subjects render as links that carry the archive id, not the batch id", async () => {
@@ -272,7 +272,7 @@ test("mounting with no pointer makes no request at all", async () => {
     },
   });
   assert.equal(calls, 0, "the common case must not spend a request");
-  assert.match(host.innerHTML, /No Khazana archive/);
+  assert.match(host.innerHTML, /No linked archive/);
 });
 
 test("mounting with a pointer reads it and renders the answer", async () => {
@@ -421,4 +421,91 @@ test("a locked credential does not disqualify a batch-shaped archive", async () 
   const out = await readArchive("X", { probe });
   assert.equal(out.state, "ok");
   assert.equal(out.subjects.length, 1);
+});
+
+/* ---------------------------------------------------------------------------
+ * The half of Khazana that works.
+ *
+ * PW sells Khazana as its own batch ("CA Foundation Khazana 2026", "SSC Khazana
+ * for Exam 2026") as well as linking an archive inside other batches. Those
+ * batches are ordinary — ordinary subjects, ordinary chapters — and they open.
+ * An earlier build of this tab looked only for the linked pointer, so it told
+ * readers "no Khazana archive" on a site that had ten openable Khazana batches.
+ * These tests pin the case that was missed.
+ * ------------------------------------------------------------------------- */
+
+test("Khazana sold as its own batch is listed, because that is the part that opens", async () => {
+  const { khazanaLibrary, isKhazanaBatch } = await import("../lib/khazana.mjs");
+  const rows = [
+    { id: "a", name: "CA Foundation Khazana 2026", feeTotal: 0, slug: "ca-k" },
+    { id: "b", name: "Arjuna JEE 2027", feeTotal: 1999, slug: "arjuna" },
+    { id: "c", name: "SSC CGL Khazana Booster 2025", feeTotal: 509, slug: "ssc-k" },
+  ];
+  assert.equal(isKhazanaBatch(rows[0]), true);
+  assert.equal(isKhazanaBatch(rows[1]), false, "a name is the test, not a guess about content");
+
+  const list = khazanaLibrary(rows);
+  assert.equal(list.length, 2, "the batch with no Khazana in its name must not be listed");
+  assert.equal(list[0].id, "a", "free Khazana first — it is the one every reader can use");
+  assert.equal(list[0].isFree, true);
+  assert.equal(list[1].isFree, false);
+});
+
+test("the library drops duplicates and stays bounded", async () => {
+  const { khazanaLibrary } = await import("../lib/khazana.mjs");
+  const rows = Array.from({ length: 40 }, (_v, i) => ({
+    id: `id${i % 20}`,
+    name: `Batch ${i} Khazana`,
+  }));
+  const list = khazanaLibrary(rows, 5);
+  assert.equal(list.length, 5);
+  assert.equal(new Set(list.map((b) => b.id)).size, 5, "one card per batch");
+});
+
+test("an empty catalogue yields an empty library rather than throwing", async () => {
+  const { khazanaLibrary } = await import("../lib/khazana.mjs");
+  assert.deepEqual(khazanaLibrary(null), []);
+  assert.deepEqual(khazanaLibrary([]), []);
+});
+
+test("the library renders openable links to real batch pages", async () => {
+  const { khazanaMarkup } = await import("../public/assets/khazana.js");
+  const html = khazanaMarkup({
+    khazana: { state: "none" },
+    library: [
+      { id: "6970a2f313f87bdb24cd4934", name: "CA Foundation Khazana 2026", isFree: true, language: "Hinglish" },
+    ],
+  });
+  assert.match(html, /Khazana batches you can open/);
+  assert.match(html, /batch\.html\?id=6970a2f313f87bdb24cd4934/, "a card must open the batch");
+  assert.match(html, /CA Foundation Khazana 2026/);
+  assert.match(html, /Free/);
+  // "There is no Khazana here" must never be the whole answer while the site has
+  // Khazana batches to open.
+  assert.match(html, /No linked archive/);
+});
+
+test("the library is drawn even when a linked archive is being read", async () => {
+  const { khazanaMarkup } = await import("../public/assets/khazana.js");
+  const html = khazanaMarkup({
+    khazana: { state: "known" },
+    library: [{ id: "x", name: "SSC Khazana for Exam 2026" }],
+    reading: true,
+  });
+  assert.match(html, /SSC Khazana for Exam 2026/, "the working list must not wait on the gated one");
+  assert.match(html, /Reading the linked archive/);
+});
+
+test("the shipped library really contains openable batches", async () => {
+  // Not a fixture: the catalogue this deployment ships, read the way the batch
+  // page reads it. The first page of the curated catalogue happens not to hold any
+  // Khazana batch, so the production path falls back to the search index — which
+  // is exactly what this asserts still works.
+  const { khazanaBatchList } = await import("../lib/api-data.mjs");
+  const list = await khazanaBatchList();
+  assert.ok(list.length >= 1, "the catalogue must yield at least one Khazana batch");
+  for (const b of list) {
+    assert.match(b.id, /^[0-9a-f]{24}$/, `${b.name} must have a real batch id to open`);
+    assert.ok(b.name.length > 3);
+  }
 });
