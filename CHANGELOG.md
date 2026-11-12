@@ -5,6 +5,77 @@ What changed, in the order it shipped. Each round was built, tested and deployed
 
 ---
 
+## Round AK — the browser is finally an instrument
+
+**The request.** "upgrade player and self healing system so know it can detect any
+bug on the site."
+
+**What "any bug" honestly means.** Every instrument the site had was on the server:
+HTTP status, the content contract, the probe suite, the scanner. All of them share
+one blind spot, and it is the largest kind of bug there is — **a page that answers
+200 and then throws in the browser.** The response was perfect. The server logged
+nothing. The content contract passed. And the visitor is looking at an empty grid.
+No amount of server-side scanning can see it, because the failure happens after the
+response was already sent. That class of bug is now visible; nothing here claims to
+see a defect that leaves no observable trace.
+
+**What shipped.**
+
+- **`public/assets/telemetry.js` — the missing sense.** Listens to `error`,
+  `unhandledrejection`, and resource-load `error` in the capture phase (a module
+  that 404s does not bubble). It reports **aggregated evidence, not exceptions**:
+  faults are bucketed by a `kind|message|source:line` fingerprint, counted locally,
+  and at most six are sent per page view. Discipline that keeps a self-reporting
+  client from becoming its own outage: nothing personal leaves the page (query
+  strings, JWTs and emails are stripped), every call is wrapped, the beacon is
+  `keepalive`, and a clean page view sends nothing at all.
+- **`lib/client-errors.mjs` — the receiving end.** A bounded ring buffer: 80
+  fingerprints, 6 h lifetime, one row per bug with a count, a page and a first/last
+  sighting. It **re-scrubs** everything the client claims to have scrubbed, refuses
+  to echo what other visitors reported, and answers rather than complains when a
+  broken page sends it an unreadable body. Shared across instances through one store
+  document (`arsvibe:client-faults:v1`) — a report landing on a different lambda than
+  the panel reads it from was the exact bug the scanner's `sharedAt` taught us to
+  look for.
+- **`client.errors` / `client.recover` in the healer.** A seventh probe
+  ("Browser script errors"), a thirteenth known symptom, and a three-rung ladder —
+  drop the caches a stale module could be served from, re-mint the token, then check
+  the asset manifest. It ends in an operator, because a code fault is not something
+  a server can repair. **One visitor hitting one exception is not a broken site** —
+  the probe needs five occurrences or two distinct faults before it trips, which is
+  what stops a monitoring panel from teaching its operator to ignore it.
+- **The player can now hear silence.** Its old recovery all waited for an *event*.
+  A stream that wedges emits none: the element says `playing`, `timeupdate` simply
+  stops, and the student watches a still frame. A once-a-minute heartbeat compares
+  the playhead with where it was; one stuck minute gets a fresh plan, a second gets
+  **reported**, and then the beat *stops* — a watchdog that keeps retrying a stream
+  that keeps freezing is a retry storm dressed as diligence. `visibilitychange`
+  covers the backgrounded tab that comes back wedged, and `health()` exposes the
+  whole reading.
+- **Silent storage failures are no longer silent.** `downloader.js` reported
+  nothing when IndexedDB could not be opened or a transaction failed, so "your
+  saved lectures are unreadable" and "you have no saved lectures" looked identical.
+  Both now report through the same channel.
+- **The panel reports on itself.** A `render()` that threw used to surface only as
+  a dead "live" dot — indistinguishable from a network problem. It now says the
+  page could not render the answer, and reports it through the same channel.
+- **A build guard.** Every one of the 18 pages must load the telemetry module; a
+  page without it is blind to its own worst failure mode, and `scripts/build.mjs`
+  now refuses the build if one is missing.
+
+**Verification worth naming.** The player's new watchdog was proven with mock
+timers against the *real* interval, not a copy of its logic — and the first version
+of that test failed, because the heartbeat reset its own counter after reporting and
+retried forever. The test found a real retry storm. `wireHealer()` had the same kind
+of seam: it ignored any argument it did not declare, so the `client` handle was
+silently dropped and the probe reported itself *skipped* — which the panel draws as
+healthy. Both are fixed and pinned.
+
+**Gates.** `npm test` **402/402** (was 354) · build 14,201 batches / 18 pages /
+10 API functions / 45 assets · `check-modules` 31 modules.
+
+---
+
 ## Round AI — the site scans itself every five minutes, and repairs what it finds
 
 **The request.** "make self healing system ultra it scan full site every 5

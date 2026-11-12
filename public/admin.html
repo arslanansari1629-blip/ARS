@@ -320,6 +320,26 @@
         <p class="tiny dim mb-2" id="healNote">Repairs the site made without asking anyone.</p>
         <div class="admin-log" id="healLog"></div>
 
+        <!-- What the browsers are reporting. This is the only block on the panel
+             whose evidence comes from a visitor's machine: a page that answered
+             200 and then threw is invisible to every probe above it. -->
+        <h4 class="heal-h mt-3">What the browsers reported</h4>
+        <p class="tiny dim mb-2" id="clientNote">
+          A page can answer 200 and still be broken on the visitor's screen. Script
+          errors, rejected promises and modules that failed to load arrive here from
+          the pages themselves.
+        </p>
+        <div class="heal-grid">
+          <div class="heal-col">
+            <div class="heal-probes" id="clientFaults"></div>
+          </div>
+          <div class="heal-col">
+            <h4 class="heal-h">Pages affected <span class="tiny dim" id="clientPagesStamp"></span></h4>
+            <div class="heal-symptoms" id="clientPages"></div>
+          </div>
+        </div>
+        <div class="admin-kv heal-kv" id="clientKv"></div>
+
         <details class="heal-timeline">
           <summary class="tiny dim">State transitions <span id="healTimelineCount"></span></summary>
           <ol class="heal-timeline-list" id="healTimeline"></ol>
@@ -369,6 +389,7 @@
 </main>
 
 <script type="module" src="/assets/admin.js"></script>
+  <script type="module" src="/assets/telemetry.js"></script>
   <script type="module" src="/assets/offline-boot.js"></script>
 </body>
 </html>

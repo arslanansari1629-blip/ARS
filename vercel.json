@@ -147,6 +147,10 @@
       "destination": "/api/admin?action=scan"
     },
     {
+      "source": "/api/client-error",
+      "destination": "/api/admin?action=client-error"
+    },
+    {
       "source": "/api/download",
       "destination": "/api/stream?action=download"
     }

@@ -5,6 +5,8 @@
  * server hands back, in sessionStorage so closing the tab ends the session.
  */
 
+import { note as noteFault } from "./telemetry.js";
+
 const TOKEN_KEY = "arsvibe.admin.token";
 const POLL_MS = 20000;
 
@@ -173,7 +175,23 @@ async function load() {
     }
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.error || `HTTP ${res.status}`);
-    render(data);
+    // A render that throws is the panel's own version of the bug this round
+    // exists to catch: a 200 arrived, the fetch succeeded, and the page is
+    // half-painted. Without this it surfaced only as a dead "live" dot, which
+    // reads exactly like a network problem.
+    try {
+      render(data);
+    } catch (renderError) {
+      noteFault({
+        kind: "panel",
+        message: "the admin panel could not render a stats payload: " + (renderError.message || "unknown"),
+        source: "/assets/admin.js",
+        detail: (renderError.stack || "").split("\n")[1] || "",
+      });
+      $("#refreshedAt").textContent = "this page could not render the answer";
+      $("#liveDot").classList.remove("on");
+      throw renderError;
+    }
     $("#liveDot").classList.add("on");
   } catch (error) {
     $("#liveDot").classList.remove("on");
@@ -209,6 +227,8 @@ function render(data) {
   // The scanner rides along with the stats poll, like the healer: one request
   // paints the whole panel, and a GET never triggers a scan or a repair.
   renderScanner(data.scan);
+  // `data.client` is the request's IP/UA; the browser fault log is `data.browser`.
+  renderClientFaults(data.browser);
   renderKv("#runtimeKv", [
     ["Uptime", duration(data.uptimeSeconds)],
     ["Resident memory", `${data.runtime.memoryMb} MB`],
@@ -608,6 +628,79 @@ async function healNow(symptom, btn) {
  * the ones that are actually working, rather than printing "every 5 minutes" over
  * a job that never runs.
  */
+/**
+ * The browser fault log.
+ *
+ * Two columns, because the operator needs two different things from it: *what* is
+ * throwing (the fingerprint list, worst first) and *where* (the pages, with a
+ * count). A single exception is rendered in grey rather than red — a visitor with
+ * a broken extension generates one, and crying wolf on the first exception is how
+ * a monitoring panel teaches its operator to ignore it.
+ */
+function renderClientFaults(client) {
+  const list = $("#clientFaults");
+  const pages = $("#clientPages");
+  const kv = $("#clientKv");
+  if (!list || !pages) return;
+
+  if (!client) {
+    list.innerHTML = `<p class="tiny dim">This build does not collect browser faults.</p>`;
+    pages.innerHTML = "";
+    if (kv) kv.innerHTML = "";
+    return;
+  }
+
+  const c = client.counts || {};
+  const verdict = client.verdict || {};
+  const recent = (client.recent || []).slice().sort((a, b) => b.count - a.count);
+
+  if (kv) {
+    renderKv("#clientKv", [
+      ["Instrument", "the pages themselves (self-reported)"],
+      ["Recent window", Math.round((client.recentMs || 900000) / 60000) + " minutes"],
+      ["Distinct, all time this instance", String(c.distinct || 0)],
+      ["Occurrences, recent", String(c.recentOccurrences || 0)],
+      ["Reports accepted", String(c.reports || 0)],
+      ["Reports refused (throttle)", String(c.rejected || 0)],
+      ["Verdict", verdict.summary || "—"],
+    ]);
+  }
+
+  list.innerHTML = recent.length
+    ? recent
+        .map((f) => {
+          const bad = verdict.level === "bad";
+          const cls = bad && f.count >= 2 ? "is-bad" : "is-skip";
+          const where = f.source ? f.source : "no source";
+          // Concatenated, never a nested template: check-modules reads this file
+          // with a simple scanner and a `${}` inside a backtick defeats it.
+          return `<div class="heal-probe ${cls}">
+            <span class="heal-probe-dot" aria-hidden="true"></span>
+            <div>
+              <strong>${esc(f.message || f.fingerprint)}</strong>
+              <p class="tiny dim">${esc(f.kind)} · ${esc(where)}${f.page ? " · " + esc(f.page) : ""}</p>
+            </div>
+            <span class="heal-probe-value">${f.count}×</span>
+            <span class="tiny dim heal-probe-ms"></span>
+          </div>`;
+        })
+        .join("")
+    : `<p class="tiny dim">Nothing. No page has reported a script error on this instance — which is what healthy looks like from the browser's side.</p>`;
+
+  const rows = client.pages || [];
+  pages.innerHTML = rows.length
+    ? rows
+        .map(
+          (p) => `<div class="heal-symptom">
+            <strong>${esc(p.page)}</strong>
+            <span class="tiny dim">${p.count} fault${p.count === 1 ? "" : "s"}</span>
+          </div>`
+        )
+        .join("")
+    : `<p class="tiny dim">No page is currently affected.</p>`;
+  $("#clientPagesStamp").textContent = client.at ? "read " + ago(Date.parse(client.at)) : "";
+}
+
 function renderScanner(scan) {
   const verdict = $("#scanVerdict");
   const findingsBox = $("#scanFindings");

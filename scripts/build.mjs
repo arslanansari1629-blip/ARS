@@ -186,6 +186,9 @@ async function main() {
     const html = await readFile(path.join(PUBLIC, page), "utf8");
     if (!/rel="manifest"/.test(html)) problems.push(`${page} does not link the web manifest`);
     if (!/offline-boot\.js/.test(html)) problems.push(`${page} does not load the offline boot module`);
+    // The browser is the only instrument that can see a page throw after a 200.
+    // A page without it is silently blind to its own worst failure mode.
+    if (!/telemetry\.js/.test(html)) problems.push(`${page} does not load the browser telemetry module`);
     if (!/class="skip-link"/.test(html)) problems.push(`${page} has no skip-to-content link`);
 
     // `modulepreload` only saves a round trip if the browser sees it before the

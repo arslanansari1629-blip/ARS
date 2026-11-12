@@ -425,3 +425,139 @@ test("a retry asks for the quality the student was watching", async () => {
   assert.equal(last.level, "720", "the retry should carry the level to resume at");
   assert.equal(last.attempt > 0, true);
 });
+
+/* ----------------------------------------------------------------- health */
+
+/*
+ * The player's newest sense: it can now notice a stream that is silent rather than
+ * failing. Nothing in the browser throws when a decoder wedges, so no listener in
+ * the file could ever see it — the playhead simply stops and the student watches a
+ * still frame. These tests drive the *real* interval with mock timers, because a
+ * test that re-implements the logic it is testing proves only that the copy works.
+ */
+
+test("a stream that stops advancing is retried once, then reported", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+
+  const video = stubVideo({ src: "/api/media?url=abc" });
+  video.currentTime = 40;
+  let plans = 0;
+  const { player } = makeEngine(video, async () => {
+    plans += 1;
+    return { url: "/api/stream?videoKey=k?n=" + plans, kind: "hls" };
+  });
+
+  const seen = [];
+  player._report = (kind, detail) => seen.push({ kind, detail });
+  player.retry = async (opts) => {
+    seen.push({ kind: "retry", detail: (opts && opts.reason) || "" });
+  };
+
+  // The element claims to be playing. It will never emit `waiting`, because the
+  // decoder has not failed — it has simply stopped.
+  video.paused = false;
+  video.ended = false;
+  player._startHeartbeat();
+
+  // One minute of playback that does not move.
+  t.mock.timers.tick(60000);
+  assert.equal(seen.length, 1, "the first stuck minute gets a recovery attempt");
+  assert.equal(seen[0].kind, "retry");
+  assert.equal(seen[0].detail, "The stream stopped advancing.");
+
+  // A second stuck minute after a fresh plan is not a network blip. It is a bug,
+  // and it must reach the healer rather than retrying forever.
+  t.mock.timers.tick(60000);
+  assert.equal(seen.length, 2, "the second stuck minute is reported, not retried");
+  assert.equal(seen[1].kind, "frozen");
+
+  // And it stops. A watchdog that keeps retrying a stream that keeps freezing is
+  // a retry storm dressed as diligence; the report is the escalation.
+  t.mock.timers.tick(600000);
+  assert.equal(seen.length, 2, "nothing more is attempted after the report");
+  assert.equal(player._heartbeat, null, "the beat stops rather than looping forever");
+
+  // A student pressing play again is a new attempt, not a stuck one.
+  player._startHeartbeat();
+  assert.notEqual(player._heartbeat, null);
+  player._stopHeartbeat();
+});
+
+test("a heartbeat that sees the playhead move stays completely silent", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+
+  const video = stubVideo({ src: "/api/media?url=abc" });
+  video.currentTime = 10;
+  const { player } = makeEngine(video, async () => ({ url: "/api/stream?videoKey=k", kind: "hls" }));
+
+  const seen = [];
+  player._report = (kind) => seen.push(kind);
+  player.retry = async () => seen.push("retry");
+
+  video.paused = false;
+  player._startHeartbeat();
+
+  // Normal playback: the playhead advances between beats.
+  for (let i = 1; i <= 5; i += 1) {
+    video.currentTime = 10 + i;
+    t.mock.timers.tick(60000);
+  }
+  assert.deepEqual(seen, [], "a working stream must never be touched");
+  player._stopHeartbeat();
+});
+
+test("a quarter-second of drift is noise, not progress", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+
+  const video = stubVideo({ src: "/api/media?url=abc" });
+  video.currentTime = 10;
+  const { player } = makeEngine(video, async () => ({ url: "/api/stream?videoKey=k", kind: "hls" }));
+  const seen = [];
+  player.retry = async () => seen.push("retry");
+
+  video.paused = false;
+  player._startHeartbeat();
+
+  // A frozen decoder still jitters by a frame or two. Treating that as movement
+  // is exactly how a wedged stream hides from its own watchdog.
+  video.currentTime = 10.2;
+  t.mock.timers.tick(60000);
+  assert.equal(seen.length, 1, "0.2s is not playback");
+  player._stopHeartbeat();
+});
+
+test("the heartbeat stops when playback pauses", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+
+  const video = stubVideo({ src: "/api/media?url=abc" });
+  const { player } = makeEngine(video, async () => ({ url: "/api/stream?videoKey=k", kind: "hls" }));
+  const seen = [];
+  player.retry = async () => seen.push("retry");
+
+  video.paused = false;
+  player._startHeartbeat();
+  // A paused lecture is not a stalled one; the element must not be judged.
+  video.paused = true;
+  t.mock.timers.tick(300000);
+  assert.deepEqual(seen, []);
+  player._stopHeartbeat();
+});
+
+test("health() describes the player without touching it", () => {
+  const video = stubVideo({ src: "/api/media?url=abc" });
+  const { player } = makeEngine(video, async () => ({ url: "/api/stream?videoKey=k", kind: "hls" }));
+  video.currentTime = 123;
+  const h = player.health();
+  assert.equal(h.currentTime, 123);
+  assert.equal(typeof h.engine, "string");
+  assert.equal(typeof h.stalledForMs, "number");
+});
+
+test("destroy stops the heartbeat so a closed page leaves no timer", () => {
+  const video = stubVideo({ src: "/api/media?url=abc" });
+  const { player } = makeEngine(video, async () => ({ url: "/api/stream?videoKey=k", kind: "hls" }));
+  player._heartbeat = setInterval(() => {}, 1000);
+  player.destroy();
+  assert.equal(player._heartbeat, null, "a leaking interval keeps a dead page alive");
+  assert.equal(player.destroyed, true);
+});

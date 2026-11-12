@@ -26,6 +26,13 @@ import { loadCatalogIndex } from "../lib/catalog.mjs";
 import { healAction, healerReport, sweep, repair, reportFault, SYMPTOMS } from "../lib/healer.mjs";
 import { wireHealer } from "../lib/healer-wire.mjs";
 import { scheduleReport, restoreSchedulerState, noteExternalTick, selfBaseOf } from "../lib/scheduler.mjs";
+import {
+  ingest,
+  clientFaults,
+  clientFaultVerdict,
+  persistClientFaults,
+  hydrateClientFaults,
+} from "../lib/client-errors.mjs";
 import { scanPass, scannerReport, clearFinding } from "../lib/scanner.mjs";
 
 /**
@@ -47,6 +54,7 @@ import { scanPass, scannerReport, clearFinding } from "../lib/scanner.mjs";
  *   GET    /api/admin?action=scan    → the site scanner's coverage, findings, cadence
  *   POST   /api/admin?action=scan    → run one scan pass now and repair what it finds
  *   POST   /api/scan?key=…           → the external five-minute pinger (no session)
+ *   POST   /api/client-error         → a browser's report of its own script errors
  *
  *   GET    /api/hls  → `action=hls`   (rewritten here, see vercel.json)
  *   GET    /api/sign → `action=sign`  (rewritten here, see vercel.json)
@@ -138,6 +146,10 @@ export default async function handler(req, res) {
   // external five-minute pinger costs no extra serverless function; the key is
   // what makes it a scheduler rather than an anonymous "scan now" button.
   if (action === "scan") return scanRoute(req, res, params);
+  // The browser's own report. Public and unauthenticated by necessity — the
+  // visitor hitting the bug has no session and cannot get one — so it is
+  // write-only, bounded, and never echoes anything back.
+  if (action === "client-error") return clientErrorRoute(req, res);
 
   // No permissive CORS here: this route is same-origin only, by construction.
   res.setHeader("Cache-Control", "no-store");
@@ -244,10 +256,19 @@ export default async function handler(req, res) {
   wireHealer({
     caches: { plans: signMap(), renditions: renditionMap() },
     traffic: () => requestStats(),
+    client: () => clientFaults(),
     version: process.env.BUILD_STAMP || "",
   });
   const heal = await sweep({ apply: false }).catch(() => null);
   if (heal) payload.heal = { ...healerReport(), applied: false, actions: [] };
+  // The browser's report, with the healer's own reading of it, so the panel can
+  // say "a page is throwing" without doing the arithmetic itself. The hydrate is
+  // awaited deliberately: showing only this instance's half of the fault log is
+  // exactly the bug this document exists to prevent.
+  //
+  // `browser`, not `client`: `dashboard()` already uses `client` for the *request's*
+  // IP and user agent, and overwriting it took out the panel's boot path.
+  payload.browser = await clientSection();
 
   // The scanner's report rides along too. Reading it never scans: the cadence is
   // the scheduler's job (see `lib/scheduler.mjs`), and an operator watching the
@@ -256,6 +277,76 @@ export default async function handler(req, res) {
   payload.scan = scheduleReport();
 
   return finish(200, { success: true, ...payload });
+}
+
+/* --------------------------------------------------------- client errors */
+
+/**
+ * `POST /api/client-error` — a browser reporting its own script errors.
+ *
+ * This is the only measurement in the project that comes from the visitor's
+ * machine rather than from a server, and it is the only way to see the failure
+ * mode that otherwise stays invisible: a page that answers 200 and then throws.
+ * Every probe passes, the scanner's content contract is satisfied, and the grid
+ * is empty on the visitor's screen.
+ *
+ * The rules that keep it from being a liability:
+ *
+ *   · **Write-only.** It accepts a report and answers with counts. It never
+ *     returns what other visitors reported — that would make an anonymous
+ *     endpoint into a readable log of other people's pages.
+ *   · **Bounded.** Eight faults per report, throttled per address, and the store
+ *     caps distinct fingerprints. A page in a throw loop cannot flood it.
+ *   · **Distrusted.** The client says it stripped tokens and emails; the server
+ *     strips them again. A malfunctioning client is precisely the caller you do
+ *     not take at its word.
+ *   · **Never fatal.** A malformed body is a 204, not a 400: the caller is a
+ *     broken page, and an error response would only produce another failed
+ *     request in its console.
+ */
+/**
+ * The browser section of the panel: this instance's view merged with whatever the
+ * other instances have published, plus the healer's own reading of it.
+ */
+async function clientSection() {
+  await hydrateClientFaults();
+  const faults = clientFaults();
+  return { ...faults, verdict: clientFaultVerdict(faults) };
+}
+
+async function clientErrorRoute(req, res) {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.setHeader("Allow", "POST, OPTIONS");
+    return res.end();
+  }
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST, OPTIONS");
+    return json(res, 405, { success: false, error: "Method not allowed" });
+  }
+
+  let payload = null;
+  try {
+    payload = await body(req);
+  } catch {
+    payload = null;
+  }
+  if (!payload || typeof payload !== "object") {
+    // A beacon that arrived without a readable body is not an error to report:
+    // answering 204 keeps the browser's console clean, which it already is not.
+    res.statusCode = 204;
+    return res.end();
+  }
+
+  const receipt = ingest(payload, { address: clientKey(req) });
+  // Publish behind the response. The visitor's browser must not wait on a store,
+  // and a store that is slow or absent must not turn a bug report into an error.
+  // This is what lets the panel see a fault that landed on a different instance.
+  persistClientFaults().catch(() => {});
+  return json(res, 200, { success: true, ...receipt });
 }
 
 /* -------------------------------------------------------------- scanner */
@@ -432,6 +523,7 @@ async function healRoute(req, res, finish, params) {
     wireHealer({
       caches: { plans: planCache(), renditions: renditionCacheHandle() },
       traffic: () => requestStats(),
+      client: () => clientFaults(),
       version: process.env.BUILD_STAMP || "",
     });
     // Probing on a read is fine — probes are read-only — but repairing is not.
@@ -440,6 +532,7 @@ async function healRoute(req, res, finish, params) {
     return finish(200, {
       success: true,
       heal: { ...report, applied: false, actions: [] },
+      browser: await clientSection(),
       // The reactive ledger too, so one call paints the whole section.
       selfHeal: selfHealReport(),
     });
@@ -453,6 +546,7 @@ async function healRoute(req, res, finish, params) {
   wireHealer({
     caches: { plans: planCache(), renditions: renditionCacheHandle() },
     traffic: () => requestStats(),
+    client: () => clientFaults(),
     version: process.env.BUILD_STAMP || "",
   });
 

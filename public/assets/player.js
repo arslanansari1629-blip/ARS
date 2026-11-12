@@ -22,6 +22,8 @@
       from this origin, with the CDN list kept only as a last resort.
    ========================================================================= */
 
+import { note as noteFault } from "./telemetry.js";
+
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
 export function fmtTime(seconds) {
@@ -63,8 +65,27 @@ export class ProPlayer {
     this.lastProgressAt = 0;
     this.destroyed = false;
 
+    /* --- playback health ------------------------------------------------
+       The player recovers well from failures it can *see*. What it could not
+       see was silence: a stream that reports `playing` and then emits no
+       `timeupdate` for a minute, a tab that was backgrounded mid-lecture and
+       came back to a wedged decoder, a page whose last report was never sent.
+       These three fields are that sense.
+       ------------------------------------------------------------------ */
+    /** Wall clock of the last moment the playhead actually moved. */
+    this.lastTickAt = 0;
+    /** Playhead at the last heartbeat, to prove it moved rather than froze. */
+    this.lastTickTime = 0;
+    /** Playback faults diagnosed here that the browser never threw. */
+    this._healthBeats = 0;
+    /** The heartbeat interval, declared before its reader for the same reason
+        every other field in this block is: a writer must never outrun its
+        declaration. */
+    this._heartbeat = null;
+
     this._bindElement();
     this._bindNetwork();
+    this._bindHealth();
   }
 
   /**
@@ -127,11 +148,13 @@ export class ProPlayer {
     v.addEventListener("playing", () => {
       this.recovery = 0;
       this.state({ buffering: false, playing: true, paused: false, error: "" });
+      this._startHeartbeat();
     });
     v.addEventListener("play", () => this.state({ paused: false, ended: false }));
     v.addEventListener("pause", () => {
       // A stop is a deliberate action; the toolbar keeps offering Start.
       this.state({ paused: true, playing: false });
+      this._stopHeartbeat();
       this._prewarm();
     });
     // `progress` fires while paused too: the read-ahead buffer keeps filling,
@@ -173,6 +196,59 @@ export class ProPlayer {
   }
 
   /**
+   * The player's own health check.
+   *
+   * Three failures are invisible to every other part of this file:
+   *
+   *   1. **A frozen playhead.** The element says it is playing, `waiting` never
+   *      fires, and `timeupdate` simply stops. Nothing throws, so nothing
+   *      recovers: the student watches a still frame until they reload. A
+   *      heartbeat that compares the playhead with where it was a minute ago
+   *      catches it, and the existing `retry()` fixes it.
+   *   2. **A backgrounded tab that comes back broken.** Browsers throttle and
+   *      sometimes abandon media in a hidden tab. On becoming visible again the
+   *      player checks rather than assumes.
+   *   3. **A fault the browser never throws.** A segment that fails to decode
+   *      five times, a rendition list that is empty, a plan that resolves with no
+   *      URL: all real bugs, none of them an exception. They go through
+   *      `_diagnose`, which reports them the same way a thrown error would be.
+   */
+  _bindHealth() {
+    if (typeof document === "undefined" || typeof document.addEventListener !== "function") return;
+
+    document.addEventListener("visibilitychange", () => {
+      if (this.destroyed || document.visibilityState !== "visible") return;
+      // Coming back to a lecture that *was* playing: if the playhead has not
+      // moved since it was hidden and the element is not paused, the decoder is
+      // wedged. Do not wait for a `waiting` event that will never come.
+      if (!this.video || this.video.paused || this.video.ended) return;
+      if (this.video.readyState >= 3) return;
+      this._diagnose("resume", "the tab was hidden and the stream did not come back");
+    });
+  }
+
+  /**
+   * Report a fault this player diagnosed but the browser did not raise.
+   *
+   * It goes into the same browser-side bucket a thrown exception would, so the
+   * healer's `client.errors` symptom sees it — and it keeps the existing
+   * `/api/repair` beacon, which is what un-sticks the poisoned plan locally.
+   */
+  _diagnose(kind, detail = "") {
+    try {
+      noteFault({
+        kind: "player",
+        message: `player: ${kind}`,
+        source: "/assets/player.js",
+        detail,
+      });
+      this._report(kind, detail);
+    } catch {
+      /* telemetry is never load-bearing */
+    }
+  }
+
+  /**
    * Watchdog for a stall that never resolves.
    *
    * A segment request that hangs produces no error at all: `waiting` fires once
@@ -204,6 +280,60 @@ export class ProPlayer {
         this.video.currentTime = t + 0.25;
       }
     }, 6000);
+  }
+
+  /**
+   * A once-a-minute proof that the lecture is actually advancing.
+   *
+   * Deliberately cheap — one comparison a minute — and deliberately quiet: it
+   * only speaks when the playhead is *exactly* where it was, because a stream
+   * that is merely slow is not broken. One stuck minute gets a recovery attempt;
+   * two in a row is reported, because a stream that stalls again after a fresh
+   * plan is not a network problem, it is a bug worth seeing.
+   */
+  _startHeartbeat() {
+    if (typeof setInterval !== "function") return;
+    this._stopHeartbeat();
+    this.lastTickAt = Date.now();
+    this.lastTickTime = this.video ? this.video.currentTime : 0;
+    this._healthBeats = 0;
+    this._heartbeat = setInterval(() => {
+      if (this.destroyed || !this.video) return this._stopHeartbeat();
+      if (this.video.paused || this.video.ended) return;
+      const now = Date.now();
+      const moved = Math.abs(this.video.currentTime - this.lastTickTime) > 0.25;
+      if (moved) {
+        this.lastTickAt = now;
+        this.lastTickTime = this.video.currentTime;
+        this._healthBeats = 0;
+        return;
+      }
+      // The playhead has not moved in a whole minute while the element claims to
+      // be playing. Every other watchdog in this file listens for an event that
+      // this failure never fires.
+      this._healthBeats += 1;
+      if (this._healthBeats === 1) {
+        this.state({ buffering: true, note: "Still trying…" });
+        this.retry({ reason: "The stream stopped advancing." });
+        return;
+      }
+      // Two stuck minutes with a fresh plan in between is not a network blip.
+      // Report it once and stop beating: an auto-recovery that loops is a retry
+      // storm, and this file promises nothing retries forever. The next press of
+      // play starts a new heartbeat, so the student is not stranded either.
+      this._diagnose("frozen", `playhead stuck at ${Math.round(this.video.currentTime)}s`);
+      this._stopHeartbeat();
+    }, 60000);
+    // A timer that keeps a Node test process alive is exactly the trap this
+    // project hit before; unref where the runtime offers it.
+    if (this._heartbeat && typeof this._heartbeat.unref === "function") this._heartbeat.unref();
+  }
+
+  _stopHeartbeat() {
+    if (this._heartbeat) {
+      clearInterval(this._heartbeat);
+      this._heartbeat = null;
+    }
   }
 
   /** End of the buffered range that contains the playhead. */
@@ -952,9 +1082,24 @@ export class ProPlayer {
     }
   }
 
+  /** One-line health, for the admin panel and for tests. */
+  health() {
+    return {
+      engine: this.engine,
+      attempt: this.attempt,
+      recovery: this.recovery,
+      playing: Boolean(this.video && !this.video.paused && !this.video.ended),
+      readyState: this.video ? this.video.readyState : 0,
+      currentTime: this.video ? Math.round(this.video.currentTime || 0) : 0,
+      stalledForMs: this.lastTickAt ? Date.now() - this.lastTickAt : 0,
+      heartbeats: this._healthBeats,
+    };
+  }
+
   destroy() {
     this.destroyed = true;
     clearTimeout(this._stalledFor);
+    this._stopHeartbeat();
     this._teardownPlayers();
   }
 }

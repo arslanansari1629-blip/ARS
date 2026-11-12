@@ -20,6 +20,8 @@
        reads as "retrying", never as a finished download that will not play.
    ========================================================================= */
 
+import { note as noteFault } from "./telemetry.js";
+
 const DB_NAME = "arsvibe.downloads";
 const DB_VERSION = 1;
 const SAVE_KEY = "lectures";
@@ -43,7 +45,22 @@ function openDb() {
 }
 
 async function withStore(mode, fn) {
-  const db = await openDb();
+  let db;
+  try {
+    db = await openDb();
+  } catch (err) {
+    // Storage is *allowed* to be unavailable — private mode, a denied permission,
+    // a quota that is already full. What is not allowed is failing silently: the
+    // downloads page then shows an empty list and looks like a bug in this file.
+    // One beacon per page view names the real cause instead.
+    noteFault({
+      kind: "storage",
+      message: "the local lecture store could not be opened: " + ((err && err.message) || "unknown reason"),
+      source: "/assets/downloader.js",
+      detail: "mode=" + mode,
+    });
+    throw err;
+  }
   try {
     return await new Promise((resolve, reject) => {
       const tx = db.transaction(SAVE_KEY, mode);
@@ -56,11 +73,27 @@ async function withStore(mode, fn) {
         return;
       }
       tx.oncomplete = () => resolve(out && out.__value !== undefined ? out.__value : out);
-      tx.onerror = () => reject(tx.error || new Error("Storage transaction failed"));
+      tx.onerror = () => {
+        const err = tx.error || new Error("Storage transaction failed");
+        // A transaction that fails is the difference between "you have no saved
+        // lectures" and "your saved lectures are unreadable" — the second is a bug
+        // and the downloads page cannot tell them apart without this.
+        noteFault({
+          kind: "storage",
+          message: "a local store transaction failed: " + (err.message || "unknown"),
+          source: "/assets/downloader.js",
+          detail: mode,
+        });
+        reject(err);
+      };
       tx.onabort = () => reject(tx.error || new Error("Storage transaction aborted"));
     });
   } finally {
-    db.close();
+    try {
+      db.close();
+    } catch {
+      /* a close that fails is not worth a report */
+    }
   }
 }
 
