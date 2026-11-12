@@ -13,7 +13,7 @@
    this file existed, and it is not something a tab can be clever about.
 
    So this module has one job and does it honestly: it renders whichever of the
-   six states the batch is in, says what that state means in a sentence a student
+   seven states the batch is in, says what that state means in a sentence a student
    can act on, and renders the real subject grid the moment the archive answers.
    It never draws an empty grid and calls it "Khazana" — a student who cannot find
    last year's lectures needs to know why, not to be told there are none.
@@ -21,7 +21,7 @@
 
 import { esc } from "./app.js";
 
-/** The six states, worded once, here, so the tab and the panel cannot drift. */
+/** The seven states, worded once, here, so the tab and the panel cannot drift. */
 export const STATES = {
   none: {
     title: "No Khazana archive",

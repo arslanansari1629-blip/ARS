@@ -545,7 +545,7 @@ GET /api/pw?path=/v3/batches/<batchId>/details
 | field | meaning |
 | --- | --- |
 | `programId` | the archive pointer, or `""` |
-| `state` | one of the six states below |
+| `state` | one of the seven states below |
 | `attention` | whether a person can act on it |
 
 **The tab.** Every batch page has a **Khazana** tab (`/batch?id=…#khazana`). It
@@ -565,7 +565,7 @@ feature was written:
 | with a freshly minted guest token | still **401** |
 
 There is no endpoint, mirror or guest path that serves it. So the tab does not
-draw an empty grid and call it Khazana — it names which of six states the batch
+draw an empty grid and call it Khazana — it names which of seven states the batch
 is in, because "this batch has no archive", "the archive is paid", "the pointer
 is broken" and "the archive is unreachable" are four different things a student
 would otherwise have to guess between:
