@@ -1,5 +1,53 @@
 # Changelog
 
+---
+
+## Round AM — Khazana, corrected
+
+**The push-back was right.** "make khazana working — see how he runs it."
+
+**What I had got wrong.** I treated Khazana as one thing: the `khazanaProgramId`
+archive linked inside a batch, which is paid and answers every guest token with
+401. That is real, and it is a footnote. Khazana is *also* a product PW sells as
+its own batch, and there are ten of those in the catalogue:
+
+```
+CA Foundation Khazana 2026            6970a2f313f87bdb24cd4934
+SSC Khazana for Exam 2026             6881f5ec021fa11ef316143b
+CA Inter Sep 2026 Group 1 Khazana     68ec896b807049bc648ac2cc
+SSC CGL Khazana Booster 2025          689ac17c1654399508d70db1
+… and six more
+```
+
+Note what those batches are *not* missing: they have no `khazanaProgramId` at all.
+The tab took that as "no Khazana here", when it meant "this batch **is** the
+Khazana". A batch called "CA Foundation Khazana 2026" with 263 Accounting
+lectures is the feature working, not the feature gated.
+
+**Verified before changing anything**, against production: `70+ chapters` on CA
+Foundation Khazana 2026, chapters resolving with videos and notes on
+`/api/contents`, and `SSC Khazana for Exam 2026` returning five subjects. Nothing
+in the working path needs a token.
+
+**What changed.** `lib/khazana.mjs` gained `khazanaLibrary()` — derived from the
+catalogue at request time, free batches first, so a new Khazana batch appears
+without a rebuild. The list rides on **both** the header and the full batch
+payload, because the tab is painted by whichever wins and leaving it off the
+header would have made the best content depend on the slowest request. The tab
+now draws that list first and the linked archive underneath it.
+
+**The defect I had written into a test.** One test asserted "the catalogue must
+yield at least one Khazana batch" against `localCatalogPage(1, 100)` — the first
+page of the curated catalogue happens to hold none, and the production path falls
+back to the search index. The test now exercises `khazanaBatchList()`, the code
+the server actually runs, rather than a simplification of it.
+
+**Gates.** `npm test` **447/447** (was 440) · 18 pages / 10 API functions /
+46 assets · 10 of 12 serverless functions.
+
+---
+
+
 What changed, in the order it shipped. Each round was built, tested and deployed to
 <https://arsvibe-pw-sepia.vercel.app> before the next one started.
 

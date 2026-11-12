@@ -525,11 +525,26 @@ same pass behind the operator session. **No pass ever runs on a GET.**
 
 ## Khazana (the older-lecture archive on every batch)
 
-**What it is.** Khazana is Physics Wallah's archive of *older* lecture sets,
-bundled inside newer batches — the same syllabus taught in a previous year, kept
-so a chapter can be revised from a different teacher. PW's own product copy
-describes it as "Khazana Video Library Access — available in Infinity plans",
-and that second half is the part that matters here.
+**What it is.** Khazana is Physics Wallah's library of *older* lecture sets — the
+same syllabus taught in a previous year, kept so a chapter can be revised from a
+different teacher.
+
+**It reaches a student two ways, and only one is gated.**
+
+1. **Sold as its own batch.** "CA Foundation Khazana 2026", "SSC Khazana for Exam
+   2026", "CA Inter Sep 2026 Group 1 Khazana" — ten of them in the catalogue.
+   These are ordinary batches with ordinary subjects and chapters, and they open
+   exactly like any other batch. Verified live: 50+ chapters, 263 lectures on
+   Accounting alone, every chapter resolving with videos and notes.
+   **This is what the Khazana tab leads with**, and it needs no token.
+2. **Linked inside another batch** (`khazanaProgramId`). This one is paid, and it
+   is the rest of this section.
+
+An earlier build implemented only (2) and therefore told readers "no Khazana
+archive" on a site carrying ten openable Khazana batches. The tab now draws the
+openable list first — from the shipped catalogue, riding on both the header and
+the full batch payload so it never waits on the slow call — and treats the linked
+archive as the footnote it is.
 
 **Where the pointer lives.** Every batch document already carries it, so
 attaching Khazana to a batch costs no extra request:
