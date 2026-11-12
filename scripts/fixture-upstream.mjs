@@ -75,6 +75,18 @@ http
       return res.end(JSON.stringify({ success: false, message: "Unauthorised Access", code: 401 }));
     }
 
+    // Khazana is the other paid surface: the *archive* id never serves content to
+    // a guest, no matter which shape asks. The fixture has to say so, or a test
+    // of the reader would pass against a 404 and never exercise the refusal path
+    // that production actually hits.
+    if (/v3\/(batches|programs)\/62cc7a39ea773600110bec2f(\/|$)/i.test(url.pathname)) {
+      res.statusCode = 401;
+      res.setHeader("Content-Type", "application/json");
+      return res.end(
+        JSON.stringify({ success: false, error: { message: "Unauthorised Access", status: 401 }, code: 401 })
+      );
+    }
+
     if (!route) {
       res.statusCode = 404;
       res.setHeader("Content-Type", "application/json");

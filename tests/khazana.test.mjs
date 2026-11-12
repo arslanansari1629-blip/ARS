@@ -319,3 +319,64 @@ test("an escaped pointer cannot inject markup into the notice", async () => {
   });
   assert.equal(html.includes("<img src=x"), false, "the pointer is a value, not markup");
 });
+
+/* ---------------------------------------------------------------------------
+ * A refusal is not an outage.
+ *
+ * Found in production, not in a test: the first live read of this feature
+ * reported `state:"error"` — "the archive could not be reached, this is a
+ * network read" — for an archive that was answering 401. `upstreamJson` returned
+ * `status: 0` for every failed request whatever the HTTP status was, so 401, 400
+ * and 404 were indistinguishable from a dead socket, and the reader told the
+ * student the site was broken when the truth was "this content is paid".
+ *
+ * The tests below pin the distinction at both layers: the transport must carry
+ * the status through, and the classifier must land on `locked` — with the fix for
+ * it named — when it sees one.
+ * ------------------------------------------------------------------------- */
+
+test("a transport refusal keeps its status instead of collapsing to 0", async () => {
+  const { classifyAnswer: classify } = await import("../lib/khazana.mjs");
+  // This is the exact shape `upstreamJson` produces for a refused read.
+  assert.equal(classify({ ok: false, status: 401, data: null, error: "upstream 401" }), "locked");
+  assert.equal(classify({ ok: false, status: 403, data: null, error: "upstream 403" }), "locked");
+  assert.equal(classify({ ok: false, status: 400, data: null, error: "upstream 400" }), "invalid");
+  assert.equal(classify({ ok: false, status: 404, data: null, error: "upstream 404" }), "missing-shape");
+  // No HTTP answer at all is the only thing that counts as unreachable.
+  assert.equal(classify({ ok: false, status: 0, data: null, error: "fetch failed" }), "error");
+});
+
+test("a refusal wrapped as a generic failure is still read as a refusal", async () => {
+  // Some paths lose the status somewhere between the upstream and here. The
+  // upstream's own words survive, and they are enough: telling a student to sign
+  // in is a better answer than telling them the site is down.
+  assert.equal(classifyAnswer({ ok: false, status: 0, error: "Upstream refused this token" }), "locked");
+  assert.equal(classifyAnswer({ ok: false, status: 0, error: "upstream 401" }), "locked");
+  assert.equal(classifyAnswer({ ok: false, status: 0, error: "timed out" }), "error");
+});
+
+test("a refused archive reports the state a person can act on", async () => {
+  const program = "62cc7a39ea773600110bec2f";
+  const probe = tableProbe({
+    [`/v3/batches/${program}/subjects`]: { ok: false, status: 401, data: null, error: "upstream 401" },
+    [`/v3/programs/${program}/subjects`]: { ok: false, status: 401, data: null, error: "upstream 401" },
+    [`/v3/batches/${program}/details`]: { ok: false, status: 400, data: null, error: "upstream 400" },
+  });
+  const out = await readArchive(program, { probe });
+
+  assert.equal(out.state, "locked", "paid content must not be reported as an outage");
+  assert.equal(out.needsSubscriberToken, true, "the reader must be told what would fix it");
+  assert.match(out.note, /PW_TOKEN/);
+  assert.equal(probe.asked.length, 3, "one refusal must not stop the ladder");
+  // The evidence has to be usable: an operator reading the JSON should be able to
+  // tell what each shape said without re-running the probes by hand.
+  assert.equal(out.tried[0].status, 401);
+  assert.match(out.tried[0].detail, /401/);
+});
+
+test("every state a person can act on is attention, and only those", async () => {
+  assert.deepEqual([...KHAZANA_ATTENTION].sort(), ["error", "invalid", "locked"]);
+  for (const quiet of ["none", "known", "empty", "ok"]) {
+    assert.equal(KHAZANA_ATTENTION.has(quiet), false, `"${quiet}" is a normal state, not a fault`);
+  }
+});
