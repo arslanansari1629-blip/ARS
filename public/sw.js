@@ -25,7 +25,13 @@
    whenever the cache shape changes, and old caches are deleted on activate.
    ========================================================================= */
 
-const VERSION = "arsvibe-v2";
+/* Bump this whenever a *cached asset* changes, not only when the cache shape
+   does. `/assets/*` is cache-first keyed on this string, so shipping a fix to
+   `batch.js` without bumping it leaves every returning reader running the old
+   module with no way to notice: the deploy succeeds, the file on the server is
+   new, and the browser never asks for it again. That is what "I fixed it but you
+   still see the old behaviour" looks like — twice, in this project's history. */
+const VERSION = "arsvibe-v3";
 const SHELL_CACHE = `${VERSION}-shell`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const FILE_CACHE = `${VERSION}-files`;
@@ -37,6 +43,9 @@ const SHELL_ASSETS = [
   "/assets/shell.mjs",
   "/assets/ui.js",
   "/assets/data.js",
+  // The batch page's module. Pre-cached so a new worker install replaces the copy
+  // that `isShellAsset` would otherwise keep serving for ever.
+  "/assets/batch.js",
   // The opening sheet: /open is cached as a document (below), and the front
   // door fills itself from it on the first visit of a session.
   "/assets/open.js",

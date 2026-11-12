@@ -2352,3 +2352,81 @@ test("the Khazana tab is reachable from a #khazana link", async () => {
   );
   dom.window.close();
 });
+
+test("tapping Khazana before the batch loads is not undone by the batch load", async () => {
+  // The reported symptom, in full: "when I tap Khazana nothing happens — only on
+  // this batch". It is a race, and the batch matters only by how slow it is.
+  //
+  // `loadBatch` painted `renderSubjects()` unconditionally when its detail call
+  // landed, and `loadHeader` painted a skeleton unconditionally when its header
+  // landed. Tap the tab before either finishes and whichever arrives last throws
+  // the archive away and puts Subjects back. On a cold `/BatchInfo` that is not
+  // an edge case, it is the normal path — the tab visibly works and then silently
+  // reverts, which reads as "nothing happens".
+  //
+  // So: hold the detail call open, tap Khazana, then let it land, and assert the
+  // archive survives.
+  let release;
+  const held = new Promise((r) => (release = r));
+
+  const { doc, dom, window } = await render("/batch.html?id=698ad3519549b300a5e1cc6a", {
+    fetchWrap: (target) => {
+      // Hold only the *detail* call: the header and every khazana read must still
+      // go through, or the test would be measuring a blocked network instead of
+      // the race it is meant to catch.
+      if (
+        target.pathname === "/api/batch" &&
+        !target.searchParams.get("header") &&
+        !target.searchParams.get("khazana")
+      ) {
+        return held.then(() => nativeFetch(target, { headers: { accept: "application/json" } }));
+      }
+      return null;
+    },
+    waitForSelector: "#tab-khazana",
+    settle: 400,
+  });
+
+  doc.querySelector('[data-tab="khazana"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+
+  // Wait for the archive cards to appear *before* the detail call is released.
+  let cards = 0;
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    cards = doc.querySelectorAll(".khazana-archive .khazana-card").length;
+    if (cards) break;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  assert.ok(cards > 0, "the archive never drew even before the detail call landed");
+
+  // Now let the detail call resolve — this is what used to wipe the tab.
+  release();
+  await new Promise((r) => setTimeout(r, 2500));
+
+  assert.equal(
+    doc.querySelectorAll(".khazana-archive .khazana-card").length,
+    cards,
+    "the detail call replaced the Khazana tab with the subject grid"
+  );
+  assert.match(doc.getElementById("tabBody").textContent, /From this batch's archive/);
+  assert.ok(
+    doc.querySelector('[data-tab="khazana"]').classList.contains("active"),
+    "the Khazana tab lost its active state when the batch finished loading"
+  );
+  dom.window.close();
+});
+
+test("the service worker version bumps when a cached asset changes", async () => {
+  // `/assets/*` is cache-first, keyed on VERSION. Ship a fix to batch.js without
+  // bumping it and every returning reader keeps the old module for ever: the
+  // deploy is green, the file on the server is correct, and the browser never
+  // asks again. This asserts the version is not the one that shipped before the
+  // Khazana fix, so a stale worker can actually be replaced.
+  const sw = await readFile(path.join(ROOT, "public", "sw.js"), "utf8");
+  const version = (sw.match(/const VERSION = "([^"]+)"/) || [])[1];
+  assert.ok(version, "sw.js declares no VERSION");
+  assert.notEqual(version, "arsvibe-v2", "the cache version was not bumped with the asset change");
+  // The batch module has to be in the pre-cache list, or a new worker install
+  // still leaves the old copy in SHELL_CACHE to be served cache-first.
+  assert.match(sw, /"\/assets\/batch\.js"/, "batch.js is not pre-cached");
+});

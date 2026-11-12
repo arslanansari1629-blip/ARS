@@ -374,7 +374,11 @@ async function loadHeader() {
   if (!header || batch) return;
   batch = header.batch;
   renderDetail();
-  if (!batch.subjects.length) {
+  // Same rule as the detail call: the skeleton is for the Subjects tab. Drawing it
+  // over Khazana would replace the archive the reader is looking at with four grey
+  // rows — and since the header lands *after* a fast tap, that is exactly when it
+  // would happen.
+  if (!batch.subjects.length && tab === "subjects") {
     tabBody.innerHTML = `<div class="list">${Array.from({ length: 4 })
       .map(() => `<div class="skeleton sk-row"></div>`)
       .join("")}</div>`;
@@ -389,7 +393,13 @@ async function loadBatch() {
     batch.subjects = out.subjects || [];
     if (Array.isArray(out.library) && out.library.length) khazanaLibraryCache = out.library;
     renderDetail();
-    renderSubjects();
+    // Only paint the tab that is actually open. This used to be an unconditional
+    // `renderSubjects()`, which meant a detail call landing after the reader had
+    // tapped Khazana threw the archive away and put the subject grid back. On a
+    // cold batch `/BatchInfo` takes seconds, so that race is the *normal* path:
+    // the tab you tapped fills in and is then silently replaced. It looked like
+    // the Khazana tab doing nothing at all.
+    if (tab === "subjects") renderSubjects();
     // The subject list comes from a second upstream call that can be
     // rate-limited. Show that plainly instead of an empty-looking page, and
     // point at the source player rather than leaving the reader stuck.

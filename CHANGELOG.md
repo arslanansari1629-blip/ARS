@@ -2,6 +2,37 @@
 
 ---
 
+## Round AS — why the fix was deployed and you still saw the old page
+
+Two separate reasons, both now fixed.
+
+**1. The service worker was serving the old module, for ever.** `/assets/*` is
+cache-first, keyed on `const VERSION = "arsvibe-v2"`. Rounds AQ and AR changed
+`batch.js` and `data.js` and never bumped that string, so any browser that had
+loaded the site once kept the *old* modules indefinitely: the deploy was green,
+the file on the server was correct, and the browser never asked for it again. That
+is the entire difference between "I fixed it" and "nothing changed on my screen".
+`VERSION` is now `arsvibe-v3`, `batch.js` is in the shell pre-cache list, and a
+test asserts the version is not the stale one — with a comment saying the real
+rule: bump it whenever a cached asset changes, not only when the cache shape does.
+
+**2. A race that reverted the tab.** `loadBatch` called `renderSubjects()`
+unconditionally when its detail call landed, and `loadHeader` painted a skeleton
+unconditionally when the header landed. Tap Khazana before either finishes and
+whichever arrives last replaces the archive with the subject grid. On a cold
+`/BatchInfo` — which is exactly the batch that was reported, a 9-subject UP Board
+crash course — the detail call takes seconds, so this is the *normal* path, not an
+edge case: the tab visibly fills in and is then silently thrown away. Both
+repaints are now gated on `tab === "subjects"`.
+
+The new test holds the detail call open, taps Khazana, waits for the archive
+cards, *then* releases the detail call — and asserts the cards are still there.
+Reverting either guard fails it.
+
+**Tests:** 467 (was 465).
+
+---
+
 ## Round AR — the Khazana tab that "did nothing", and why
 
 **"when i click khazana nothing happen."** It was not a styling problem or a
