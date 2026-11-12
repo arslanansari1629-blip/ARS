@@ -31,7 +31,7 @@
    module with no way to notice: the deploy succeeds, the file on the server is
    new, and the browser never asks for it again. That is what "I fixed it but you
    still see the old behaviour" looks like — twice, in this project's history. */
-const VERSION = "arsvibe-v3";
+const VERSION = "arsvibe-v4";
 const SHELL_CACHE = `${VERSION}-shell`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const FILE_CACHE = `${VERSION}-files`;
@@ -43,9 +43,10 @@ const SHELL_ASSETS = [
   "/assets/shell.mjs",
   "/assets/ui.js",
   "/assets/data.js",
-  // The batch page's module. Pre-cached so a new worker install replaces the copy
+  // The batch page's modules. Pre-cached so a new worker install replaces the copy
   // that `isShellAsset` would otherwise keep serving for ever.
   "/assets/batch.js",
+  "/assets/khazana.js",
   // The opening sheet: /open is cached as a document (below), and the front
   // door fills itself from it on the first visit of a session.
   "/assets/open.js",

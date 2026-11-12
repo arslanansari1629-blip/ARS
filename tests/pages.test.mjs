@@ -2431,7 +2431,11 @@ test("the service worker version bumps when a cached asset changes", async () =>
   const version = (sw.match(/const VERSION = "([^"]+)"/) || [])[1];
   assert.ok(version, "sw.js declares no VERSION");
   assert.notEqual(version, "arsvibe-v2", "the cache version was not bumped with the asset change");
-  // The batch module has to be in the pre-cache list, or a new worker install
-  // still leaves the old copy in SHELL_CACHE to be served cache-first.
-  assert.match(sw, /"\/assets\/batch\.js"/, "batch.js is not pre-cached");
+  // The Khazana tab's modules have to be in the pre-cache list, or a new worker
+  // install still leaves the old copies in SHELL_CACHE to be served cache-first —
+  // which is how a correct fix can be live on the server and invisible in the
+  // browser for days.
+  for (const asset of ["/assets/batch.js", "/assets/khazana.js"]) {
+    assert.ok(sw.includes(`"${asset}"`), `${asset} is not pre-cached`);
+  }
 });
