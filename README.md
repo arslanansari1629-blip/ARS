@@ -450,11 +450,12 @@ healthy → degraded → repairing → repaired → healthy
                     escalated → failed → (operator)
 ```
 
-- **Six probes, every pass**: catalogue index (count, and whether it loaded at
+- **Seven probes, every pass**: catalogue index (count, and whether it loaded at
   all), the guest-token ladder (seconds left *and* how many credentials are
   usable), signing hosts (how many are degraded), the playback relay (faults in
-  the last ten minutes), the request error rate, and the instance's heap. Each
-  returns a value, a unit, a verdict and the reason it reached it.
+  the last ten minutes), the request error rate, the instance's heap, and **browser
+  script errors** — the only probe whose evidence comes from a visitor's machine.
+  Each returns a value, a unit, a verdict and the reason it reached it.
 - **A repair ladder per symptom.** The cheapest rung runs first and the symptom
   climbs one rung per strike: the token cache is dropped before the signer is
   asked for a new one; the signer ranking is rebuilt from fresh evidence before
