@@ -145,7 +145,33 @@ function todayFeed(url) {
   };
 }
 
+/**
+ * The batch's own schedule endpoint, answered from the same relative day as
+ * `todayFeed` — the strip reads this first now, so the fixture's day has to
+ * exist here too, in the shape the real endpoint sends: `batchSubjectId`
+ * joins into the batch document, `subjectId` is the generic subject, and a
+ * multi-cohort class repeats its `parentScheduleId`.
+ */
+function scheduleFeed(url) {
+  const feed = todayFeed(url);
+  return {
+    data: feed.data.map((row) => ({
+      ...row,
+      batchSubjectId: "6a6b44faf834f38ed6f9120d",
+      subjectId: { _id: "688dd9660fb5f084935d611f", name: "Physics", slug: "physics-123456" },
+      parentScheduleId: row._id,
+      tag: row.status === "COMPLETED" ? "Ended" : "",
+    })),
+  };
+}
+
 const routes = [
+  {
+    // Only the demonstrated batch: other batches keep refusing/empty so the
+    // listing fallback stays exercised elsewhere.
+    match: /\/v1\/batches\/698ad3519549b300a5e1cc6a\/todays-schedule/,
+    json: (url) => scheduleFeed(url),
+  },
   { match: /\/AllBatches/, file: "catalog.json" },
   { match: /\/searchBatch/, file: "catalog.json" },
   { match: /SubjectInfo/, file: "chapters.json" },

@@ -1,11 +1,10 @@
 /* =========================================================================
    Today's classes — the live-class strip above a batch's tabs.
 
-   Physics Wallah has no batch-wide schedule endpoint that answers a guest; every
-   spelling of one was probed and refused (see `lib/today.mjs` for the list). What
-   does answer is the per-subject contents listing, which carries `startTime`,
-   `lectureType` and the video's real duration. The server walks those and keeps
-   the rows that fall on today; this module draws them.
+   The server reads the batch's own schedule endpoint (with the per-subject
+   contents listings as fallback — see `lib/today.mjs`) and keeps the rows
+   that fall on today; this module draws them, then re-reads once a minute
+   while the page is open so "Upcoming" becomes "Live now" on its own.
 
    Two things it deliberately does not do:
 
@@ -198,16 +197,41 @@ export function todayMarkup(day, { reading = false, batchId = "" } = {}) {
  * Returns the verdict it drew so the page can decide whether the section behind
  * it needs to exist at all.
  */
-export async function mountToday(host, { batchId = "", fetchImpl } = {}) {
+export async function mountToday(host, { batchId = "", fetchImpl, refreshMs = 60000 } = {}) {
   if (!host) return null;
   const doFetch = fetchImpl || ((...args) => fetch(...args));
+  const read = async () => {
+    const res = await doFetch(`/api/batch?today=1&id=${encodeURIComponent(batchId)}`);
+    const data = await res.json();
+    return (data && data.today) || { state: "error" };
+  };
 
   host.innerHTML = todayMarkup(null, { reading: true });
   try {
-    const res = await doFetch(`/api/batch?today=1&id=${encodeURIComponent(batchId)}`);
-    const data = await res.json();
-    const day = (data && data.today) || { state: "error" };
+    const day = await read();
     host.innerHTML = todayMarkup(day, { batchId });
+    // A batch page can sit open across a class boundary: without a re-read the
+    // strip would keep calling a started class "Upcoming" until a manual
+    // reload — the one moment the strip exists for. Refresh quietly (no
+    // skeleton, no layout jump), only while the page is actually visible,
+    // and stop when the host leaves the document.
+    if (refreshMs > 0 && typeof setInterval === "function") {
+      if (host.__todayTimer) clearInterval(host.__todayTimer);
+      host.__todayTimer = setInterval(async () => {
+        if (!host.isConnected) {
+          clearInterval(host.__todayTimer);
+          host.__todayTimer = null;
+          return;
+        }
+        if (typeof document !== "undefined" && document.hidden) return;
+        try {
+          host.innerHTML = todayMarkup(await read(), { batchId });
+        } catch {
+          /* a failed refresh keeps the last honest day on screen */
+        }
+      }, refreshMs);
+      if (host.__todayTimer && typeof host.__todayTimer.unref === "function") host.__todayTimer.unref();
+    }
     return day;
   } catch (err) {
     host.innerHTML = "";

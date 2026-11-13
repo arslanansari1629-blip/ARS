@@ -2,6 +2,38 @@
 
 ---
 
+## Round AY — the batch's own schedule, at last
+
+A full inspection of pwmarco.site (and its public source) turned up the one
+thing three rounds of probing had missed: PW does publish a batch-level
+schedule, spelled `/v1/batches/<id>/todays-schedule?isNewStudyMaterialFlow=true`.
+It answers our own guest session — verified live before a line was written —
+and carries the real day: actual start/end times, PW's own status, subject
+and chapter, and classes whose recording has not been published yet.
+
+- `fetchToday` reads that endpoint first: **one request instead of one
+  listing per subject**, classes deduplicated across cohorts
+  (`parentScheduleId`), PW's COMPLETED/Ended verdict outranking the stated
+  window, cancellations still read from retitled rows. The listing walk is
+  kept as the fallback for refusals and empty days, and is still the only
+  source that can name the next class after an empty day. The answer now
+  says which source read it (`scanned.source`).
+- The strip re-reads itself every 60 s while the page is visible, so a class
+  flips from "Upcoming" to "Live now" without a reload.
+- Fixture and tests follow: the fixture serves the schedule endpoint for the
+  demonstrated batch, and the reader tests pin dedupe, the COMPLETED
+  override, single-request reading and the listings fallback.
+
+What was *not* taken from pwmarco, deliberately: its "working" DRM lectures
+come from a third-party clear-key service (extracting Widevine keys via a
+borrowed token) and third-party paid stream workers. That is DRM
+circumvention with someone else's credentials, so DRM lectures here remain
+exactly what Round AX made them — honestly labelled "DRM · PW app only",
+with notes and DPPs working. Their env/API keys were not extracted or
+reused; only the public API *shape* informed this round.
+
+Service worker `arsvibe-v10` (`today.js` changed). Tests 519 → 521.
+
 ## Round AX — the CA Foundation batch, honestly labelled, and a faster site
 
 The reported batch (`CA Foundation Sampurna Jan 2027`, ~350 lectures) was

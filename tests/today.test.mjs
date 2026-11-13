@@ -219,7 +219,13 @@ test("today's classes are read from the subjects, live first", async () => {
 test("a resource shelf is not read at all", async () => {
   const probe = feeds({});
   const day = await withProbe(probe, (m) => m.fetchToday("batch-1", { now: NOW, subjects: SUBJECTS }));
-  assert.deepEqual(probe.asked, ["physics"], "Notices was read as if it held classes");
+  // The batch schedule is asked once, first (it is not addressed by subject);
+  // the listing walk it falls back to must still never touch a resource shelf.
+  assert.deepEqual(
+    probe.asked.filter(Boolean),
+    ["physics"],
+    "Notices was read as if it held classes"
+  );
   assert.equal(day.state, "empty");
   assert.equal(day.scanned.subjects, 1);
 });
@@ -598,4 +604,117 @@ test("a finished day names the next class, and an empty day does too", async () 
   assert.match(empty, /No classes published for today/);
   assert.match(empty, /Next:/, "an empty day's useful half is when the next class is");
   assert.doesNotMatch(empty, /No further classes are published/);
+});
+
+test("the batch schedule endpoint is the primary source, read once", async () => {
+  // One request carries the whole day — including a class whose recording is
+  // not published yet, which the listing walk can only see once PW lists it.
+  // A multi-cohort class arrives once per cohort under one parentScheduleId
+  // and must appear once; PW's COMPLETED verdict ends a class even inside
+  // its stated window.
+  const asked = [];
+  const probe = async (path) => {
+    asked.push(path);
+    if (path.includes("/todays-schedule")) {
+      return {
+        ok: true,
+        status: 200,
+        data: {
+          data: [
+            {
+              _id: "s1",
+              parentScheduleId: "s1",
+              batchSubjectId: "subj-physics",
+              topic: "Units 20 : Live Class",
+              startTime: "2026-11-13T16:00:00.000Z",
+              endTime: "2026-11-13T16:00:00.000Z",
+              lectureType: "LIVE",
+              status: "PENDING",
+              teachers: ["t1"],
+              tags: [{ _id: "c1", name: "Units and Dimension" }],
+              videoDetails: { name: "Units 20 : Live Class", videoUrl: "", duration: "01:30:00" },
+              isVideoLecture: true,
+            },
+            {
+              // Same class, second cohort: identical parent, different row id.
+              _id: "s1-cohort-b",
+              parentScheduleId: "s1",
+              batchSubjectId: "subj-physics",
+              topic: "Units 20 : Live Class",
+              startTime: "2026-11-13T16:00:00.000Z",
+              endTime: "2026-11-13T16:00:00.000Z",
+              lectureType: "LIVE",
+              status: "PENDING",
+              teachers: ["t1"],
+              videoDetails: { name: "Units 20 : Live Class", videoUrl: "", duration: "01:30:00" },
+              isVideoLecture: true,
+            },
+            {
+              _id: "s2",
+              parentScheduleId: "s2",
+              batchSubjectId: "subj-physics",
+              topic: "Units 19 : Finished Early",
+              startTime: "2026-11-13T15:30:00.000Z",
+              endTime: "2026-11-13T17:30:00.000Z",
+              lectureType: "LIVE",
+              status: "COMPLETED",
+              tag: "Ended",
+              teachers: ["t1"],
+              videoDetails: { name: "Units 19 : Finished Early", videoUrl: "https://x/master.mpd", duration: "02:00:00" },
+              isVideoLecture: true,
+            },
+          ],
+        },
+      };
+    }
+    return { ok: true, status: 200, data: { data: [] } };
+  };
+  const subjects = [
+    { id: "subj-physics", name: "Physics", slug: "physics", teachers: [{ id: "t1", name: "Saleem Ahmad Sir" }] },
+  ];
+  const day = await withProbe(probe, (m) => m.fetchToday("batch-1", { now: NOW, subjects }));
+  assert.equal(day.state, "ok");
+  assert.equal(day.scanned.source, "schedule");
+  assert.equal(day.classes.length, 2, "a multi-cohort class must appear once");
+  assert.equal(day.classes[0].status, "live");
+  assert.equal(day.classes[0].subject, "Physics");
+  assert.equal(day.classes[0].teacher, "Saleem Ahmad Sir");
+  assert.equal(day.classes[1].status, "done", "PW's COMPLETED verdict must outrank the stated window");
+  assert.equal(
+    asked.filter((p) => p.includes("/contents")).length,
+    0,
+    "an answered schedule must not spend the per-subject listing walk"
+  );
+});
+
+test("a refused schedule falls back to the subject listings", async () => {
+  const probe = async (path) => {
+    if (path.includes("/todays-schedule")) return { ok: false, status: 401, data: null, error: "401" };
+    const slug = /\/subject\/([^/]+)\/contents/.exec(path)?.[1] || "";
+    if (slug === "physics") {
+      return {
+        ok: true,
+        status: 200,
+        data: {
+          data: [
+            {
+              _id: "L1",
+              topic: "Units 21",
+              startTime: "2026-11-13T16:00:00.000Z",
+              endTime: "2026-11-13T16:00:00.000Z",
+              lectureType: "LIVE",
+              teachers: ["t1"],
+              videoDetails: { name: "Units 21", videoUrl: "", duration: "01:30:00" },
+            },
+          ],
+        },
+      };
+    }
+    return { ok: true, status: 200, data: { data: [] } };
+  };
+  const day = await withProbe(probe, (m) => m.fetchToday("batch-1", { now: NOW, subjects: SUBJECTS }));
+  assert.equal(day.state, "ok");
+  assert.equal(day.scanned.source, "listings");
+  assert.equal(day.classes.length, 1);
+  assert.equal(day.classes[0].status, "live");
 });

@@ -79,7 +79,7 @@ test("the route answers a day, not an exception", async () => {
   assert.ok(["ok", "empty", "error", "none"].includes(data.today.state), `unexpected state ${data.today.state}`);
 });
 
-test("the day is read from the subject listings, and is today's", async () => {
+test("the day is read from the batch schedule, and is today's", async () => {
   const data = await (
     await fetch(`${BASE}/api/batch?today=1&id=${BATCH}&at=${encodeURIComponent(PINNED)}`)
   ).json();
@@ -103,6 +103,9 @@ test("the day is read from the subject listings, and is today's", async () => {
     "the cancelled slot is not marked, or a real class was marked"
   );
   assert.equal(day.scanned.cancelled.count, 1);
+  // The batch's own schedule endpoint is the primary source now: one request
+  // for the whole day, not one listing per subject.
+  assert.equal(day.scanned.source, "schedule");
   // Every row is on the pinned day, in IST — not in the server's timezone.
   for (const c of day.classes) assert.equal(day.day, "2026-11-13");
   // One of them started ten minutes before the pinned clock and has not ended:
