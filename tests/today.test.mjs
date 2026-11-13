@@ -660,7 +660,7 @@ test("the batch schedule endpoint is the primary source, read once", async () =>
               status: "COMPLETED",
               tag: "Ended",
               teachers: ["t1"],
-              videoDetails: { name: "Units 19 : Finished Early", videoUrl: "https://x/master.mpd", duration: "02:00:00" },
+              videoDetails: { name: "Units 19 : Finished Early", videoUrl: "", status: "Ready", duration: "02:00:00" },
               isVideoLecture: true,
             },
           ],
@@ -680,6 +680,9 @@ test("the batch schedule endpoint is the primary source, read once", async () =>
   assert.equal(day.classes[0].subject, "Physics");
   assert.equal(day.classes[0].teacher, "Saleem Ahmad Sir");
   assert.equal(day.classes[1].status, "done", "PW's COMPLETED verdict must outrank the stated window");
+  // The schedule record carries no videoUrl even for a published recording;
+  // its "Ready" status is the tell, and it is what makes the row a Watch link.
+  assert.equal(day.classes[1].hasStream, true, "a finished class with a Ready recording must be watchable");
   assert.equal(
     asked.filter((p) => p.includes("/contents")).length,
     0,
