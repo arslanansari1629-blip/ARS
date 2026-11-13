@@ -189,3 +189,22 @@ test("today's day is edge-cached for seconds, not minutes", async () => {
     "the generic /api/batch rule shadows the day's shorter cache"
   );
 });
+
+test("the hottest read routes are edge-cached after the generic no-store rule", async () => {
+  // Header rules apply in order and the last match wins, so a cacheable route
+  // named *before* `/api/(.*)` would be silently overridden by its `no-store`.
+  // `/api/contents` and `/api/lecture` are the two hottest reads on the site;
+  // both must sit after the generic rule with a real shared TTL.
+  const { readFile } = await import("node:fs/promises");
+  const conf = JSON.parse(await readFile(path.join(ROOT, "vercel.json"), "utf8"));
+  const sources = (conf.headers || []).map((r) => r.source);
+  const generic = sources.indexOf("/api/(.*)");
+  assert.ok(generic >= 0, "the generic /api rule is missing");
+  for (const source of ["/api/contents", "/api/lecture"]) {
+    const at = sources.indexOf(source);
+    assert.ok(at > generic, `${source} must come after the generic /api rule or no-store overrides it`);
+    const rule = conf.headers[at];
+    const cache = rule.headers.find((h) => h.key === "Cache-Control")?.value || "";
+    assert.ok(/s-maxage=\d+/.test(cache), `${source} has no shared edge TTL: ${cache}`);
+  }
+});
