@@ -667,3 +667,52 @@ test("a DRM lecture is named as DRM, not as an unknown host", async () => {
   // The address is still handed back so the reader can try the source player.
   assert.equal(plan.sourceUrl, drm);
 });
+
+test("a DRM lecture is answered without touching the signer at all", async () => {
+  // Every signer refuses a DRM folder (401/403), and a refused pass is retried
+  // with a freshly minted token — so resolving one DRM lecture used to cost
+  // two full host×rendition sweeps plus a token mint before saying what the
+  // URL already proved. The answer must now be immediate and offline.
+  const { resolveStream } = await import("../lib/api-data.mjs");
+  let calls = 0;
+  const plan = await withFetch(
+    async () => {
+      calls += 1;
+      return new Response("nope", { status: 403 });
+    },
+    () =>
+      resolveStream({
+        rawUrl: "https://d1d34p8vz63oiq.cloudfront.net/drm/9a15c4a4-d53a-484a-b74d-992fbfaec6e4/master.mpd",
+      })
+  );
+  assert.equal(plan.playable, false);
+  assert.equal(plan.kind, "drm");
+  assert.equal(calls, 0, `a DRM answer must not probe the signer (saw ${calls} fetches)`);
+});
+
+test("a rendition probe asks each signer pair exactly once", async () => {
+  // Regression guard: the sweep once started every pair twice (an allSettled
+  // bundle plus a per-pair loop), doubling signer traffic and earning
+  // rate-limit refusals a single sweep would not have. Count distinct asks.
+  const { resolveStream } = await import("../lib/api-data.mjs");
+  const asked = [];
+  const plan = await withFetch(
+    async (url) => {
+      const u = String(url);
+      if (u.includes("generate_token")) return new Response("guest-token-value-123456", { status: 200 });
+      if (u.includes("get-hls-key")) {
+        asked.push(u);
+        return new Response("nope", { status: 404 });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () => resolveStream({ rawUrl: mpd("12345678-9abc-4def-8123-456789abcdef") })
+  );
+  assert.equal(plan.playable, false);
+  assert.ok(asked.length > 0, "the probe never asked a signer");
+  assert.equal(
+    new Set(asked).size,
+    asked.length,
+    `each signer pair must be asked once, saw duplicates in ${asked.length} asks`
+  );
+});

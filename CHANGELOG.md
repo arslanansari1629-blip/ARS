@@ -2,6 +2,43 @@
 
 ---
 
+## Round AX — the CA Foundation batch, honestly labelled, and a faster site
+
+The reported batch (`CA Foundation Sampurna Jan 2027`, ~350 lectures) was
+audited end to end. Nearly every lecture in it is flagged `drmProtected` by PW
+and carries a `/drm/` Widevine address — and the site was lying about them in
+three separate ways. Widevine content cannot be relayed without a per-device
+licence this site does not hold, so the fix is honesty plus speed, not a
+workaround:
+
+- Chapter rows called DRM lectures "Video ready" (they have rendition types,
+  so the old badge logic passed them). They now read "DRM · PW app only" on
+  the row, where the click decision is made; the lecture page still opens for
+  its notes and DPPs.
+- Resolving a DRM lecture burned two full signer sweeps — every host refused
+  the folder, then the refused pass was retried with a freshly minted token —
+  before saying what the URL already proved. `resolveStream` now answers DRM
+  immediately, with zero upstream calls.
+- The rendition prober fired every host×quality pair **twice** per sweep (an
+  `allSettled` bundle plus a per-pair loop both invoked the attempt). That
+  doubled signer traffic sitewide, slowed every cold lecture start, and
+  earned rate-limit refusals a single sweep would not have. Each pair is now
+  asked exactly once; the straggler-widening behaviour is unchanged.
+
+Site speed, on top of that:
+
+- `/assets/*` no longer forces a revalidation round trip on every navigation
+  (`max-age=3600, stale-while-revalidate=86400`; the service worker's versioned
+  cache still governs updates, and the worker is now `arsvibe-v9` because
+  `chapter.js` changed).
+- `/api/contents` and `/api/lecture` — the two hottest reads — now have their
+  own CDN cache rules (`s-maxage=120, stale-while-revalidate=600`) ahead of
+  the generic `/api` no-store rule in `vercel.json`.
+
+Tests 516 → 518 (a DRM answer must make zero signer calls; a probe must ask
+each signer pair exactly once; the chapter page test now covers the DRM badge
+against a DRM-flagged fixture lecture).
+
 ## Round AW — a cancelled class is not a class
 
 Reading the real batch page found the strip telling students to attend a class

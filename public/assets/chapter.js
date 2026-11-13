@@ -146,6 +146,14 @@ function streamBadge(item) {
   if (/PDF|NOTE|DOC/.test(type)) {
     return `<span class="badge-soon">Notes only</span>`;
   }
+  // DRM outranks "Video ready": PW flags these recordings Widevine-protected
+  // and no signer will mint a relayable link for them, so a green badge here
+  // would promise a player that can only ever refuse. Say it on the row, where
+  // the decision to click is made — the notes and DPPs on the lecture page
+  // still open, so the row itself stays a link.
+  if (item.drm) {
+    return `<span class="badge-soon">DRM · PW app only</span>`;
+  }
   if (hasStream || /^(ready|completed|published)$/.test(status)) {
     return `<span class="badge-live">Video ready</span>`;
   }

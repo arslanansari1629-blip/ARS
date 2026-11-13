@@ -473,6 +473,13 @@ test("chapter page shows lectures then notes/DPP PDFs", async () => {
     tags.some((t) => /Video ready/.test(t.textContent)),
     "the processed lecture should be tagged as playable"
   );
+  // A DRM-flagged lecture must not carry the green badge: PW will not sign it
+  // for relay, so "Video ready" would send the reader into a player that can
+  // only refuse. The row says so up front instead.
+  const drmRow = [...rows].find((r) => /Units and Dimension 09/.test(r.textContent));
+  assert.ok(drmRow, "the DRM fixture lecture did not render");
+  assert.match(drmRow.textContent, /DRM · PW app only/);
+  assert.ok(!/Video ready/.test(drmRow.textContent), "a DRM lecture must not be tagged playable");
 
   const notesTab = [...doc.querySelectorAll("#tabs .tab")].find((t) => t.dataset.type === "notes");
   notesTab.click();
