@@ -2,6 +2,19 @@
 
 ---
 
+## Aurora Noir: a premium redesign of the whole site
+
+The light blueprint drawing gives way to a dark premium stage, applied
+as one auditable layer so every page changes at once and no layout is
+touched. Deep space-navy paper with aurora light (violet, magenta,
+cyan) pooled at the edges, true glass surfaces with a rim of light and
+a gradient hairline on top, Sora display type for headlines over Inter
+text, pill controls, a gradient primary button with a real glow, batch
+cards that lift and bloom on hover, dark glass search wells, jewel
+feature tiles, and a blurred floating nav bar. The service worker moves
+to v16 so every visitor's browser picks the new skin up instead of
+serving the old one from cache.
+
 ## Maintenance mode: the operator's big red button
 
 The admin panel gains a Maintenance Mode switch. On: every student
