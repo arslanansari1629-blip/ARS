@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 import { cors, json, query } from "../lib/http.mjs";
 import {
   resolveStream,
@@ -377,6 +378,7 @@ export default async function handler(req, res) {
 
   cors(res);
   if (req.method === "OPTIONS") return res.end();
+  if (await maintenanceGate(req, res)) return;
   if (req.method !== "GET") return json(res, 405, { success: false, error: "GET only" });
 
   const { batch, subject, id, url, chapter, limit } = query(req);

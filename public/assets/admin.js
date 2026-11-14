@@ -144,6 +144,7 @@ $("#signOutBtn")?.addEventListener("click", async () => {
 
 $("#refreshBtn")?.addEventListener("click", () => load());
 $("#healSweep")?.addEventListener("click", (e) => healNow("", e.currentTarget));
+$("#maintToggle")?.addEventListener("click", (e) => toggleMaintenance(e.currentTarget));
 
 /* --------------------------------------------------------------- polling */
 
@@ -224,6 +225,7 @@ function render(data) {
     ["Deployment", data.release.deployment || "—"],
   ]);
   renderHealing(data.heal || data.selfHeal, data.scan);
+  renderMaintenance(data.maintenance);
   // The scanner rides along with the stats poll, like the healer: one request
   // paints the whole panel, and a GET never triggers a scan or a repair.
   renderScanner(data.scan);
@@ -599,6 +601,80 @@ function renderHealing(h, scan) {
       </li>`
     )
     .join("");
+}
+
+/**
+ * Maintenance mode: paint the switch from the stats poll, and flip it.
+ *
+ * The confirm is the safety: this button takes the whole site down, so it
+ * must be pressed on purpose, twice-removed from an accident. Turning it
+ * OFF never asks — nobody should have to confirm making the site live.
+ */
+let maintOn = false;
+
+function renderMaintenance(m) {
+  const title = $("#maintTitle");
+  if (!title || !m) return;
+  maintOn = Boolean(m.on);
+  title.textContent = m.on ? "Site is under maintenance" : "Site is live";
+  title.className = m.on ? "admin-bad" : "admin-good";
+  const pill = $("#maintPill");
+  if (pill) {
+    pill.textContent = m.on ? "ON — visitors blocked" : "OFF";
+    pill.className = "pill" + (m.on ? " heal-state st-failed" : "");
+  }
+  const btn = $("#maintToggle");
+  if (btn) {
+    btn.textContent = m.on ? "Turn maintenance OFF" : "Turn maintenance ON";
+    btn.className = "btn btn-sm " + (m.on ? "btn-primary" : "");
+  }
+  const meta = $("#maintMeta");
+  if (meta) {
+    meta.textContent = m.on
+      ? "Since " + (m.since || "—") + " · stored in " + (m.store || "memory") +
+        (m.store === "memory" ? " (this instance only — attach storage to make it site-wide)" : " (site-wide)")
+      : "Stored in " + (m.store || "memory") +
+        (m.store === "memory" ? " (this instance only — attach storage to make it site-wide)" : " (site-wide, every instance)");
+  }
+  const input = $("#maintMessage");
+  if (input && m.on && m.message && document.activeElement !== input) input.value = m.message;
+}
+
+async function toggleMaintenance(btn) {
+  const err = $("#maintError");
+  if (err) err.hidden = true;
+  const turningOn = !maintOn;
+  if (turningOn) {
+    const sure = window.confirm(
+      "Turn maintenance mode ON?\n\nEvery page will show “Site is under maintenance” and all student APIs will stop answering until you turn it off here."
+    );
+    if (!sure) return;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = turningOn ? "Turning on…" : "Turning off…";
+  }
+  try {
+    const res = await fetch("/api/admin?action=maintenance", {
+      method: "POST",
+      headers: { "x-admin-token": token, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        on: turningOn,
+        message: turningOn ? ($("#maintMessage")?.value || "").trim() : "",
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.success) throw new Error((data && data.error) || `HTTP ${res.status}`);
+    renderMaintenance(data.maintenance);
+    setStatusLine(turningOn ? "Maintenance mode is ON — the site is down for visitors" : "Maintenance off — the site is live");
+    load();
+  } catch (error) {
+    if (err) {
+      err.hidden = false;
+      err.textContent = error.message;
+    }
+    if (btn) btn.disabled = false;
+  }
 }
 
 /**

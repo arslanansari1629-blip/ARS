@@ -34,6 +34,12 @@ import {
   hydrateClientFaults,
 } from "../lib/client-errors.mjs";
 import { scanPass, scannerReport, clearFinding } from "../lib/scanner.mjs";
+import {
+  maintenanceGate,
+  refreshMaintenance,
+  setMaintenance,
+  maintenanceInfo,
+} from "../lib/maintenance.mjs";
 
 /**
  * The API edge: the operator API, plus two media routes that share this function.
@@ -139,9 +145,14 @@ export default async function handler(req, res) {
   const action = params.action || "";
 
   // Media routes keep their own CORS and caching rules; only the mount is shared.
-  if (action === "hls") return hlsHandler(req, res);
+  // Maintenance gates the *media* mounts that share this function: a site
+  // that is down does not sign or relay lectures. The operator surface
+  // below is never gated — the admin must always be able to turn it off.
+  if (action === "hls" || action === "sign") {
+    if (await maintenanceGate(req, res)) return;
+    return action === "hls" ? hlsHandler(req, res) : signHandler(req, res, true);
+  }
   if (action === "repair") return repairAction(req, res);
-  if (action === "sign") return signHandler(req, res, true);
   // The scanner's own URL. `/api/scan` is a rewrite onto this function, so the
   // external five-minute pinger costs no extra serverless function; the key is
   // what makes it a scheduler rather than an anonymous "scan now" button.
@@ -222,8 +233,32 @@ export default async function handler(req, res) {
     });
   }
 
+  // The maintenance switch, read side: public on purpose. It carries the
+  // flag and the message visitors are meant to read — the wall on every
+  // page polls exactly this — and nothing else.
+  if (action === "maintenance" && req.method === "GET") {
+    await refreshMaintenance().catch(() => null);
+    return finish(200, { success: true, maintenance: maintenanceInfo() });
+  }
+
   if (!session) {
     return finish(401, { success: false, error: "Sign in to view live stats." });
+  }
+
+  // …and the write side: only a signed-in operator flips the switch.
+  if (action === "maintenance" && req.method === "POST") {
+    const payload = await body(req);
+    const on = payload.on === true || payload.on === "true" || payload.on === 1;
+    const state = await setMaintenance(on, {
+      message: String(payload.message || ""),
+      by: "admin",
+    });
+    noteLog({
+      level: "warn",
+      route: "admin",
+      message: on ? "maintenance mode ON — the site is down for visitors" : "maintenance mode OFF — the site is live again",
+    });
+    return finish(200, { success: true, maintenance: { ...state } });
   }
 
   /* ------------------------------------------------------------- audit */
@@ -244,6 +279,7 @@ export default async function handler(req, res) {
     return finish(405, { success: false, error: "Method not allowed" });
   }
 
+  await refreshMaintenance().catch(() => null);
   const payload = await dashboard({
     req,
     selfBase: selfBase(req),
@@ -268,6 +304,7 @@ export default async function handler(req, res) {
   //
   // `browser`, not `client`: `dashboard()` already uses `client` for the *request's*
   // IP and user agent, and overwriting it took out the panel's boot path.
+  payload.maintenance = maintenanceInfo();
   payload.browser = await clientSection();
 
   // The scanner's report rides along too. Reading it never scans: the cadence is

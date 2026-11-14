@@ -2,6 +2,21 @@
 
 ---
 
+## Maintenance mode: the operator's big red button
+
+The admin panel gains a Maintenance Mode switch. On: every student
+API route (catalogue, lecture, stream, the signer, downloads, the lot)
+answers `503 { maintenance: true, message }`, and every page raises a
+full-screen "Site is under maintenance" wall from the module all pages
+already load, polling the public status read once a minute and
+reloading the moment the switch flips back. Off: everything is live
+again. The state lives in the shared document store so one click is
+site-wide on every instance (degrading honestly to per-instance memory
+with no store attached, which the panel says out loud). The admin route
+is never gated — the operator can always reach the off switch — and the
+status read is public because the wall needs it; it carries only the
+flag and the visitor-facing message.
+
 ## God-level self-healing: playback canary, own-signer probe, autopilot
 
 The healer used to wait for a human: probes only repaired when an

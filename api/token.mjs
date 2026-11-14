@@ -1,4 +1,5 @@
 import { cors, json, query } from "../lib/http.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 import { board, publish } from "../lib/leaderboard.mjs";
 import {
   resolveToken,
@@ -308,6 +309,7 @@ async function readJson(req) {
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
+  if (await maintenanceGate(req, res)) return;
 
   const { route } = query(req);
   if (route === "board") return leaderboardRoute(req, res);

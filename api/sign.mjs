@@ -7,7 +7,9 @@
  */
 
 import signHandler from "../lib/sign.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 
 export default async function handler(req, res) {
+  if (await maintenanceGate(req, res)) return;
   return signHandler(req, res);
 }

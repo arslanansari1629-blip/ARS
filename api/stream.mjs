@@ -1,4 +1,5 @@
 import { cors, json, query, badRequest, methodNotAllowed, modeOf, relayUrl } from "../lib/http.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 import hlsHandler from "../lib/hls.mjs";
 import downloadHandler from "../lib/download-route.mjs";
 import { resolveStream, parseFolder, fetchSchedule } from "../lib/api-data.mjs";
@@ -82,6 +83,7 @@ export default async function handler(req, res) {
   // thirteen routes. The HLS gateway keeps its own CORS and caching rules, so it
   // is mounted before this route's headers are written.
   const action = query(req).action;
+  if (await maintenanceGate(req, res)) return;
   if (action === "hls") return hlsHandler(req, res);
   // `/api/download` is rewritten onto this function for the same reason: it is
   // one more route, and the plan allows twelve functions. It keeps its own CORS,

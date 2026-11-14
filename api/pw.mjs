@@ -15,6 +15,7 @@
  * The implementation lives in `lib/pw-proxy.mjs` so the route stays a mount.
  */
 import proxy from "../lib/pw-proxy.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 
 /**
  * This file is only a *mount*, and it must stay one.
@@ -27,5 +28,6 @@ import proxy from "../lib/pw-proxy.mjs";
  * lives in the dispatcher.
  */
 export default async function handler(req, res) {
+  if (await maintenanceGate(req, res)) return;
   return proxy(req, res);
 }

@@ -1,4 +1,5 @@
 import { json, cors, query, badRequest, methodNotAllowed, proxyFallback } from "../lib/http.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 import { fetchBatch, fetchBatchHeader } from "../lib/api-data.mjs";
 import { readArchive, archiveVerdict, archivePointers } from "../lib/khazana.mjs";
 import { fetchToday } from "../lib/today.mjs";
@@ -28,6 +29,7 @@ import {
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
+  if (await maintenanceGate(req, res)) return;
   if (req.method !== "GET") return methodNotAllowed(res);
 
   const { id, header, khazana, today } = query(req);

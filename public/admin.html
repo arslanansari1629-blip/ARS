@@ -77,6 +77,32 @@
       <div class="admin-hero-stats" id="heroStats"></div>
     </section>
 
+    <!-- maintenance mode: the operator's big red button -->
+    <section class="card pad-md admin-block admin-maint" id="maintBlock" style="margin-bottom:14px">
+      <div class="row between mb-2">
+        <div>
+          <span class="eyebrow">Maintenance mode</span>
+          <h3 id="maintTitle">Site is live</h3>
+          <p class="tiny dim" id="maintSub">
+            When this is on, every page shows “Site is under maintenance” and every
+            student-facing API answers 503. This panel stays reachable — you are the
+            only one who can turn it back off.
+          </p>
+        </div>
+        <span class="pill" id="maintPill">OFF</span>
+      </div>
+      <p class="admin-error" id="maintError" role="alert" hidden></p>
+      <div class="row" style="gap:8px; flex-wrap:wrap; align-items:end">
+        <label class="tiny dim" style="flex:1; min-width:220px">
+          Message visitors see
+          <input id="maintMessage" type="text" maxlength="300" style="width:100%"
+            placeholder="We're doing a bit of maintenance right now. Please check again in a few minutes." />
+        </label>
+        <button class="btn btn-sm" id="maintToggle" type="button">Turn maintenance ON</button>
+      </div>
+      <p class="tiny dim" id="maintMeta" style="margin-top:8px">—</p>
+    </section>
+
     <div class="admin-grid">
       <!-- health -->
       <section class="card pad-md admin-block">

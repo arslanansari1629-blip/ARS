@@ -1,4 +1,5 @@
 import { json, cors, query, badRequest, methodNotAllowed, proxyFallback } from "../lib/http.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 import { fetchSchedule, fetchAnnouncements } from "../lib/api-data.mjs";
 
 /**
@@ -8,6 +9,7 @@ import { fetchSchedule, fetchAnnouncements } from "../lib/api-data.mjs";
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
+  if (await maintenanceGate(req, res)) return;
   if (req.method !== "GET") return methodNotAllowed(res);
 
   const { batch, subject, id, announcements } = query(req);

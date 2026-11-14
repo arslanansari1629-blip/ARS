@@ -1,4 +1,5 @@
 import { json, cors, query, methodNotAllowed, proxyFallback } from "../lib/http.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 import { tick, TICK_GRACE_MS } from "../lib/scheduler.mjs";
 import { CATALOG_SORTS as SORTS, normaliseSort } from "../lib/catalog.mjs";
 import { fetchCatalogPage, searchCatalog } from "../lib/api-data.mjs";
@@ -32,6 +33,7 @@ import {
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
+  if (await maintenanceGate(req, res)) return;
   if (req.method !== "GET") return methodNotAllowed(res);
 
   // Five-minute cadence: two number comparisons when it is not time, and a

@@ -1,4 +1,5 @@
 import { cors, json, query, badRequest } from "../lib/http.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 import { getSession } from "../lib/admin.mjs";
 import { resolvePdfUrl } from "../lib/api-data.mjs";
 import {
@@ -393,6 +394,7 @@ async function describeLayout(url, { runs = false, dumpPage = 0 } = {}) {
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
+  if (await maintenanceGate(req, res)) return;
 
   const params = query(req);
 

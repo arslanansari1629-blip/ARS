@@ -81,10 +81,94 @@ function offerUpdate(worker) {
   });
 }
 
+/* --------------------------- maintenance wall ---------------------------- */
+
+/**
+ * The visitor's half of the maintenance switch.
+ *
+ * Pages are static files: when the operator turns the site off, the HTML
+ * still exists, so the *wall* is what a visitor meets — a full-screen
+ * notice over a page whose APIs have all stopped answering anyway (the
+ * server-side gate is the half with teeth). It polls the public status
+ * read every minute, and the moment the switch flips back it reloads the
+ * page, because the honest way to "come back" is a fresh load, not
+ * un-hiding a half-initialised app.
+ *
+ * The admin panel is exempt by construction: the operator must always be
+ * able to reach the switch that turns this off.
+ */
+const MAINTENANCE_URL = "/api/admin?action=maintenance";
+const MAINTENANCE_POLL_MS = 60 * 1000;
+let wall = null;
+let wallTimer = null;
+
+function isAdminSurface() {
+  try {
+    return window.location.pathname.replace(/\/+$/, "").endsWith("/admin");
+  } catch {
+    return false;
+  }
+}
+
+function raiseWall(message) {
+  if (wall) {
+    const p = wall.querySelector("[data-wall-message]");
+    if (p && message) p.textContent = message;
+    return;
+  }
+  wall = document.createElement("div");
+  wall.className = "maintenance-wall";
+  wall.setAttribute("role", "alertdialog");
+  wall.setAttribute("aria-label", "Site under maintenance");
+  wall.innerHTML =
+    `<div class="maintenance-card">` +
+    `<div class="maintenance-badge" aria-hidden="true">🛠️</div>` +
+    `<h1>Site is under maintenance</h1>` +
+    `<p data-wall-message></p>` +
+    `<p class="maintenance-note">This page checks automatically — it will come back on its own when the work is done.</p>` +
+    `</div>`;
+  wall.querySelector("[data-wall-message]").textContent =
+    message || "We're doing a bit of maintenance right now. Please check again in a few minutes.";
+  document.body.appendChild(wall);
+  document.body.classList.add("maintenance-on");
+  // Stop the page behind the wall from being scrolled or tabbed into.
+  document.body.style.overflow = "hidden";
+}
+
+function lowerWall() {
+  if (!wall) return;
+  wall.remove();
+  wall = null;
+  document.body.classList.remove("maintenance-on");
+  document.body.style.overflow = "";
+  window.location.reload();
+}
+
+async function checkMaintenance() {
+  try {
+    const res = await fetch(MAINTENANCE_URL, { headers: { Accept: "application/json" }, cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => null);
+    const m = data && data.maintenance;
+    if (m && m.on) raiseWall(m.message);
+    else if (wall) lowerWall();
+  } catch {
+    /* the wall is a courtesy layer; a failed check changes nothing */
+  }
+}
+
+function watchMaintenance() {
+  if (isAdminSurface()) return;
+  checkMaintenance();
+  if (wallTimer) return;
+  wallTimer = window.setInterval(checkMaintenance, MAINTENANCE_POLL_MS);
+}
+
 /* -------------------------------- booting -------------------------------- */
 
 export async function boot({ update = true } = {}) {
   paintPip();
+  watchMaintenance();
   // Qualified on purpose: a bare `addEventListener` resolves against the global
   // object, which does not carry it in every embedding (test harnesses, SSR
   // shims, some in-app webviews). `window` is the thing that owns the event.

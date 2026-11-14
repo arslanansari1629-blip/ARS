@@ -9816,3 +9816,13 @@ html:not(.intro-armed) > body {
 .buffer-chip[hidden] {
   display: none;
 }
+
+/* Maintenance wall: raised by offline-boot.js when the operator's switch
+   is on. It sits above everything the page can paint, on purpose — a
+   half-covered app invites clicks whose APIs have all stopped answering. */
+.maintenance-wall { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(10, 12, 20, .92); backdrop-filter: blur(4px); padding: 20px; }
+.maintenance-card { max-width: 440px; text-align: center; color: #f3f4f6; }
+.maintenance-badge { font-size: 44px; margin-bottom: 10px; }
+.maintenance-card h1 { font-size: 24px; margin: 0 0 10px; }
+.maintenance-card p { margin: 0 0 10px; line-height: 1.55; color: #d1d5db; }
+.maintenance-note { font-size: 12px; opacity: .65; }

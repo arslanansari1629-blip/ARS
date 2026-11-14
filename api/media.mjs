@@ -1,4 +1,5 @@
 import { cors } from "../lib/http.mjs";
+import { maintenanceGate } from "../lib/maintenance.mjs";
 
 /**
  * GET /api/media?id=<fileId>[&base=...]        → relay a PW PDF / image
@@ -33,6 +34,7 @@ function allowed(url) {
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
+  if (await maintenanceGate(req, res)) return;
 
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   let target = url.searchParams.get("url") || "";
