@@ -308,3 +308,43 @@ test("/api/sign fetches a fresh token when a segment fails with 401", async () =
   assert.equal(res.statusCode, 200, "an expired token must not fail the segment");
   assert.ok(calls >= 2, "the relay should retry after a 401");
 });
+
+test("/api/sign fetches a fresh token when a segment fails with 403", async () => {
+  // A stale guest token can draw 403 from every signer host at once; carrying
+  // that same credential down the whole ladder turned a working playlist
+  // into a 502. One re-mint, one retry — the same medicine as 401.
+  const { default: handler } = await import("../api/sign.mjs");
+  const res = fakeRes();
+  let calls = 0;
+
+  await withFetch(
+    async (url) => {
+      if (String(url).includes("generate_token")) {
+        return new Response(`guest-token-value-${Math.random().toString(16).slice(2, 8)}`, {
+          status: 200,
+        });
+      }
+      if (String(url).includes("get-hls-key")) {
+        calls += 1;
+        if (calls === 1) return new Response("stale token", { status: 403 });
+        return new Response(Buffer.from([0x47, 0x40, 0x11]), {
+          status: 200,
+          headers: { "content-type": "video/mp2t" },
+        });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () =>
+      handler(
+        {
+          method: "GET",
+          url: `/api/sign?videoKey=${FOLDER}&key=720/000.ts`,
+          headers: { host: "example.test", "x-forwarded-proto": "https" },
+        },
+        res
+      )
+  );
+
+  assert.equal(res.statusCode, 200, "a stale-token 403 must not fail the segment");
+  assert.ok(calls >= 2, "the relay should retry after a 403 with a fresh token");
+});

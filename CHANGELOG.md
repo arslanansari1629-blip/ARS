@@ -19,7 +19,11 @@ Root cause underneath the race: the probe asked the signer anonymously,
 and the anonymous lane is the slow one — the relay, which mints a guest
 token first, got the same 720p playlist in a second. Missing renditions
 now get a minted-token pass behind `renditions.settled`, and the resolver
-waits for that settled ladder before minting.
+waits for that settled ladder before minting. One more from the same live
+check: the relay only re-minted its guest token on 401, so a stale-token
+403 was carried past every signer host into a 502 while a fresh token
+served the same playlist instantly — `fetchSigned` now re-mints once on
+403 as well.
 
 ## Watch page + Zero-Buffer — every lecture moved to a dedicated player
 
