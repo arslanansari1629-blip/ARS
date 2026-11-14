@@ -27,7 +27,11 @@ served the same playlist instantly — `fetchSigned` now re-mints once on
 throttle (the checker's probe is exactly that), a transient 403/429 now
 breathes 350 ms before the next mirror, and `/api/check` retries a
 502/403/429 once after 1.5 s — its verdict should describe the stream,
-not its own timing.
+not its own timing. The widen pass itself changed shape too: a second
+parallel burst under throttle just earned more refusals, so missing
+renditions are now re-asked *patiently* — one quality, one host, a minted
+token up front, a re-mint on 401/403, a breath between asks — exactly the
+etiquette that makes the relay's own fetches reliable.
 
 ## Watch page + Zero-Buffer — every lecture moved to a dedicated player
 

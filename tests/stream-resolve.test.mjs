@@ -756,3 +756,44 @@ test("a plan is never minted from the first rendition that answers", async () =>
     globalThis.fetch = previous;
   }
 });
+
+test("renditions refused anonymously are re-asked with a minted token, patiently", async () => {
+  // Production shape: the parallel anonymous sweep hears only 240p before
+  // the signer starts answering 403; the same playlists serve at once with
+  // a guest token (which is how the relay fetches them). The ladder behind
+  // `renditions.settled` must therefore include the token-only renditions.
+  const { probeRenditions, forgetSignerToken } = await import("../lib/api-data.mjs");
+  forgetSignerToken();
+  const previous = globalThis.fetch;
+  const previousToken = process.env.PW_TOKEN;
+  process.env.PW_TOKEN = "";
+  globalThis.fetch = async (input, init = {}) => {
+    const url = String(input && input.url ? input.url : input);
+    if (/generate_token/.test(url)) {
+      return new Response(JSON.stringify({ token: "minted-token-value-123" }), { status: 200 });
+    }
+    const m = url.match(/key=(1080|720|480|360|240)\/main\.m3u8/);
+    if (m) {
+      const headers = init.headers || {};
+      const presented = headers.token || headers.authorization || "";
+      if (m[1] !== "240" && !String(presented).includes("minted-token-value-123")) {
+        return new Response("anonymous refused", { status: 403 });
+      }
+      return new Response("#EXTM3U\n#EXT-X-VERSION:3\n", { status: 200 });
+    }
+    return new Response("", { status: 404 });
+  };
+  try {
+    const probe = await probeRenditions({ folder: "11112222-3333-4444-5555-666677778888", fresh: true });
+    assert.deepEqual(probe.renditions.map((r) => r.quality), ["240"], "the anonymous sweep hears only 240p");
+    const widened = await probe.renditions.settled;
+    assert.ok(
+      widened.map((r) => r.quality).includes("720"),
+      `the minted pass never widened the ladder: ${JSON.stringify(widened.map((r) => r.quality))}`
+    );
+  } finally {
+    globalThis.fetch = previous;
+    if (previousToken === undefined) delete process.env.PW_TOKEN;
+    else process.env.PW_TOKEN = previousToken;
+  }
+});
