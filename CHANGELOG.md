@@ -2,6 +2,19 @@
 
 ---
 
+## Signer outage rescue: PW's official API + credential ladder
+
+The partner relays went down together — vidcloud answering Cloudflare
+1027 (its owner's worker plan limit), streamvideo 500, studyspark
+whitelisting only itself — and every lecture stopped playing even though
+the plans resolved fine. The relay now also asks PW's own API
+(api.penpencil.xyz / api.penpencil.co), which speaks the same
+get-hls-key protocol, and walks the full credential ladder per host
+(pinned token, relay mint, the long-lived anonymous token) with the
+token sent as the `authorization` query parameter the official API
+expects. The resolver's probe got the same widening: more hosts, the
+query-param token, and a ladder walk when every host refuses.
+
 ## Buffer-free proxy: Mumbai functions, edge-cached segments
 
 "All lectures buffering" was geography and headers, not the player. Every

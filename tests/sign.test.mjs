@@ -348,3 +348,48 @@ test("/api/sign fetches a fresh token when a segment fails with 403", async () =
   assert.equal(res.statusCode, 200, "a stale-token 403 must not fail the segment");
   assert.ok(calls >= 2, "the relay should retry after a 403 with a fresh token");
 });
+
+test("/api/sign falls back to PW's official API with the anonymous credential when the relays refuse", async () => {
+  // The partner relays are third-party workers with their own quotas:
+  // vidcloud has answered Cloudflare 1027 (owner plan limit) while
+  // streamvideo 500'd and studyspark whitelisted itself — every relay 403
+  // at once, and a single-token relay reported a dead lecture. PW's own
+  // API honours the long-lived anonymous credential (as the `authorization`
+  // query parameter), so the ladder must reach it.
+  const { default: handler } = await import("../api/sign.mjs");
+  const { FALLBACK_TOKEN } = await import("../lib/pw-auth.mjs");
+  const res = fakeRes();
+
+  await withFetch(
+    async (url) => {
+      const u = new URL(String(url));
+      if (u.href.includes("generate_token")) {
+        return new Response("relay-mint-token-123456", { status: 200 });
+      }
+      if (u.href.includes("get-hls-key")) {
+        if (u.hostname.includes("penpencil")) {
+          return u.searchParams.get("authorization") === FALLBACK_TOKEN
+            ? new Response(PLAYER_PLAYLIST, {
+                status: 200,
+                headers: { "content-type": "application/vnd.apple.mpegurl" },
+              })
+            : new Response("Unauthorised", { status: 401 });
+        }
+        return new Response("Access Denied", { status: 403 });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () =>
+      handler(
+        {
+          method: "GET",
+          url: `/api/sign?videoKey=${FOLDER}&key=720/main.m3u8`,
+          headers: { host: "example.test", "x-forwarded-proto": "https" },
+        },
+        res
+      )
+  );
+
+  assert.equal(res.statusCode, 200, "the official API + anonymous credential must rescue playback");
+  assert.match(res.body, /#EXTM3U/);
+});
