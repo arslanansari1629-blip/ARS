@@ -23,7 +23,11 @@ waits for that settled ladder before minting. One more from the same live
 check: the relay only re-minted its guest token on 401, so a stale-token
 403 was carried past every signer host into a 502 while a fresh token
 served the same playlist instantly — `fetchSigned` now re-mints once on
-403 as well.
+403 as well. And because a burst of sign requests can itself trip the
+throttle (the checker's probe is exactly that), a transient 403/429 now
+breathes 350 ms before the next mirror, and `/api/check` retries a
+502/403/429 once after 1.5 s — its verdict should describe the stream,
+not its own timing.
 
 ## Watch page + Zero-Buffer — every lecture moved to a dedicated player
 

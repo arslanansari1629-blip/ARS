@@ -41,14 +41,22 @@ function selfBase(req) {
   return `${proto}://${host}`;
 }
 
-async function grab(url) {
+async function grab(url, { retry = true } = {}) {
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "*/*", Referer: "https://pw.eduvibe.cc.cd/" },
     redirect: "follow",
     signal: AbortSignal.timeout(30000),
   });
   const buf = Buffer.from(await res.arrayBuffer());
-  return { status: res.status, type: res.headers.get("content-type") || "", buf };
+  const out = { status: res.status, type: res.headers.get("content-type") || "", buf };
+  // The checker's own probe burst can throttle the signer for a second; a
+  // 502/403 in that window is the burst, not the lecture. One patient retry
+  // keeps the verdict about the stream, not about our timing.
+  if (retry && (out.status === 502 || out.status === 403 || out.status === 429)) {
+    await new Promise((r) => setTimeout(r, 1500));
+    return grab(url, { retry: false });
+  }
+  return out;
 }
 
 /** Pull just the bits of `Schedule` that decide whether anything can play. */
