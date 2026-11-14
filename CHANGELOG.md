@@ -2,6 +2,19 @@
 
 ---
 
+## Buffer-free proxy: Mumbai functions, edge-cached segments
+
+"All lectures buffering" was geography and headers, not the player. Every
+segment crossed the Pacific twice — browser in India → serverless function
+in Virginia → signer/PW CDN in India → back again — one function round
+trip per four seconds of video. Now: the API functions are pinned to
+Mumbai (`bom1`, beside both the students and the upstream); `/api/sign`
+has explicit cache rules behind the generic `no-store` so segment and
+AES-key responses are a day-long immutable edge cache and playlists ten
+minutes (a repeated segment is a CDN hit, not a signer fetch); and the
+relay spends three signer passes per asset instead of two, since a 403
+burst seconds after a good probe was turning into a dead player.
+
 ## God upgrade, honestly: the full quality ladder, always
 
 A student opened a lecture that played start to finish at 240p with an

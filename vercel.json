@@ -9,7 +9,10 @@
   "functions": {
     "api/*.mjs": {
       "maxDuration": 60,
-      "memory": 1024
+      "memory": 1024,
+      "regions": [
+        "bom1"
+      ]
     }
   },
   "headers": [
@@ -74,6 +77,54 @@
         {
           "key": "Access-Control-Allow-Origin",
           "value": "*"
+        }
+      ]
+    },
+    {
+      "source": "/api/sign",
+      "has": [
+        {
+          "type": "query",
+          "key": "key",
+          "value": ".*\\.(ts|m4s)$"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, s-maxage=86400, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/api/sign",
+      "has": [
+        {
+          "type": "query",
+          "key": "key",
+          "value": "enc\\.key$"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, s-maxage=86400, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/api/sign",
+      "has": [
+        {
+          "type": "query",
+          "key": "key",
+          "value": ".*\\.m3u8$"
+        }
+      ],
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, s-maxage=600, stale-while-revalidate=600"
         }
       ]
     },

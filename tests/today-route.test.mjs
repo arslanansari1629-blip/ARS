@@ -211,3 +211,28 @@ test("the hottest read routes are edge-cached after the generic no-store rule", 
     assert.ok(/s-maxage=\d+/.test(cache), `${source} has no shared edge TTL: ${cache}`);
   }
 });
+
+test("the segment proxy runs in Mumbai and its bytes are edge-cacheable", async () => {
+  // Buffering was geography plus headers: the API functions ran in Virginia
+  // while the students and the PW CDN are in India, so every 4-second
+  // segment crossed the Pacific twice through a serverless proxy; and the
+  // generic `/api/(.*)` no-store rule sat after nothing for `/api/sign`, so
+  // segment responses needed their own cacheable rules behind it.
+  const { readFile } = await import("node:fs/promises");
+  const conf = JSON.parse(await readFile(path.join(ROOT, "vercel.json"), "utf8"));
+
+  const regions = conf.functions?.["api/*.mjs"]?.regions || [];
+  assert.ok(regions.includes("bom1"), `api functions must run in Mumbai, got ${JSON.stringify(regions)}`);
+
+  const sources = (conf.headers || []).map((r) => r.source);
+  const generic = sources.indexOf("/api/(.*)");
+  const segmentRule = (conf.headers || []).find(
+    (r, i) =>
+      i > generic &&
+      r.source === "/api/sign" &&
+      (r.has || []).some((h) => h.type === "query" && h.key === "key" && /ts/.test(h.value || ""))
+  );
+  assert.ok(segmentRule, "no cacheable rule for segment (.ts) requests on /api/sign after the generic rule");
+  const cache = segmentRule.headers.find((h) => h.key === "Cache-Control")?.value || "";
+  assert.ok(/s-maxage=86400/.test(cache) && /immutable/.test(cache), `segment rule is not a day-long immutable edge cache: ${cache}`);
+});
