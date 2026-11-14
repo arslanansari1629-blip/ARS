@@ -15,6 +15,11 @@ for everyone after), and neither the plan cache nor the rendition cache
 keeps a partial ladder for ten minutes any more — partial answers expire
 in 45 s and promote to the full window when the sweep settles wider. A
 lecture can no longer be pinned to its lowest rendition by a race.
+Root cause underneath the race: the probe asked the signer anonymously,
+and the anonymous lane is the slow one — the relay, which mints a guest
+token first, got the same 720p playlist in a second. Missing renditions
+now get a minted-token pass behind `renditions.settled`, and the resolver
+waits for that settled ladder before minting.
 
 ## Watch page + Zero-Buffer — every lecture moved to a dedicated player
 
