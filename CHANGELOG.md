@@ -35,6 +35,14 @@ in five places, none of them the video itself:
   (500 kbps) with EWMA step-up, `startFragPrefetch`, and fragment/manifest
   timeouts sized to one retry cycle (20 s/10 s, was 45 s/20 s).
 
+- **The sign relay now retries like the downloader does.** Live verification
+  caught the flaky half: a cold probe took 9.1 s on a slow signer, and a
+  rendition playlist that had probed fine answered 403 seconds later,
+  because the relay tried each host exactly once. It now goes through
+  `fetchSigned` (token remint on 401, backoff, every host per pass),
+  rendition playlists cache 10 min at the edge, and the probe's per-request
+  timeout dropped 9 s → 6 s so one hung mirror cannot dominate startup.
+
 Tests 521 → 522 (edge-cacheable plan vs never-cached retry; segment cache
 headers). Production timings from Round AX for reference: a cold resolve
 measured 1.3–3.2 s, of which the probe was essentially all of it.
