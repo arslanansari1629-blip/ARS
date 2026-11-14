@@ -2,6 +2,19 @@
 
 ---
 
+## Our own signer: a Cloudflare Worker we control
+
+The free relays died together (vidcloud: Cloudflare 1027, its owner's
+plan limit; streamvideo: 500; studyspark: self-whitelisted), so the
+signer now exists on our own Cloudflare account: `worker/signer-worker.js`
+mints the public PW guest token (or a pinned `PW_TOKEN` secret), presents
+it to PW's official API, and streams playlists/keys/segments back, with
+the partner relays as its own tail. The site takes it first whenever
+`ARS_SIGNER_URL` is set — both ladders (`lib/sign.mjs`, the probe in
+`lib/api-data.mjs`) read that one variable. Deploy steps are in
+`worker/README.md`; one lecture view costs the Worker a few requests
+because signed segments proxy straight from PW's CDN.
+
 ## Segments no longer need the signer at all
 
 Playback stayed dead after the relay rescue, and the asymmetry said why:
