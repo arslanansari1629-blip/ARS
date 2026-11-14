@@ -9787,3 +9787,26 @@ html:not(.intro-armed) > body {
     transition: none;
   }
 }
+
+/* Zero-buffer health chip: read-ahead seconds + current rendition. */
+.buffer-chip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 11;
+  padding: 0.22rem 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(8, 12, 18, 0.72);
+  color: #b9f5c8;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.buffer-chip[hidden] {
+  display: none;
+}

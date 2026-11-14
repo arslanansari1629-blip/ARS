@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Watch — ArsVibe PW</title>
+<meta name="description" content="This Physics Wallah lecture's class notes and DPP, free to read or keep for offline study." />
+<meta name="theme-color" content="#eef1f5" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ArsVibe" />
+<meta property="og:title" content="ArsVibe — every Physics Wallah batch, notes & DPPs" />
+<meta property="og:description" content="Browse every PW batch, subject and chapter, and read every class note and DPP PDF in a clean, ad-free reader." />
+<meta property="og:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<link rel="modulepreload" href="/assets/app.js" />
+<link rel="modulepreload" href="/assets/data.js" />
+<link rel="modulepreload" href="/assets/client-api.js" />
+<link rel="preconnect" href="https://static.pw.live" crossorigin />
+<link rel="dns-prefetch" href="https://static.pw.live" />
+<link rel="preload" href="/assets/vendor/hls.min.js" as="script" />
+<link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="stylesheet" href="/assets/offline.css" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/watch" />
+<meta property="og:url" content="https://arsvibe-pw-sepia.vercel.app/watch" />
+</head>
+<body data-page="lecture" class="page-lecture">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="/">
+      <img class="brand-img" src="/assets/logo.svg" alt="ArsVibe" width="30" height="30" />
+      <span>ArsVibe<small>Physics Wallah</small></span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <nav class="nav-links" id="navLinks">
+      <a href="/" data-page="home">Home</a>
+      <a href="/batches.html" data-page="batches">Batches</a>
+      <a href="/batches.html#dpp-tests" data-page="dpp-tests">DPP Tests</a>
+      <a href="/favourites.html" data-page="favourites">Favourites</a>
+      <a href="/library.html" data-page="library">My Library</a>
+      <a href="/downloads.html" data-page="downloads">Downloads</a>
+      <a href="/dashboard.html" data-page="dashboard">Dashboard</a>
+    </nav>
+    <div class="nav-actions" id="sessionChip"></div>
+  </div>
+</header>
+
+<main id="main" class="section">
+  <div class="shell">
+    <div class="crumbs" id="crumbs"><a href="/">Home</a> <span>/</span></div>
+
+    <div class="lecture-head">
+      <div>
+        <h1 id="lectureTitle" class="lecture-title">Loading lecture…</h1>
+        <p class="muted tiny" id="lectureMeta" data-loading>Lecture details are loading from the chapter list.</p>
+      </div>
+      <div class="lecture-head-actions" id="queueNav"></div>
+    </div>
+
+    <div class="lecture-grid">
+      <div class="lecture-main">
+        <!-- ============================ PLAYER ============================ -->
+        <div class="player-wrap" id="playerRoot" tabindex="0">
+          <div class="player-stage" id="playerStage">
+            <video id="video" playsinline preload="auto" crossorigin="anonymous"></video>
+
+            <!-- YouTube/Vimeo-hosted lectures play in an embed instead. -->
+            <iframe
+              id="embed"
+              class="player-embed"
+              style="display:none"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+              referrerpolicy="strict-origin-when-cross-origin"
+              title="Lecture video"
+            ></iframe>
+
+            <!-- click/tap surface: single = play/pause, double = skip -->
+            <div class="player-surface" id="playerSurface" aria-hidden="true"></div>
+
+            <!-- buffering veil: a wave that states what is happening -->
+            <div class="player-veil" id="playerVeil" aria-hidden="true">
+              <div class="veil-rings"><span></span><span></span><span></span></div>
+              <div class="veil-text" id="veilText">Buffering…</div>
+              <div class="veil-bar"><i id="veilBuffer"></i></div>
+            </div>
+
+            <!-- stopped state: the bug this ships to fix -->
+            <div class="player-stopped" id="playerStopped" hidden aria-live="polite">
+              <button class="big-play" id="bigPlayBtn" aria-label="Play lecture">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+              <strong id="stoppedTitle">Paused</strong>
+              <span class="tiny muted" id="stoppedHint">Press Start to continue where you left off</span>
+            </div>
+
+            <div class="player-overlay" id="overlay">
+              <div class="spinner" id="spinner"></div>
+              <h3 id="overlayTitle">Preparing your lecture…</h3>
+              <p id="overlayText">Fetching the stream details from Physics Wallah.</p>
+              <p class="tiny muted" id="overlayNote" role="status" aria-live="polite" hidden></p>
+              <div class="row center" id="overlayActions"></div>
+            </div>
+
+            <div class="gesture-flash" id="gestureFlash" data-dir="" aria-hidden="true"></div>
+
+            <!-- Zero-buffer health: how much lecture is already downloaded
+                 ahead of the playhead. If this number stays healthy, the
+                 picture cannot stall. -->
+            <div class="buffer-chip" id="bufferChip" hidden>⚡ <span id="bufferAhead">0s</span> buffered · <span id="bufferQuality">Auto</span></div>
+
+            <!-- Up next: shown when a lecture ends and the chapter has a
+                 following one. A countdown, not a jump cut — the student can
+                 stop it, and ten seconds is long enough to reach the remote. -->
+            <div class="upnext" id="upNext" hidden>
+              <span class="upnext-eyebrow">Up next</span>
+              <strong class="upnext-title" id="upNextTitle">Next lecture</strong>
+              <div class="upnext-bar"><i id="upNextBar"></i></div>
+              <div class="upnext-actions">
+                <button class="btn btn-primary btn-sm" id="upNextNow" type="button">Watch now</button>
+                <button class="btn btn-ghost btn-sm" id="upNextCancel" type="button">Stay here</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- scrubber: buffered band, watched fill, keyboard/touch seek -->
+          <div class="scrubber" id="scrubber" role="slider" tabindex="0"
+               aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="scrubber-track">
+              <div class="scrubber-buffered" id="bufferedBar"></div>
+              <div class="scrubber-played" id="playedBar"></div>
+              <div class="scrubber-knob" id="scrubberKnob"></div>
+            </div>
+            <div class="scrubber-tip" id="scrubberTip">0:00</div>
+          </div>
+
+          <div class="player-bar" id="playerBar">
+            <button class="icon-btn icon-primary" id="playBtn" title="Play (k)" aria-label="Play">
+              <svg class="i-play" width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              <svg class="i-pause" width="17" height="17" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+            </button>
+            <button class="icon-btn" id="restartBtn" title="Restart (Home)" aria-label="Restart">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v6h6"/><path d="M20 12a8 8 0 1 1-2.3-5.7L20 8"/></svg>
+            </button>
+            <button class="icon-btn" id="skipBackBtn" title="Back 10 seconds (←)" aria-label="Back 10 seconds">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4 4 10l7 6V4Z"/><path d="M4 10h9a6 6 0 0 1 0 12"/></svg>
+            </button>
+            <button class="icon-btn" id="skipFwdBtn" title="Forward 10 seconds (→)" aria-label="Forward 10 seconds">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 4l7 6-7 6V4Z"/><path d="M20 10h-9a6 6 0 0 0 0 12"/></svg>
+            </button>
+
+            <button class="time-label" id="positionLabel" title="Toggle elapsed / remaining">0:00 / 0:00</button>
+
+            <div class="volume-group">
+              <button class="icon-btn" id="muteBtn" title="Mute (m)" aria-label="Mute">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path d="M17 9a4 4 0 0 1 0 6" id="volWave"/><path d="M20 7l3 3M23 7l-3 3" id="volMute" style="display:none"/></svg>
+              </button>
+              <input class="volume-slider" id="volume" type="range" min="0" max="1" step="0.05" value="1"
+                title="Volume" aria-label="Volume" />
+              <span class="volume-readout" id="volumeReadout" aria-live="off">100</span>
+            </div>
+
+            <div class="bar-spacer"></div>
+
+            <!-- Six speed buttons in a phone-width tray were a row of dead
+                 targets: the tray is 320px and they needed more. One stepper
+                 shows the current rate and steps it, and the full list stays
+                 in the settings popover. -->
+            <div class="speed-step" id="speedStep" role="group" aria-label="Playback speed">
+              <button class="speed-step-btn" id="speedDown" type="button" title="Slower (c)" aria-label="Slower">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12h14"/></svg>
+              </button>
+              <button class="speed-step-rate" id="speedRate" type="button" title="Reset to 1× (c cycles)" aria-label="Playback speed, tap for 1×">
+                <span id="speedRateText">1×</span>
+              </button>
+              <button class="speed-step-btn" id="speedUp" type="button" title="Faster (c)" aria-label="Faster">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+
+            <button class="icon-btn icon-gear" id="settingsBtn" title="Playback settings" aria-label="Playback settings" aria-expanded="false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6"/></svg>
+            </button>
+
+            <!-- The quality picker lives in a settings popover rather than in the
+                 bar: a bar with eleven controls is a wall of buttons, and quality
+                 is set once per lecture. Kept as a <select> so it stays a native,
+                 keyboard-accessible control. -->
+            <div class="player-menu" id="playerMenu" hidden>
+              <div class="menu-row">
+                <span>Quality</span>
+                <select class="quality-select" id="quality" title="Video quality" aria-label="Video quality">
+                  <option value="-1">Auto</option>
+                </select>
+              </div>
+              <div class="menu-row">
+                <span>Speed</span>
+                <div class="menu-speed" id="menuSpeed">
+                  <button data-speed="0.5">0.5×</button>
+                  <button data-speed="0.75">0.75×</button>
+                  <button data-speed="1" class="active">1×</button>
+                  <button data-speed="1.25">1.25×</button>
+                  <button data-speed="1.5">1.5×</button>
+                  <button data-speed="1.75">1.75×</button>
+                  <button data-speed="2">2×</button>
+                  <button data-speed="2.5">2.5×</button>
+                  <button data-speed="3">3×</button>
+                </div>
+              </div>
+              <div class="menu-row">
+                <span>Skip</span>
+                <div class="menu-speed">
+                  <button data-forward="10">+10s</button>
+                  <button data-forward="30">+30s</button>
+                  <button data-back="10">−10s</button>
+                </div>
+              </div>
+              <div class="menu-row">
+                <span>Zero-Buffer</span>
+                <select id="zbSelect" class="menu-select" aria-label="Zero-buffer mode">
+                  <option value="on" selected>On — never stall</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <div class="menu-row">
+                <span>Sleep timer</span>
+                <select class="quality-select" id="sleepSelect" title="Pause playback after a while" aria-label="Sleep timer">
+                  <option value="0">Off</option>
+                  <option value="10">10 min</option>
+                  <option value="20">20 min</option>
+                  <option value="30">30 min</option>
+                  <option value="45">45 min</option>
+                  <option value="60">60 min</option>
+                </select>
+              </div>
+              <button class="menu-link" id="menuShot">📸 Save a screenshot</button>
+              <button class="menu-link" id="menuSave">Save for offline</button>
+              <button class="menu-link" id="menuDownload">⬇ Download this video</button>
+              <button class="menu-link" id="menuStats">Stream statistics</button>
+            </div>
+
+            <button class="icon-btn" id="loopBtn" title="Loop this lecture (l)" aria-label="Loop">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            </button>
+
+
+            <button class="icon-btn" id="pipBtn" title="Picture in picture (o)" aria-label="Picture in picture" style="display:none">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="7" height="6" rx="1"/></svg>
+            </button>
+
+            <button class="icon-btn" id="fullscreenBtn" title="Fullscreen (f)" aria-label="Fullscreen">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+            </button>
+
+            <span class="player-chip" id="streamHealth" style="display:none">Reconnecting…</span>
+          </div>
+
+          <!-- live stream inspector -->
+          <div class="player-stats" id="playerStats" hidden>
+            <div><span>Engine</span><strong id="statEngine">loading</strong></div>
+            <div><span>Rendition</span><strong id="statQuality">loading</strong></div>
+            <div><span>Buffer ahead</span><strong id="statBuffer">0.0s</strong></div>
+            <div><span>Bitrate</span><strong id="statBitrate">—</strong></div>
+            <div><span>Stalls</span><strong id="statStalls">0</strong></div>
+            <div><span>Retries</span><strong id="statRetries">0</strong></div>
+            <div><span>Latency</span><strong id="statLatency">—</strong></div>
+            <div><span>Bandwidth est.</span><strong id="statBandwidth">—</strong></div>
+            <div><span>Dropped frames</span><strong id="statDropped">—</strong></div>
+          </div>
+        </div>
+
+        <!-- The offline copy, offered where it was made. Hidden until a save
+             completes; the player fills it in. -->
+        <div class="offline-offer" id="offlineOffer" hidden></div>
+
+        <!-- queue: prev / next within the chapter -->
+        <div class="queue-bar" id="queueBar">
+          <button class="btn btn-ghost btn-sm" id="prevBtn" style="display:none">← Previous</button>
+          <button class="btn btn-ghost btn-sm" id="nextBtn" style="display:none">Next lecture →</button>
+          <span class="queue-spacer"></span>
+          <button class="btn btn-ghost btn-sm" id="shortcutsBtn">Keyboard shortcuts <kbd>?</kbd></button>
+        </div>
+
+        <div class="card lecture-about" id="aboutCard">
+          <h3>About this lecture</h3>
+          <p class="tiny muted mt-1" id="aboutText" data-loading>
+            Lecture description is loading.
+          </p>
+        </div>
+      </div>
+
+      <aside class="stack lecture-side">
+        <!-- Now playing: what is on screen, how far in, and the transport, so
+             the right column is useful before the notes are. -->
+        <div class="card pad-md now-card" id="nowCard">
+          <div class="row between">
+            <h3>Now playing</h3>
+            <span class="pill" id="nowState">ready</span>
+          </div>
+          <p class="now-title" id="nowTitle">Loading lecture…</p>
+          <div class="now-rail"><i id="nowProgress"></i></div>
+          <div class="row between now-times">
+            <span id="nowPosition">0:00</span>
+            <span id="nowDuration">0:00</span>
+          </div>
+          <div class="now-actions">
+            <button class="btn btn-ghost btn-sm" id="nowBack" type="button" title="Back 10 seconds">−10s</button>
+            <button class="btn btn-primary btn-sm" id="nowPlay" type="button">Play</button>
+            <button class="btn btn-ghost btn-sm" id="nowFwd" type="button" title="Forward 10 seconds">+10s</button>
+          </div>
+        </div>
+
+        <div class="card pad-md attach-card">
+          <div class="row between attach-head">
+            <h3>Class notes &amp; DPPs</h3>
+            <span class="pill" id="docCount">—</span>
+          </div>
+          <div class="attach-list" id="docs"></div>
+        </div>
+
+        <div class="card pad-md">
+          <h3>FAQ</h3>
+          <p class="tiny muted mt-1">
+            Streams are relayed through this site so they play without cross-origin errors.
+            If a lecture shows “not published yet”, PW has not released the video for this class yet.
+            Press Retry, or open the chapter again — the recording appears once PW publishes it.
+          </p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="shell footer-inner">
+    <div><strong>ArsVibe PW</strong> · lectures &amp; notes streamed live from the PW catalogue</div>
+    <div class="row"><a href="/batches.html">All batches</a></div>
+  </div>
+</footer>
+
+<!-- keyboard shortcut sheet -->
+<div class="sheet-backdrop" id="shortcutSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="row between">
+      <h3 id="sheetTitle">Keyboard shortcuts</h3>
+      <button class="icon-btn" id="sheetClose" aria-label="Close">✕</button>
+    </div>
+    <div class="sheet-grid">
+      <div><kbd>space</kbd><kbd>k</kbd><span>Play / pause</span></div>
+      <div><kbd>s</kbd><span>Stop</span></div>
+      <div><kbd>←</kbd><kbd>→</kbd><span>Skip 10 s</span></div>
+      <div><kbd>j</kbd><kbd>l</kbd><span>Skip 10 s</span></div>
+      <div><kbd>↑</kbd><kbd>↓</kbd><span>Volume</span></div>
+      <div><kbd>m</kbd><span>Mute</span></div>
+      <div><kbd>f</kbd><span>Fullscreen</span></div>
+      <div><kbd>o</kbd><span>Picture in picture</span></div>
+      <div><kbd>c</kbd><span>Cycle speed</span></div>
+      <div><kbd>l</kbd>…<kbd>loop</kbd><span>Loop lecture</span></div>
+      <div><kbd>i</kbd><span>Stream stats</span></div>
+      <div><kbd>0</kbd>–<kbd>9</kbd><span>Jump to % of lecture</span></div>
+      <div><kbd>n</kbd><kbd>p</kbd><span>Next / previous lecture</span></div>
+      <div><kbd>r</kbd><span>Restart</span></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/assets/lecture.js"></script>
+<script type="module" src="/assets/shell.mjs"></script>
+<script type="module" src="/assets/ui.js"></script>
+  <script type="module" src="/assets/telemetry.js"></script>
+  <script type="module" src="/assets/offline-boot.js"></script>
+</body>
+</html>

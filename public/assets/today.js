@@ -51,7 +51,7 @@ function action(c, batchId) {
   }
   if (c.hasStream) {
     const href =
-      `/lecture.html?batch=${encodeURIComponent(batchId)}` +
+      `/watch.html?batch=${encodeURIComponent(batchId)}` +
       `&subject=${encodeURIComponent(c.subjectSlug || "")}` +
       `&id=${encodeURIComponent(c.id || "")}` +
       `&title=${encodeURIComponent(c.title || "")}`;

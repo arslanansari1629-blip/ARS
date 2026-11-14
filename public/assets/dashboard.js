@@ -115,7 +115,7 @@ if (session) {
     rail.innerHTML = resumable
       .slice(0, 6)
       .map((l) => {
-        const href = `/lecture.html?batch=${encodeURIComponent(l.batch)}&subject=${encodeURIComponent(
+        const href = `/watch.html?batch=${encodeURIComponent(l.batch)}&subject=${encodeURIComponent(
           l.subject
         )}&id=${encodeURIComponent(l.id)}&title=${encodeURIComponent(l.title || "Lecture")}`;
         return `
@@ -156,7 +156,7 @@ if (session) {
         .slice(0, 8)
         .map(
           (l) => `
-        <a class="history-row" href="/lecture.html?batch=${encodeURIComponent(l.batch)}&subject=${encodeURIComponent(
+        <a class="history-row" href="/watch.html?batch=${encodeURIComponent(l.batch)}&subject=${encodeURIComponent(
             l.subject
           )}&id=${encodeURIComponent(l.id)}&title=${encodeURIComponent(l.title || "Lecture")}">
           ${l.thumbnail ? `<img src="${esc(l.thumbnail)}" alt="" loading="lazy" onerror="this.remove()" />` : `<img alt="" />`}

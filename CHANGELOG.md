@@ -2,6 +2,24 @@
 
 ---
 
+## Watch page + Zero-Buffer — every lecture moved to a dedicated player
+
+All lectures now play on a new dedicated page, `/watch.html`; every link
+generator (chapter rows, archive rows, today's classes, dashboard resume,
+library) points there, and `/lecture.html` is an instant redirect that
+carries its query string, so old bookmarks and shared links keep working.
+
+Zero-Buffer mode (⚙ settings, on by default) attacks the stall itself: the
+HLS engine holds up to three minutes of lecture ahead of the playhead, ABR
+yields the instant the buffer starves (`maxStarvationDelay`), a stall
+refills at one rendition down instead of re-fetching the fragment that just
+failed, and a proactive refill drops a level when read-ahead falls under
+ten seconds — a few softer seconds instead of a frozen frame. A live chip
+on the player shows the read-ahead ("⚡ 84s buffered · 720p"). The second
+half is the join between lectures: while a class still has minutes to run,
+the next lecture's plan is already resolved and stashed, so Next and the
+Up-Next countdown start with no resolve round trip. SW arsvibe-v13.
+
 ## Ultra player — up-next, mini dock, 3x, hold-for-2x, sleep timer
 
 Beyond pwmarco's Plyr player, on the same legitimate relay: speeds now run

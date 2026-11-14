@@ -112,7 +112,7 @@ function buildCrumbs() {
 
 function watchUrl(item) {
   const base =
-    `/lecture.html?batch=${encodeURIComponent(batchId)}` +
+    `/watch.html?batch=${encodeURIComponent(batchId)}` +
     `&subject=${encodeURIComponent(subjectSlug)}` +
     `&id=${encodeURIComponent(item.id)}` +
     `&title=${encodeURIComponent(item.title)}`;
@@ -371,7 +371,7 @@ async function renderArchiveContents() {
  */
 function archiveLectureRow(item, index) {
   const href =
-    `/lecture.html?batch=${encodeURIComponent(batchId)}` +
+    `/watch.html?batch=${encodeURIComponent(batchId)}` +
     `&subject=${encodeURIComponent(subjectSlug)}` +
     `&id=${encodeURIComponent(item.id)}` +
     `&title=${encodeURIComponent(item.title)}` +

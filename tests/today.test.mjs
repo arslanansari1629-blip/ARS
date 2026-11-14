@@ -342,7 +342,7 @@ test("a finished class with a recording is the one that opens", () => {
   const html = todayMarkup({ state: "ok", day: "2026-11-13", classes: [FINISHED] }, { batchId: "b1" });
   assert.match(html, /today-open/);
   const href = /href="([^"]+)"/.exec(html)[1].replace(/&amp;/g, "&");
-  assert.match(href, /^\/lecture\.html\?/);
+  assert.match(href, /^\/watch\.html\?/);
   assert.match(href, /batch=b1/);
   assert.match(href, /subject=physics/);
   assert.match(href, /id=a/);

@@ -40,7 +40,7 @@ function render() {
       ? `<div class="list">${lib.lectures
           .map(
             (l) => `
-          <a class="list-row" href="/lecture.html?batch=${encodeURIComponent(l.batch)}&subject=${encodeURIComponent(
+          <a class="list-row" href="/watch.html?batch=${encodeURIComponent(l.batch)}&subject=${encodeURIComponent(
               l.subject
             )}&id=${encodeURIComponent(l.id)}&title=${encodeURIComponent(l.title || "Lecture")}">
             <span class="index">▶</span>

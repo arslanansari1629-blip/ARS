@@ -271,6 +271,11 @@ export class ProPlayer {
       // for hls.js a fresh load of the current level is cheaper and safer.
       if (this.hls) {
         try {
+          // Refill at a smaller rendition: a 240p fragment lands in a
+          // fraction of the time and the picture resumes; ABR climbs back
+          // once the buffer is healthy again. This is the zero-buffer trade:
+          // a few seconds softer beats any seconds frozen.
+          if (this.hls.currentLevel > 0) this.hls.nextLoadLevel = this.hls.currentLevel - 1;
           this.hls.startLoad();
         } catch {
           /* ignore */
@@ -279,7 +284,7 @@ export class ProPlayer {
         const t = this.video.currentTime;
         this.video.currentTime = t + 0.25;
       }
-    }, 6000);
+    }, 4500);
   }
 
   /**
@@ -472,13 +477,22 @@ export class ProPlayer {
       return;
     }
 
+    // Zero-Buffer mode (default on): hold minutes of lecture ahead of the
+    // playhead and let ABR sacrifice quality the instant the buffer starves.
+    // A stall needs the network to fail for the whole buffer; at three
+    // minutes that is an outage, not a wobble.
+    const zb = this.prefs.get().zeroBuffer !== false;
     const hls = new Hls({
       // A lecture is watched in long stretches: keep a real read-ahead buffer so
       // an ordinary network wobble never reaches the screen.
-      maxBufferLength: 90,
-      maxMaxBufferLength: 240,
-      maxBufferSize: 90 * 1000 * 1000,
-      backBufferLength: 120,
+      maxBufferLength: zb ? 180 : 90,
+      maxMaxBufferLength: zb ? 600 : 240,
+      maxBufferSize: (zb ? 150 : 90) * 1000 * 1000,
+      backBufferLength: 90,
+      // When the buffer is starving, do not wait for the ideal fragment:
+      // switch down fast and keep the picture moving.
+      maxStarvationDelay: 4,
+      maxLoadingDelay: 4,
       // Keep the fragment we just left so a skip back (the common case after an
       // accidental forward tap) is instant instead of a re-fetch.
       maxBufferHole: 0.5,
@@ -505,7 +519,7 @@ export class ProPlayer {
       startFragPrefetch: true,
       abrBandWidthFactor: 0.85,
       abrBandWidthUpFactor: 0.7,
-      fragLoadingMaxRetry: 6,
+      fragLoadingMaxRetry: zb ? 8 : 6,
       manifestLoadingMaxRetry: 4,
       levelLoadingMaxRetry: 4,
       // Timeouts sized so a dead signer stalls one retry cycle, not half a
@@ -543,6 +557,25 @@ export class ProPlayer {
 
     hls.on(Hls.Events.LEVEL_SWITCHED, () => {
       this.state({ autoLevel: hls.autoLevelEnabled, currentLevel: hls.currentLevel });
+    });
+
+    // Proactive refill: do not wait for a stall to discover the buffer is
+    // empty. When the read-ahead drops under ten seconds at anything above
+    // the floor rendition, queue the next fragments one level down — they
+    // arrive several times faster and ABR restores quality on its own.
+    hls.on(Hls.Events.FRAG_BUFFERED, () => {
+      if (!zb || this.destroyed) return;
+      const now = Date.now();
+      if (now - (this._lastRefill || 0) < 8000) return;
+      const ahead = this._bufferedEnd() - (this.video ? this.video.currentTime : 0);
+      if (ahead > 0 && ahead < 10 && hls.currentLevel > 0 && hls.autoLevelEnabled) {
+        this._lastRefill = now;
+        try {
+          hls.nextLoadLevel = hls.currentLevel - 1;
+        } catch {
+          /* ignore */
+        }
+      }
     });
 
     hls.on(Hls.Events.ERROR, (_evt, data) => {
@@ -591,7 +624,11 @@ export class ProPlayer {
     player.updateSettings({
       streaming: {
         abr: { autoSwitchBitrate: { video: true }, initialBitrate: { video: 800 } },
-        buffer: { fastSwitchEnabled: true, stableBufferTime: 30, bufferTimeAtTopQuality: 60 },
+        buffer: {
+          fastSwitchEnabled: true,
+          stableBufferTime: this.prefs.get().zeroBuffer !== false ? 60 : 30,
+          bufferTimeAtTopQuality: 90,
+        },
       },
     });
     player.on("streamInitialized", () => {

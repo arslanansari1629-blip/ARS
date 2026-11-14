@@ -454,6 +454,19 @@ async function resolvePlan(n, level) {
   // mid-lecture retry made the server re-read the schedule (two upstream calls,
   // 25-second timeouts) before it could look for a fresh signature — tens of
   // seconds of "Reconnecting…" for information already on screen.
+  // A plan preloaded while the previous lecture was still playing (see
+  // `warmNextLecture`): starting the next class should cost zero requests.
+  // Only relay plans are cached — their URL is re-signed per segment request
+  // by our own origin — and only for ten minutes.
+  if (!n && !archiveMode) {
+    try {
+      const hit = JSON.parse(sessionStorage.getItem(`ars-next:${lectureId}`) || "null");
+      if (hit && Date.now() - hit.t < 10 * 60 * 1000 && hit.plan && hit.plan.playable) return hit.plan;
+    } catch {
+      /* storage unavailable: resolve normally */
+    }
+  }
+
   const knownFolder = currentPlan && currentPlan.url ? folderOf(currentPlan.url) : "";
   const fast = n && knownFolder ? `&folder=${encodeURIComponent(knownFolder)}` : "";
   // A recovery should resume at the quality the student was watching, not at
@@ -768,6 +781,8 @@ function renderState(s) {
   // progress + time
   paintProgress();
   paintTime(s);
+  paintBufferChip(s);
+  warmNextLecture(s);
 
   // volume
   paintVolume(s);
@@ -1743,6 +1758,78 @@ function goToLecture(offset) {
   url.searchParams.set("id", queue.ids[target]);
   url.searchParams.delete("title");
   window.location.assign(url.toString());
+}
+
+
+/* ------------------------- zero-buffer helpers --------------------------- */
+
+const bufferChip = $("bufferChip");
+const bufferAheadEl = $("bufferAhead");
+const bufferQualityEl = $("bufferQuality");
+
+/** Live read-ahead readout: seconds of lecture already downloaded. */
+function paintBufferChip(s) {
+  if (!bufferChip) return;
+  const ahead = Math.max(0, (s.buffered || 0) - (s.currentTime || video.currentTime || 0));
+  const show = Boolean(s.playing || s.buffering) && (s.engine === "hls" || s.engine === "dash" || s.engine === "native");
+  bufferChip.hidden = !show;
+  if (!show) return;
+  if (bufferAheadEl) bufferAheadEl.textContent = `${Math.round(ahead)}s`;
+  if (bufferQualityEl) {
+    const levels = s.qualityLevels || [];
+    const current = levels[s.currentLevel];
+    bufferQualityEl.textContent = current && current.height ? `${current.height}p` : "Auto";
+  }
+}
+
+/**
+ * Preload the next lecture's plan while this one still has minutes to run.
+ * The plan is stashed for `resolvePlan` to consume, so pressing Next (or the
+ * Up-Next countdown finishing) starts playback with no resolve round trip —
+ * the second half of zero-buffer: the join between lectures.
+ */
+let nextWarmed = false;
+function warmNextLecture(s) {
+  if (nextWarmed || archiveMode || !batchId || !subjectSlug) return;
+  if (queue.index < 0 || queue.index >= queue.ids.length - 1) return;
+  const duration = s.duration || video.duration || 0;
+  const now = s.currentTime || video.currentTime || 0;
+  if (!duration || !now) return;
+  if (duration - now > 180 && now / duration < 0.5) return;
+  nextWarmed = true;
+  const nextId = queue.ids[queue.index + 1];
+  api(
+    `/api/stream?batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(
+      subjectSlug
+    )}&id=${encodeURIComponent(nextId)}`
+  )
+    .then((plan) => {
+      if (plan && plan.playable && /^\/api\/(sign|hls)/.test(plan.url || "")) {
+        try {
+          sessionStorage.setItem(`ars-next:${nextId}`, JSON.stringify({ t: Date.now(), plan }));
+        } catch {
+          /* private mode: the server-side plan cache still helps */
+        }
+      }
+    })
+    .catch(() => {
+      /* warming is best-effort */
+    });
+}
+
+/** Zero-Buffer toggle: stored as a pref, applied to the live engine too. */
+const zbSelect = $("zbSelect");
+if (zbSelect) {
+  zbSelect.value = getPrefs().zeroBuffer === false ? "off" : "on";
+  zbSelect.addEventListener("change", () => {
+    const on = zbSelect.value !== "off";
+    setPref("zeroBuffer", on);
+    if (pro && pro.hls) {
+      pro.hls.config.maxBufferLength = on ? 180 : 90;
+      pro.hls.config.maxMaxBufferLength = on ? 600 : 240;
+    }
+    toast(on ? "Zero-Buffer on — minutes of lecture kept ahead" : "Zero-Buffer off");
+  });
 }
 
 /* ------------------------------ up next --------------------------------- */

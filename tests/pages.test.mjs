@@ -598,7 +598,7 @@ test("the sidebar links favourites with a live count", async () => {
 
 test("lecture page loads metadata and attached notes + DPP", async () => {
   const url =
-    "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b&title=Units%20and%20Dimension%2010";
+    "/watch.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b&title=Units%20and%20Dimension%2010";
   const { doc, dom } = await render(url, { waitForSelector: "#docs .attach-row" });
   const docs = doc.querySelectorAll("#docs .attach-row");
   assert.ok(docs.length >= 2, `expected class notes + DPP, got ${docs.length}`);
@@ -616,7 +616,7 @@ test("lecture page loads metadata and attached notes + DPP", async () => {
 
 test("lecture page bootstraps a stream plan instead of erroring", async () => {
   const url =
-    "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b&title=Units%20and%20Dimension%2010";
+    "/watch.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b&title=Units%20and%20Dimension%2010";
   const { doc, dom } = await render(url, {
     waitForSelector: "#docs .attach-row",
     // Offline there is no reachable signing relay, so /api/stream answers with
@@ -704,7 +704,7 @@ test("lecture page bootstraps a stream plan instead of erroring", async () => {
 
 test("the player ships a speed stepper and a now-playing transport", async () => {
   const { doc, dom } = await render(
-    "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b",
+    "/watch.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b",
     { waitForSelector: "#docs .attach-row" }
   );
 
@@ -744,7 +744,7 @@ test("the player ships a speed stepper and a now-playing transport", async () =>
 
 test("the lecture page no longer offers a source-player link or a health panel", async () => {
   const { doc, dom } = await render(
-    "/lecture.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b",
+    "/watch.html?batch=698ad3519549b300a5e1cc6a&subject=physics-by-saleem-ahmad-sir-886822&id=6a6b462b26b614560bceb74b",
     { waitForSelector: "#docs .attach-row" }
   );
 
@@ -921,7 +921,7 @@ test("a saved lecture plays in the site, not in a blank tab or a Downloads folde
   assert.match(player, /revokeObjectURL/, "blob URLs leak on close");
 
   // The stylesheet ships with the pages that show the sheet.
-  for (const path of ["/downloads.html", "/lecture.html"]) {
+  for (const path of ["/downloads.html", "/watch.html"]) {
     const html = await (await nativeFetch(`${BASE}${path}`)).text();
     assert.match(html, /href="\/assets\/offline\.css"/, `${path} does not style the offline player`);
   }
@@ -931,7 +931,7 @@ test("the lecture player offers the copy it just saved without leaving", async (
   const lecture = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
   assert.match(lecture, /showSavedAction/, "no offer to play the saved copy");
   assert.match(lecture, /offlineOffer/, "nothing to render the offer into");
-  const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  const html = await (await nativeFetch(`${BASE}/watch.html`)).text();
   assert.match(html, /id="offlineOffer"/, "the lecture page has no slot for the offer");
 });
 
@@ -1104,7 +1104,7 @@ test("stream route does not claim an unknown host has no video", async () => {
 });
 
 test("lecture page ships an embed element for non-CDN lectures", async () => {
-  const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  const html = await (await nativeFetch(`${BASE}/watch.html`)).text();
   assert.match(html, /id="embed"/);
   // Embed handling moved into the engine when the player was rebuilt; the page
   // still has to route embed plans to it.
@@ -1210,7 +1210,7 @@ test("the dashboard summarises favourites, watch time and where to resume", asyn
   assert.equal(cards.length, 1, `expected one resume card, got ${cards.length}`);
   assert.equal(doc.getElementById("resumeBand").hidden, false, "the resume band stayed hidden");
   const card = cards[0];
-  assert.match(card.getAttribute("href") || "", /^\/lecture\.html\?/, "a resume card is not a link");
+  assert.match(card.getAttribute("href") || "", /^\/watch\.html\?/, "a resume card is not a link");
   assert.match(card.getAttribute("href") || "", /id=6a6b462b26b614560bceb74b/);
   assert.match(card.querySelector(".resume-at").textContent, /^1[01]m in$/, "the resume stamp is wrong");
   assert.match(card.querySelector(".resume-go").textContent, /Resume/);
@@ -1301,7 +1301,7 @@ const PWA_PAGES = [
 test("every page ships the offline/PWA shell", async () => {
   const pages = [
     "index.html", "batches.html", "batch.html", "subject.html", "chapter.html",
-    "lecture.html", "downloads.html", "library.html", "dashboard.html",
+    "watch.html", "downloads.html", "library.html", "dashboard.html",
     "favourites.html", "viewer.html", "admin.html", "login.html", "404.html",
     "offline.html",
   ];
@@ -1697,7 +1697,7 @@ test("a lecture that cannot play sends you to its notes, not a retry loop", asyn
   // Retrying an access refusal is guaranteed to fail. The reader's useful next
   // step is the chapter's notes and DPPs, so that must be the primary action.
   const { doc, dom } = await render(
-    "/lecture.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&chapterName=Units%20and%20Measurement",
+    "/watch.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&chapterName=Units%20and%20Measurement",
     { settle: 2600 }
   );
   const text = doc.body.textContent;
@@ -1732,7 +1732,7 @@ test("a permanent stream refusal is explained at once, not after three retries",
   let streamCalls = 0;
   const started = Date.now();
   const { doc, dom } = await render(
-    "/lecture.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&chapterName=Units%20and%20Measurement",
+    "/watch.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763&chapterName=Units%20and%20Measurement",
     {
       settle: 1800,
       fetchWrap: (target) => {
@@ -2185,7 +2185,7 @@ test("the seek slider announces a time, not a percentage", async () => {
      that is "73" with no unit — and on a lecture it is not even the useful number.
      A seek control should say where in the class the student is. */
   const { doc, window } = await render(
-    "/lecture.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763",
+    "/watch.html?id=69dce295b4ecb06768828339&batch=698ad3519549b300a5e1cc6a&subject=physics-by-rajwant-singh-sir-964222&chapter=69dc843271d06abbf3869763",
     {
       settle: 2200,
       fetchWrap: (target) => {
@@ -2233,7 +2233,7 @@ test("the wait says what it is waiting for, and for how long", async () => {
   // page. The overlay now carries a live line naming the actual work and a
   // running count, in a polite live region so it is read out rather than only
   // seen.
-  const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  const html = await (await nativeFetch(`${BASE}/watch.html`)).text();
   const src = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
 
   assert.match(html, /id="overlayNote"/, "the loading overlay has nowhere to explain itself");
@@ -2512,7 +2512,7 @@ test("the player is ultra: up-next, hold-for-2x, sleep timer, screenshot, mini d
   // student actually uses in a two-hour class: a cancellable up-next
   // countdown, hold-for-2x, a sleep timer, a frame grab, a mini dock and
   // network stats. Every id in the markup must have a listener behind it.
-  const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  const html = await (await nativeFetch(`${BASE}/watch.html`)).text();
   const js = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
   const css = await (await nativeFetch(`${BASE}/assets/arsvibe.css`)).text();
 
@@ -2534,4 +2534,37 @@ test("the player is ultra: up-next, hold-for-2x, sleep timer, screenshot, mini d
   for (const speed of ["2.5", "3"]) {
     assert.ok(html.includes(`data-speed="${speed}"`), `the ${speed}x speed button is missing`);
   }
+});
+
+
+test("lectures live on the watch page now, and the engine is zero-buffer", async () => {
+  // The old lecture URL must never dead-end: it forwards, query intact.
+  const shim = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  assert.match(shim, /location\.replace\("\/watch\.html" \+ location\.search/, "lecture.html does not forward to the watch page");
+
+  // Every door into a lecture opens the watch page.
+  for (const mod of ["chapter.js", "dashboard.js", "library-page.js", "today.js"]) {
+    const src = await (await nativeFetch(`${BASE}/assets/${mod}`)).text();
+    assert.ok(!src.includes("/lecture.html?"), `${mod} still links to the old lecture page`);
+    assert.ok(src.includes("/watch.html?"), `${mod} does not link to the watch page`);
+  }
+
+  // Zero-buffer is a behaviour, not a label: minutes of read-ahead, ABR that
+  // yields under starvation, a refill that drops a rendition before a stall,
+  // and the next lecture's plan resolved before this one ends.
+  const player = await (await nativeFetch(`${BASE}/assets/player.js`)).text();
+  assert.match(player, /maxStarvationDelay: 4/, "ABR does not yield under starvation");
+  assert.match(player, /maxBufferLength: zb \? 180 : 90/, "zero-buffer read-ahead is not configured");
+  assert.match(player, /FRAG_BUFFERED/, "no proactive refill on buffered fragments");
+  assert.match(player, /nextLoadLevel = this\.hls\.currentLevel - 1/, "stall refill does not drop a rendition");
+  const lecture = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
+  assert.match(lecture, /function warmNextLecture/, "the next lecture is never preloaded");
+  assert.match(lecture, /ars-next:/, "preloaded plans are not consumed on arrival");
+  assert.match(lecture, /zbSelect/, "the zero-buffer toggle is not wired");
+  const watch = await (await nativeFetch(`${BASE}/watch.html`)).text();
+  for (const id of ["bufferChip", "bufferAhead", "zbSelect", "video", "embed"]) {
+    assert.ok(watch.includes(`id="${id}"`), `watch page is missing #${id}`);
+  }
+  const css = await (await nativeFetch(`${BASE}/assets/arsvibe.css`)).text();
+  assert.ok(/\.buffer-chip/.test(css), "the buffer chip has no styles");
 });

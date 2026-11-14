@@ -23,6 +23,7 @@ const REQUIRED_PAGES = [
   "subject.html",
   "chapter.html",
   "lecture.html",
+  "watch.html",
   "viewer.html",
   "login.html",
   "dashboard.html",
