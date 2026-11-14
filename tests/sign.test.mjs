@@ -136,10 +136,12 @@ test("/api/sign rewrites every playlist child reference through itself", async (
   // the AES key and both segments are relayed with the right key paths
   assert.match(body, /URI="https:\/\/example\.test\/api\/sign\?videoKey=[^"]*&key=720%2Fenc\.key"/);
   assert.match(body, /key=720%2F000\.ts/);
-  assert.match(body, /key=720%2F001\.ts/, "absolute upstream URLs must be reduced to rendition/file");
-
-  // and the signature must never be re-sent to the signer
-  assert.ok(!body.includes("Signature=s"), "signed query params should be stripped");
+  // An absolute URL that already carries a CloudFront signature is proxied
+  // as-is (`direct=`): the signature is the credential, no signer can mint
+  // the segment, and re-asking one per segment is what burned the relays'
+  // quotas. It must never be reduced to a bare key and re-sent for signing.
+  assert.match(body, /api\/sign\?direct=https%3A%2F%2Fsec1\.pw\.live/, "signed absolute URLs must be proxied directly");
+  assert.ok(!body.includes("get-hls-key"), "the signer endpoint must not leak into a rewritten playlist");
 });
 
 test("/api/sign reports a clear error when every signer rejects", async () => {
@@ -392,4 +394,52 @@ test("/api/sign falls back to PW's official API with the anonymous credential wh
 
   assert.equal(res.statusCode, 200, "the official API + anonymous credential must rescue playback");
   assert.match(res.body, /#EXTM3U/);
+});
+
+test("/api/sign proxies an already-signed media URL without the signer", async () => {
+  const { default: handler } = await import("../api/sign.mjs");
+  const res = fakeRes();
+  const segment = Buffer.from([0x47, 0x40, 0x11, 0x10, 0x00, 0x42]);
+  const signedUrl =
+    "https://sec1.pw.live/hls/" + FOLDER + "/720/001.ts?Signature=abc&Key-Pair-Id=K1&Expires=999";
+
+  await withFetch(
+    async (url) => {
+      if (String(url) === signedUrl) {
+        return new Response(segment, {
+          status: 200,
+          headers: { "content-type": "video/mp2t", "content-length": String(segment.length) },
+        });
+      }
+      throw new Error(`direct mode must not call the signer, got ${url}`);
+    },
+    () =>
+      handler(
+        {
+          method: "GET",
+          url: `/api/sign?direct=${encodeURIComponent(signedUrl)}`,
+          headers: { host: "example.test", "x-forwarded-proto": "https" },
+        },
+        res
+      )
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(Buffer.concat(res.chunks), segment);
+  assert.match(res.headers["cache-control"], /immutable/);
+});
+
+test("/api/sign refuses a direct URL that is not PW media infrastructure", async () => {
+  const { default: handler } = await import("../api/sign.mjs");
+  const res = fakeRes();
+  await handler(
+    {
+      method: "GET",
+      url: `/api/sign?direct=${encodeURIComponent("https://evil.example.com/steal.ts")}`,
+      headers: { host: "example.test", "x-forwarded-proto": "https" },
+    },
+    res
+  );
+  assert.equal(res.statusCode, 400);
+  assert.equal(JSON.parse(res.body).success, false);
 });

@@ -2,6 +2,19 @@
 
 ---
 
+## Segments no longer need the signer at all
+
+Playback stayed dead after the relay rescue, and the asymmetry said why:
+playlists and the AES key served, segments answered 401. PW's own API —
+now the host answering — returns playlists whose segments are already
+signed absolute CloudFront URLs; the signature is the credential and no
+signer will mint a `.ts`. The rewrite was stripping those signatures and
+re-asking the (dead) relays per segment, which is also what burned the
+relays' request quotas: one worker call per four seconds of video per
+student. Now a signed absolute is proxied as-is through a `direct=`
+mode (allowlisted to PW media hosts, Range-aware, day-long immutable
+edge cache), and only relative references go back to the signer ladder.
+
 ## Signer outage rescue: PW's official API + credential ladder
 
 The partner relays went down together — vidcloud answering Cloudflare
