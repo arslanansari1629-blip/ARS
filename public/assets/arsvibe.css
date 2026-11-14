@@ -2143,6 +2143,84 @@ textarea.input:focus {
   background: #000;
 }
 
+/* Mini-player: the lecture keeps playing in a docked corner when the student
+   scrolls down to the notes. It is the same element, not a second player —
+   only its box moves. */
+.player-wrap.is-mini {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  width: min(360px, calc(100vw - 28px));
+  z-index: 90;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.85);
+}
+
+.player-wrap.is-mini .player-stage {
+  border-radius: 10px 10px 0 0;
+}
+
+/* ------------------------------- up next -------------------------------- */
+
+.upnext {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 1rem;
+  text-align: center;
+  background: rgba(4, 7, 11, 0.82);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+.upnext[hidden] {
+  display: none;
+}
+
+.upnext-eyebrow {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--case-ink-3);
+}
+
+.upnext-title {
+  max-width: 34rem;
+  color: var(--case-ink);
+  font-size: 1.02rem;
+  line-height: 1.35;
+}
+
+.upnext-bar {
+  width: min(320px, 70%);
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.upnext-bar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: var(--brand-2, #2f6bff);
+  transform-origin: left;
+  transition: width 1s linear;
+}
+
+.upnext-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
 .player-stage {
   position: relative;
   aspect-ratio: 16 / 9;

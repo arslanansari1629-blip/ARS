@@ -119,7 +119,7 @@ const scrubberKnob = $("scrubberKnob");
 
 const positionKey = `pos:${lectureId}`;
 /** Where this lecture sits in its chapter, so "next" means the next class. */
-let queue = { ids: [], index: -1 };
+let queue = { ids: [], titles: [], index: -1 };
 /** Stream resolution attempts; each one bypasses the resolver's cache. */
 let attempt = 0;
 let currentPlan = null;
@@ -281,7 +281,7 @@ async function loadArchiveLecture() {
  */
 function loadArchiveQueue() {
   const ids = archiveLectures.map((l) => l.id).filter(Boolean);
-  queue = { ids, index: ids.indexOf(lectureId) };
+  queue = { ids, titles: list.map((l) => l.title || ""), index: ids.indexOf(lectureId) };
   const hasPrev = queue.index > 0;
   const hasNext = queue.index >= 0 && queue.index < queue.ids.length - 1;
   if (prevBtn) prevBtn.style.display = hasPrev ? "" : "none";
@@ -652,11 +652,11 @@ function createPlayer() {
       });
     },
     onEnded: () => {
-      // Auto-advance: a two-hour lecture that ends should offer the next class,
-      // not a frozen last frame.
+      // Auto-advance: a two-hour lecture that ends should offer the next
+      // class, not a frozen last frame — as a countdown the student can
+      // stop, not a jump cut. Ten seconds, with the next title on screen.
       if (queue.index >= 0 && queue.index < queue.ids.length - 1) {
-        toast("Lecture finished — opening the next one");
-        setTimeout(() => goToLecture(1), 1800);
+        showUpNext((queue.titles && queue.titles[queue.index + 1]) || "Next lecture");
       } else {
         toast("Lecture finished");
       }
@@ -891,6 +891,14 @@ function paintStats(s) {
   );
   set("statStalls", String(pro ? pro.recovery : 0));
   set("statRetries", String(pro ? pro.attempt : 0));
+  set(
+    "statBandwidth",
+    pro && pro.hls && pro.hls.bandwidthEstimate
+      ? `${(pro.hls.bandwidthEstimate / 1000000).toFixed(1)} Mbps`
+      : "—"
+  );
+  const q = video && video.getVideoPlaybackQuality ? video.getVideoPlaybackQuality() : null;
+  set("statDropped", q ? `${q.droppedVideoFrames} / ${q.totalVideoFrames}` : "—");
 }
 
 function bufferAhead() {
@@ -1166,6 +1174,17 @@ function ripple(clientX, clientY, dir) {
 }
 
 surface?.addEventListener("click", (e) => {
+  // A hold-for-2x ends in a click; it was not a tap.
+  if (holdFired) {
+    holdFired = false;
+    return;
+  }
+  // In the mini dock, a tap means "take me back to the big player".
+  if (root?.classList.contains("is-mini")) {
+    root.classList.remove("is-mini");
+    root.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
   if (clickTimer) {
     clearTimeout(clickTimer);
     clickTimer = null;
@@ -1563,7 +1582,7 @@ video?.addEventListener("pause", wakeControls);
 
 /* ------------------------------- keyboard -------------------------------- */
 
-const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1700,9 +1719,9 @@ async function loadQueue(chapter) {
     const all = await loadContents(batchId, subjectSlug, chapter, "videos");
     const list = (all && all.items) || [];
     const ids = list.map((l) => l.id).filter(Boolean);
-    queue = { ids, index: ids.indexOf(lectureId) };
+    queue = { ids, titles: list.map((l) => l.title || ""), index: ids.indexOf(lectureId) };
   } catch {
-    queue = { ids: [], index: -1 };
+    queue = { ids: [], titles: [], index: -1 };
   }
   const hasPrev = queue.index > 0;
   const hasNext = queue.index >= 0 && queue.index < queue.ids.length - 1;
@@ -1724,6 +1743,146 @@ function goToLecture(offset) {
   url.searchParams.set("id", queue.ids[target]);
   url.searchParams.delete("title");
   window.location.assign(url.toString());
+}
+
+/* ------------------------------ up next --------------------------------- */
+
+let upNextTimer = null;
+function hideUpNext() {
+  if (upNextTimer) clearInterval(upNextTimer);
+  upNextTimer = null;
+  const box = $("upNext");
+  if (box) box.hidden = true;
+}
+
+function showUpNext(title) {
+  const box = $("upNext");
+  if (!box) {
+    goToLecture(1);
+    return;
+  }
+  $("upNextTitle").textContent = title;
+  const bar = $("upNextBar");
+  box.hidden = false;
+  let left = 10;
+  if (bar) bar.style.width = "100%";
+  hideUpNextTimerOnly();
+  upNextTimer = setInterval(() => {
+    left -= 1;
+    if (bar) bar.style.width = `${Math.max(0, left * 10)}%`;
+    if (left <= 0) {
+      hideUpNext();
+      goToLecture(1);
+    }
+  }, 1000);
+}
+function hideUpNextTimerOnly() {
+  if (upNextTimer) clearInterval(upNextTimer);
+  upNextTimer = null;
+}
+$("upNextNow")?.addEventListener("click", () => {
+  hideUpNext();
+  goToLecture(1);
+});
+$("upNextCancel")?.addEventListener("click", hideUpNext);
+// Any fresh navigation intent closes the countdown first.
+video?.addEventListener("play", hideUpNext);
+
+/* --------------------------- hold for 2x -------------------------------- */
+/*
+ * Press-and-hold fast-forward: hold the picture for 400 ms and playback runs
+ * at 2x until release, when the student's own rate comes back. The click a
+ * hold ends with must not also toggle play, so the surface click handler
+ * checks `holdFired` first.
+ */
+let holdFired = false;
+let holdTimer = null;
+let heldRate = null;
+surface?.addEventListener("pointerdown", () => {
+  holdFired = false;
+  heldRate = null;
+  if (!pro || video.paused || video.ended) return;
+  holdTimer = setTimeout(() => {
+    heldRate = Number(video.playbackRate) || 1;
+    holdFired = true;
+    pro.setRate(2);
+    flash("2× ▸▸");
+  }, 400);
+});
+const endHold = () => {
+  if (holdTimer) clearTimeout(holdTimer);
+  holdTimer = null;
+  if (holdFired && heldRate != null && pro) {
+    pro.setRate(heldRate);
+    markSpeed(heldRate);
+  }
+  heldRate = null;
+};
+surface?.addEventListener("pointerup", endHold);
+surface?.addEventListener("pointercancel", endHold);
+surface?.addEventListener("pointerleave", endHold);
+
+/* ---------------------------- sleep timer -------------------------------- */
+
+let sleepTimer = null;
+$("sleepSelect")?.addEventListener("change", (e) => {
+  if (sleepTimer) clearTimeout(sleepTimer);
+  sleepTimer = null;
+  const minutes = Number(e.target.value) || 0;
+  if (!minutes) {
+    toast("Sleep timer off");
+    return;
+  }
+  sleepTimer = setTimeout(() => {
+    video.pause();
+    toast("Sleep timer — playback paused");
+  }, minutes * 60 * 1000);
+  toast(`Sleep timer: pause in ${minutes} min`);
+});
+
+/* ----------------------------- screenshot -------------------------------- */
+
+$("menuShot")?.addEventListener("click", () => {
+  setMenu(false);
+  try {
+    if (!video.videoWidth) {
+      toast("Nothing to capture yet", "bad");
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = `${(document.title || "lecture").replace(/[^a-z0-9]+/gi, "-").slice(0, 60)}-${Math.floor(video.currentTime)}s.png`;
+    a.click();
+    toast("Screenshot saved");
+  } catch {
+    toast("This stream does not allow screenshots", "bad");
+  }
+});
+
+/* ----------------------------- mini player ------------------------------- */
+/*
+ * Keep the class in view while reading the notes below it: when the stage
+ * scrolls mostly out of the viewport mid-playback, the whole player docks
+ * to the corner (same element, same stream — nothing reloads). Clicking the
+ * docked picture scrolls back to the full player.
+ */
+if (typeof IntersectionObserver === "function" && root && stage) {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const shouldDock =
+          !entry.isIntersecting && !video.paused && !video.ended && video.style.display !== "none";
+        root.classList.toggle("is-mini", shouldDock);
+      }
+    },
+    { threshold: 0.2 }
+  );
+  observer.observe(stage);
+  video.addEventListener("pause", () => root.classList.remove("is-mini"));
 }
 
 /* ------------------------------- bootstrapping --------------------------- */

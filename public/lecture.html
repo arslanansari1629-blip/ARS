@@ -112,6 +112,19 @@
             </div>
 
             <div class="gesture-flash" id="gestureFlash" data-dir="" aria-hidden="true"></div>
+
+            <!-- Up next: shown when a lecture ends and the chapter has a
+                 following one. A countdown, not a jump cut — the student can
+                 stop it, and ten seconds is long enough to reach the remote. -->
+            <div class="upnext" id="upNext" hidden>
+              <span class="upnext-eyebrow">Up next</span>
+              <strong class="upnext-title" id="upNextTitle">Next lecture</strong>
+              <div class="upnext-bar"><i id="upNextBar"></i></div>
+              <div class="upnext-actions">
+                <button class="btn btn-primary btn-sm" id="upNextNow" type="button">Watch now</button>
+                <button class="btn btn-ghost btn-sm" id="upNextCancel" type="button">Stay here</button>
+              </div>
+            </div>
           </div>
 
           <!-- scrubber: buffered band, watched fill, keyboard/touch seek -->
@@ -187,12 +200,15 @@
               <div class="menu-row">
                 <span>Speed</span>
                 <div class="menu-speed" id="menuSpeed">
+                  <button data-speed="0.5">0.5×</button>
                   <button data-speed="0.75">0.75×</button>
                   <button data-speed="1" class="active">1×</button>
                   <button data-speed="1.25">1.25×</button>
                   <button data-speed="1.5">1.5×</button>
                   <button data-speed="1.75">1.75×</button>
                   <button data-speed="2">2×</button>
+                  <button data-speed="2.5">2.5×</button>
+                  <button data-speed="3">3×</button>
                 </div>
               </div>
               <div class="menu-row">
@@ -203,6 +219,18 @@
                   <button data-back="10">−10s</button>
                 </div>
               </div>
+              <div class="menu-row">
+                <span>Sleep timer</span>
+                <select class="quality-select" id="sleepSelect" title="Pause playback after a while" aria-label="Sleep timer">
+                  <option value="0">Off</option>
+                  <option value="10">10 min</option>
+                  <option value="20">20 min</option>
+                  <option value="30">30 min</option>
+                  <option value="45">45 min</option>
+                  <option value="60">60 min</option>
+                </select>
+              </div>
+              <button class="menu-link" id="menuShot">📸 Save a screenshot</button>
               <button class="menu-link" id="menuSave">Save for offline</button>
               <button class="menu-link" id="menuDownload">⬇ Download this video</button>
               <button class="menu-link" id="menuStats">Stream statistics</button>
@@ -233,6 +261,8 @@
             <div><span>Stalls</span><strong id="statStalls">0</strong></div>
             <div><span>Retries</span><strong id="statRetries">0</strong></div>
             <div><span>Latency</span><strong id="statLatency">—</strong></div>
+            <div><span>Bandwidth est.</span><strong id="statBandwidth">—</strong></div>
+            <div><span>Dropped frames</span><strong id="statDropped">—</strong></div>
           </div>
         </div>
 

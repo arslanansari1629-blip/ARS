@@ -31,7 +31,7 @@
    module with no way to notice: the deploy succeeds, the file on the server is
    new, and the browser never asks for it again. That is what "I fixed it but you
    still see the old behaviour" looks like — twice, in this project's history. */
-const VERSION = "arsvibe-v11";
+const VERSION = "arsvibe-v12";
 const SHELL_CACHE = `${VERSION}-shell`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const FILE_CACHE = `${VERSION}-files`;

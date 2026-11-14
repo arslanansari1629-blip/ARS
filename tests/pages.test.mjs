@@ -2506,3 +2506,32 @@ test("today's classes are drawn above the tabs, on the batch page", async () => 
 
   dom.window.close();
 });
+
+test("the player is ultra: up-next, hold-for-2x, sleep timer, screenshot, mini dock", async () => {
+  // pwmarco's player (Plyr) stops at speeds and quality. Ours adds the parts a
+  // student actually uses in a two-hour class: a cancellable up-next
+  // countdown, hold-for-2x, a sleep timer, a frame grab, a mini dock and
+  // network stats. Every id in the markup must have a listener behind it.
+  const html = await (await nativeFetch(`${BASE}/lecture.html`)).text();
+  const js = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();
+  const css = await (await nativeFetch(`${BASE}/assets/arsvibe.css`)).text();
+
+  for (const id of ["upNext", "upNextTitle", "upNextNow", "upNextCancel", "sleepSelect", "menuShot", "statBandwidth", "statDropped"]) {
+    assert.ok(html.includes(`id="${id}"`), `${id} missing from the player markup`);
+  }
+  assert.match(js, /function showUpNext/, "ended lectures do not open the up-next countdown");
+  assert.match(js, /goToLecture\(1\)/, "up-next does not advance the queue");
+  assert.match(js, /\$\("upNextCancel"\)\?\.addEventListener/, "up-next cannot be cancelled");
+  assert.match(js, /\$\("sleepSelect"\)\?\.addEventListener/, "the sleep timer is not wired");
+  assert.match(js, /video\.pause\(\)/, "the sleep timer never pauses");
+  assert.match(js, /toDataURL\("image\/png"\)/, "screenshot does not export a frame");
+  assert.match(js, /is-mini/, "the mini-player dock never engages");
+  assert.ok(/\.player-wrap\.is-mini/.test(css), "the mini dock has no styles");
+  assert.ok(/\.upnext/.test(css), "the up-next overlay has no styles");
+  assert.match(js, /bandwidthEstimate/, "stats never show the bandwidth estimate");
+  assert.match(js, /getVideoPlaybackQuality/, "stats never show dropped frames");
+  assert.match(js, /SPEEDS = \[0\.5, 0\.75, 1, 1\.25, 1\.5, 1\.75, 2, 2\.5, 3\]/, "speeds do not run 0.5x-3x");
+  for (const speed of ["2.5", "3"]) {
+    assert.ok(html.includes(`data-speed="${speed}"`), `the ${speed}x speed button is missing`);
+  }
+});
