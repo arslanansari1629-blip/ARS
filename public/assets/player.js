@@ -426,7 +426,14 @@ export class ProPlayer {
     // second, and — crucially — it lets the player re-resolve *before* the
     // student ever sees a frozen player. A timeout or a 403 here is not an error
     // to show; it is a signal to go and get a fresh link.
-    if (!this._probeFailed) {
+    // Our own synthesized master (`/api/sign?…key=master.m3u8`) is minted by
+    // this origin from renditions that already answered a probe seconds ago:
+    // fetching it back before `loadSource` proves nothing about the signed
+    // rendition playlists behind it and costs a full round trip on the
+    // critical path to the first frame. Only plans that point at an upstream
+    // manifest directly (signed CDN URLs, DASH) earn the probe.
+    const ownMaster = /^\/api\/sign\?/.test(plan.url || "") && /[?&]key=master\.m3u8/.test(plan.url);
+    if (!this._probeFailed && !ownMaster) {
       const probe = await probeManifest(plan.url, 7000);
       if (!probe.ok) {
         // Remember that this cycle has already spent its re-resolve. The next
@@ -487,17 +494,26 @@ export class ProPlayer {
       abrEwmaFastVoD: 4,
       abrEwmaSlowVoD: 14,
       // Steady ABR: do not flip renditions every fragment (visible quality
-      // pumping) and do not start at the top level on a slow line.
+      // pumping) and do not start at the top level on a slow line. The
+      // default estimate is deliberately conservative: the first fragment
+      // should be a small one that lands fast, and EWMA steps up within a
+      // few fragments once real bandwidth is measured.
       startLevel: -1,
-      abrEwmaDefaultEstimate: 800000,
+      abrEwmaDefaultEstimate: 500000,
+      // Begin fetching the first fragment the moment the level playlist is
+      // known instead of waiting for a buffer target check.
+      startFragPrefetch: true,
       abrBandWidthFactor: 0.85,
       abrBandWidthUpFactor: 0.7,
       fragLoadingMaxRetry: 6,
       manifestLoadingMaxRetry: 4,
       levelLoadingMaxRetry: 4,
-      fragLoadingTimeOut: 45000,
-      manifestLoadingTimeOut: 20000,
-      levelLoadingTimeOut: 20000,
+      // Timeouts sized so a dead signer stalls one retry cycle, not half a
+      // lecture: a fragment that has not moved in 20 s is not "slow", it is
+      // gone, and the retry budget below is what brings it back.
+      fragLoadingTimeOut: 20000,
+      manifestLoadingTimeOut: 10000,
+      levelLoadingTimeOut: 10000,
       lowLatencyMode: false,
       enableWorker: true,
       // Start no higher than the first second of the lecture: fetching a few

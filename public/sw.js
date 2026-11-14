@@ -31,7 +31,7 @@
    module with no way to notice: the deploy succeeds, the file on the server is
    new, and the browser never asks for it again. That is what "I fixed it but you
    still see the old behaviour" looks like — twice, in this project's history. */
-const VERSION = "arsvibe-v10";
+const VERSION = "arsvibe-v11";
 const SHELL_CACHE = `${VERSION}-shell`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const FILE_CACHE = `${VERSION}-files`;
@@ -54,6 +54,10 @@ const SHELL_ASSETS = [
   // Progress is read on the dashboard and the board, needs no request to be
   // useful, and is small enough to pre-cache with the shell.
   "/assets/progress.js",
+  // The playback engines: a first-ever lecture visit should not spend its
+  // startup budget downloading the player library itself.
+  "/assets/vendor/hls.min.js",
+  "/assets/vendor/dash.all.min.js",
   "/assets/logo.svg",
   "/assets/icon.svg",
   // The fallback page has to be here, not merely cached when someone happens to

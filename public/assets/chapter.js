@@ -160,9 +160,28 @@ function streamBadge(item) {
   return `<span class="badge-soon">Recording pending</span>`;
 }
 
+/**
+ * Warm a lecture's stream plan before the click.
+ *
+ * Resolving a plan is the slow half of opening a lecture (a signer probe,
+ * ~1–3 s cold). A pointer resting on a row is intent, and the resolution is
+ * idempotent and cached server-side — so ask for it then, fire-and-forget,
+ * and the click that follows lands on a warm cache. One warm per lecture per
+ * page: hovering down a list must not turn into a probe storm.
+ */
+const warmed = new Set();
+function warmLecture(id) {
+  if (!id || warmed.has(id) || archiveMode) return;
+  warmed.add(id);
+  const url =
+    `/api/stream?batch=${encodeURIComponent(batchId)}` +
+    `&subject=${encodeURIComponent(subjectSlug)}&id=${encodeURIComponent(id)}`;
+  fetch(url).catch(() => {});
+}
+
 function videoRow(item, index) {
   return `
-    <a class="list-row fade-up" href="${watchUrl(item)}">
+    <a class="list-row fade-up" data-lecture="${esc(item.id || "")}" href="${watchUrl(item)}">
       <span class="index">${String(index + 1).padStart(2, "0")}</span>
       <span class="grow">
         <span class="title">${esc(item.title)}</span>
@@ -592,6 +611,20 @@ tabs.addEventListener("click", (e) => {
  * reports what the worker actually did — "Kept" only after the cache holds the
  * file, never on the strength of having asked.
  */
+// Intent to open a lecture warms its stream plan (see `warmLecture`).
+// Delegated like everything else on this list, and on both pointer flavours:
+// a mouse resting on a row and a finger touching one are the same signal.
+for (const eventName of ["pointerover", "touchstart"]) {
+  body.addEventListener(
+    eventName,
+    (event) => {
+      const row = event.target.closest("[data-lecture]");
+      if (row) warmLecture(row.dataset.lecture);
+    },
+    { passive: true }
+  );
+}
+
 body.addEventListener("click", async (event) => {
   // Retry a section whose upstream call failed, and jump to a tab that has
   // content when the current one is empty. Both are delegation, because the

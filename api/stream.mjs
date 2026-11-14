@@ -57,6 +57,25 @@ function isFolderId(value) {
   return FOLDER_ID.test(String(value || ""));
 }
 
+/**
+ * How long a plan may sit in the shared edge cache.
+ *
+ * Two kinds of plan exist. An HLS plan's URL is *our own relay path*
+ * (`/api/sign?videoKey=…`) — no signature is embedded in it, because the
+ * relay signs every playlist and segment as it is asked. That plan is the
+ * same for every viewer and stays true for minutes, so caching it for 60 s
+ * turns a popular lecture's resolution (a signer probe, ~1–3 s) into an
+ * edge hit. A plan built from an already-signed CDN URL *does* embed its
+ * signature, and a retry (`attempt > 0`) exists precisely because the last
+ * plan died — neither may ever be served from a cache.
+ */
+function planCacheSeconds(plan, attempt) {
+  if (!plan || !plan.playable) return 0;
+  if (Number(attempt || 0) > 0) return 0;
+  if (plan.kind === "hls" && String(plan.url || "").startsWith("/api/sign?")) return 60;
+  return 0;
+}
+
 export default async function handler(req, res) {
   // `/api/hls` is rewritten onto this function (see vercel.json): the Hobby plan
   // allows twelve serverless functions per deployment and this project needs
@@ -102,7 +121,7 @@ export default async function handler(req, res) {
         startLevel: level || "",
       });
       if (plan.playable) {
-        return json(res, 200, { success: true, ...plan, resolvedFrom: "", fastPath: "folder" }, 0);
+        return json(res, 200, { success: true, ...plan, resolvedFrom: "", fastPath: "folder" }, planCacheSeconds(plan, attempt));
       }
       // No rendition answered. The schedule may still know something we do not
       // (a re-encoded folder, a lecture that moved), so fall through to it.
@@ -170,11 +189,10 @@ export default async function handler(req, res) {
       {
         success: true,
         ...plan,
-        // Playback plans carry a live signed path, so they must never be cached.
         resolvedFrom: rawUrl,
         ...(detail ? { lecture: detail } : {}),
       },
-      0
+      planCacheSeconds(plan, attempt)
     );
   } catch (err) {
     return json(res, 200, {

@@ -263,7 +263,10 @@ test("/api/sign streams a media segment through as opaque bytes", async () => {
   const out = Buffer.concat(res.chunks);
   assert.equal(out[0], 0x47, "the MPEG-TS sync byte must survive the relay");
   assert.equal(out.length, segment.length, "segment bytes must not be altered");
-  assert.match(res.headers["cache-control"], /max-age=3600/);
+  // Segments are immutable per videoKey+key and identical for every viewer:
+  // a day of edge cache is what makes the next student's segment a CDN hit.
+  assert.match(res.headers["cache-control"], /max-age=86400/);
+  assert.match(res.headers["cache-control"], /immutable/);
 });
 
 test("/api/sign fetches a fresh token when a segment fails with 401", async () => {

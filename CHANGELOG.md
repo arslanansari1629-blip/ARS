@@ -2,6 +2,43 @@
 
 ---
 
+## Round AZ — player startup, and keeping the buffer ahead
+
+The complaint was startup latency: a lecture could take seconds to show its
+first frame, then stall. Profiling the chain (chapter click → schedule →
+signer probe → master → rendition playlist → key → segments) found the time
+in five places, none of them the video itself:
+
+- **A serial manifest probe before playback.** The player fetched the plan's
+  manifest and waited for the whole body before handing anything to hls.js.
+  For our own synthesized master (`/api/sign?…key=master.m3u8`, minted from
+  renditions that answered a probe seconds earlier) that proves nothing and
+  costs a round trip on the critical path; it is now probed only when the
+  plan points at an upstream manifest directly.
+- **Plans were never cached.** An HLS plan's URL is our own relay path — the
+  relay signs per request, so the plan embeds no signature and is identical
+  for every viewer. Playable HLS plans now carry `s-maxage=60` (retries and
+  signed-URL plans never do), turning a popular lecture's 1–3 s probe into
+  an edge hit.
+- **Segments lived an hour in cache; they are immutable.** A segment's bytes
+  never change for a given `videoKey+key`, so the relay now answers
+  `max-age=86400, immutable` — the second student's segment is a CDN hit,
+  not another signer round trip.
+- **One hung signer could stall 25 s.** The signer's fetch timeout is now
+  12 s, inside the player's own fragment timeout, with the host ladder and
+  retries doing recovery.
+- **Nothing warmed up until the click.** Chapter rows now warm a lecture's
+  plan on pointer-over/touch (once per lecture, fire-and-forget, so the
+  click lands on the server's warm caches), the lecture page preloads
+  hls.js, and the service worker pre-caches both playback engines
+  (`arsvibe-v11`). In the player: conservative first-fragment estimate
+  (500 kbps) with EWMA step-up, `startFragPrefetch`, and fragment/manifest
+  timeouts sized to one retry cycle (20 s/10 s, was 45 s/20 s).
+
+Tests 521 → 522 (edge-cacheable plan vs never-cached retry; segment cache
+headers). Production timings from Round AX for reference: a cold resolve
+measured 1.3–3.2 s, of which the probe was essentially all of it.
+
 ## Round AY — the batch's own schedule, at last
 
 A full inspection of pwmarco.site (and its public source) turned up the one

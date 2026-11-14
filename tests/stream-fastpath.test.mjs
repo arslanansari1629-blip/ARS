@@ -137,3 +137,18 @@ test("a retry carries the level the student was watching", async () => {
   assert.equal(other.body.playable, true, "an unavailable level must fall back, not fail");
   assert.ok(calls.length > 0);
 });
+
+test("a playable HLS plan is edge-cacheable; a retry never is", async () => {
+  // The plan's URL is our own relay path (the relay signs per request), so a
+  // 60 s shared cache turns a popular lecture's signer probe into an edge
+  // hit. A retry exists because the last plan died, so it must bypass it.
+  stubFetch({ signerOk: true });
+  const first = await call(`${BASE}`);
+  assert.equal(first.body.playable, true);
+  assert.match(first.headers["cache-control"] || "", /s-maxage=60/, "a fresh HLS plan should be edge-cacheable");
+
+  stubFetch({ signerOk: true });
+  const retry = await call(`${BASE}&attempt=1`);
+  assert.equal(retry.body.playable, true);
+  assert.match(retry.headers["cache-control"] || "", /no-store/, "a retry must never be served a cached plan");
+});
