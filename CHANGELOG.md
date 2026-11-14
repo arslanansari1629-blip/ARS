@@ -2,6 +2,18 @@
 
 ---
 
+## Ultra player — up-next, mini dock, 3x, hold-for-2x, sleep timer
+
+Beyond pwmarco's Plyr player, on the same legitimate relay: speeds now run
+0.5x-3x; when a lecture ends an Up Next countdown (10 s, next title shown)
+offers Play now / Cancel instead of jumping; press-and-hold the picture for
+400 ms runs 2x until release (the hold's click never toggles play); a sleep
+timer (10-60 min) in the settings menu pauses playback; the screenshot menu
+item saves the current frame as a PNG; scrolling to the notes mid-playback
+docks the player into a mini corner player (same element, stream never
+reloads, tap returns); stats now include the ABR bandwidth estimate and
+dropped/total frames. SW arsvibe-v12.
+
 ## Round AZ — player startup, and keeping the buffer ahead
 
 The complaint was startup latency: a lecture could take seconds to show its
