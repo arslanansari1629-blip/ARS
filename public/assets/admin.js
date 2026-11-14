@@ -630,11 +630,14 @@ function renderMaintenance(m) {
   }
   const meta = $("#maintMeta");
   if (meta) {
-    meta.textContent = m.on
-      ? "Since " + (m.since || "—") + " · stored in " + (m.store || "memory") +
-        (m.store === "memory" ? " (this instance only — attach storage to make it site-wide)" : " (site-wide)")
-      : "Stored in " + (m.store || "memory") +
-        (m.store === "memory" ? " (this instance only — attach storage to make it site-wide)" : " (site-wide, every instance)");
+    if (m.store === "memory") {
+      meta.textContent =
+        "⚠ NO SHARED STORE ATTACHED — right now this switch only reaches the server instance that happens to answer, so it will look like it does nothing. Attach Upstash KV to this project (Vercel → Storage) and redeploy; then this line will say “redis” and one click takes the whole site down.";
+    } else {
+      meta.textContent = m.on
+        ? "Since " + (m.since || "—") + " · stored in " + m.store + " (site-wide, every instance)"
+        : "Stored in " + m.store + " (site-wide, every instance)";
+    }
   }
   const input = $("#maintMessage");
   if (input && m.on && m.message && document.activeElement !== input) input.value = m.message;
@@ -666,6 +669,19 @@ async function toggleMaintenance(btn) {
     const data = await res.json().catch(() => null);
     if (!res.ok || !data?.success) throw new Error((data && data.error) || `HTTP ${res.status}`);
     renderMaintenance(data.maintenance);
+    // Prove it stuck. The toggle wrote through one instance; the public
+    // status read may land on another. If the two disagree, the flag is
+    // living in per-instance memory — say so loudly instead of letting
+    // the operator think the site is down when it is not.
+    await new Promise((r) => setTimeout(r, 700));
+    const check = await fetch("/api/admin?action=maintenance", { cache: "no-store" })
+      .then((r) => r.json())
+      .catch(() => null);
+    if (check?.maintenance && Boolean(check.maintenance.on) !== turningOn) {
+      throw new Error(
+        "The switch did not stick site-wide — it is stored in per-instance memory. Attach Upstash KV (Vercel → Storage tab → connect to this project), redeploy, and this will work in one click."
+      );
+    }
     setStatusLine(turningOn ? "Maintenance mode is ON — the site is down for visitors" : "Maintenance off — the site is live");
     load();
   } catch (error) {
