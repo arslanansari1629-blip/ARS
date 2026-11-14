@@ -716,3 +716,43 @@ test("a rendition probe asks each signer pair exactly once", async () => {
     `each signer pair must be asked once, saw duplicates in ${asked.length} asks`
   );
 });
+
+test("a plan is never minted from the first rendition that answers", async () => {
+  // Regression: the probe returns on first-answer + 250 ms grace, so a fast
+  // 240p answer used to become the whole plan — cached for ten minutes —
+  // while the 720p playlist landed a second later. The lecture then played
+  // start to finish at 240p with an empty quality menu. The resolver must
+  // give the ladder its bounded widen window before minting the plan.
+  const { resolveStream, forgetSignerToken } = await import("../lib/api-data.mjs");
+  forgetSignerToken();
+  const previous = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = String(input && input.url ? input.url : input);
+    if (/generate_token/.test(url)) {
+      return new Response(JSON.stringify({ token: "t" }), { status: 200 });
+    }
+    const m = url.match(/(1080|720|480|360|240)%2Fmain|key=(1080|720|480|360|240)\/main/);
+    const quality = m ? m[1] || m[2] : null;
+    if (quality) {
+      // 240 answers instantly; everything else lands just behind it.
+      if (quality !== "240") await new Promise((r) => setTimeout(r, 900));
+      return new Response("#EXTM3U\n#EXT-X-VERSION:3\n", { status: 200 });
+    }
+    return new Response("", { status: 404 });
+  };
+  try {
+    const plan = await resolveStream({
+      rawUrl: "",
+      folder: "4c80f597-a1f3-45a1-9793-010f36f5af99",
+      fresh: true,
+    });
+    assert.equal(plan.playable, true);
+    assert.ok(
+      plan.renditions.includes("720"),
+      `plan was minted from the first answer only: ${JSON.stringify(plan.renditions)}`
+    );
+    assert.ok(plan.url.includes("720"), "master playlist omits the 720p rendition");
+  } finally {
+    globalThis.fetch = previous;
+  }
+});

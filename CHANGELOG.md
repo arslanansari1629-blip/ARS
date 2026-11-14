@@ -2,6 +2,20 @@
 
 ---
 
+## God upgrade, honestly: the full quality ladder, always
+
+A student opened a lecture that played start to finish at 240p with an
+empty quality menu — while its 720p playlist served fine through the relay
+the whole time. Cause: the rendition probe returns on first-answer + 250 ms
+grace (a deliberate latency trade), 240p won that race, and the plan minted
+from it — one rendition, master playlist and all — was cached for ten
+minutes. Three fixes: the resolver now gives an incomplete ladder a bounded
+3 s widen window before minting (cold resolves only; the result is cached
+for everyone after), and neither the plan cache nor the rendition cache
+keeps a partial ladder for ten minutes any more — partial answers expire
+in 45 s and promote to the full window when the sweep settles wider. A
+lecture can no longer be pinned to its lowest rendition by a race.
+
 ## Watch page + Zero-Buffer — every lecture moved to a dedicated player
 
 All lectures now play on a new dedicated page, `/watch.html`; every link
