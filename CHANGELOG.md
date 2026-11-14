@@ -2,6 +2,26 @@
 
 ---
 
+## God-level self-healing: playback canary, own-signer probe, autopilot
+
+The healer used to wait for a human: probes only repaired when an
+operator pressed a button. Three upgrades close that hole. (1) A
+**playback canary** probe — the only check that proves the whole chain
+a student exercises, resolving a real cached lecture and fetching its
+first segment through the signing ladder (throttled to one run per two
+minutes; it would have caught the day every relay died at once).
+(2) An **own-signer probe** watching `ARS_SIGNER_URL/health`, skipped —
+never a fault — until our Worker is configured. (3) **Autopilot**: the
+scheduler's five-minute tick now runs one *applying* healer sweep, so
+probe faults (dead canary, expiring token, degraded ladder, dead own
+worker) are repaired under the existing cooldowns, rungs and hourly
+budget with nobody watching. New repairs `playback.recover` and
+`signer.failover` climb bounded ladders and stop at `needsOperator`.
+The panel gains an Autopilot KPI strip — canary state, repairs this
+hour against budget, incidents → recoveries, mean time to repair,
+autopilot repairs, operator-needed count — all computed from the
+healer's timeline, never asserted.
+
 ## Our own signer: a Cloudflare Worker we control
 
 The free relays died together (vidcloud: Cloudflare 1027, its owner's

@@ -223,7 +223,7 @@ function render(data) {
     ["Node", data.release.node],
     ["Deployment", data.release.deployment || "—"],
   ]);
-  renderHealing(data.heal || data.selfHeal);
+  renderHealing(data.heal || data.selfHeal, data.scan);
   // The scanner rides along with the stats poll, like the healer: one request
   // paints the whole panel, and a GET never triggers a scan or a repair.
   renderScanner(data.scan);
@@ -400,7 +400,7 @@ function relayLine(r) {
  *      until its probe passes, which is why the ladder keeps the state it
  *      reached instead of snapping back to green on the first successful action.
  */
-function renderHealing(h) {
+function renderHealing(h, scan) {
   const kv = $("#healKv");
   const log = $("#healLog");
   const verdict = $("#healVerdict");
@@ -412,6 +412,31 @@ function renderHealing(h) {
     if (verdict) verdict.textContent = "This build does not report a healer";
     log.innerHTML = `<p class="tiny dim">The stats route answered without a healer section.</p>`;
     return;
+  }
+
+  // Autopilot KPIs: what the self-healing achieved without a human —
+  // repairs spent from the hourly budget, mean time to repair, and the
+  // canary's latest word on whether a lecture actually plays.
+  const kpis = $("#healKpis");
+  if (kpis) {
+    const ap = h.autopilot || {};
+    const sched = (scan && scan.autopilot) || {};
+    const tile = (label, value, cls) =>
+      `<div class="heal-kpi ${cls || ""}"><strong>${esc(value)}</strong><span>${esc(label)}</span></div>`;
+    const canary = ap.canary
+      ? ap.canary.skipped
+        ? "warming up"
+        : ap.canary.ok
+          ? "playing · " + String(ap.canary.ms) + " ms"
+          : "FAILING"
+      : "—";
+    kpis.innerHTML =
+      tile("playback canary", canary, ap.canary && !ap.canary.ok && !ap.canary.skipped ? "bad" : "good") +
+      tile("repairs this hour", String(ap.repairsLastHour ?? 0) + " / " + String(ap.budgetCap ?? 12), ap.budgetExhausted ? "bad" : "") +
+      tile("incidents → recoveries", String(ap.incidents ?? 0) + " → " + String(ap.recoveries ?? 0)) +
+      tile("mean time to repair", ap.mttrSeconds == null ? "—" : duration(ap.mttrSeconds), "") +
+      tile("autopilot repairs", String(sched.repairs ?? 0) + (sched.lastRepairAt ? " · last " + ago(Date.parse(sched.lastRepairAt)) : ""), "") +
+      tile("needs an operator", String(ap.failedNow ?? 0), ap.failedNow ? "bad" : "good");
   }
 
   const counts = h.counts || {};
