@@ -14,6 +14,7 @@ import {
 import { loadCatalog as fetchCatalog, searchBatches } from "./data.js";
 import { heartButton, wireFavourites } from "./favourites.js";
 import { getLibrary } from "./library.js";
+import { progress } from "./progress.js";
 
 mountChrome("home");
 wireFavourites();
@@ -109,6 +110,74 @@ if (goalGrid) {
         </a>`;
     })
     .join("");
+})();
+
+/* The study hub: streak, XP and in-progress count for a returning student.
+   All of it already exists in progress.js/library — the front door just
+   never showed it. First-time visitors see nothing here (no fake zeros). */
+(function studyHub() {
+  const section = document.getElementById("hubSection");
+  if (!section) return;
+  try {
+    const p = progress();
+    const lectures = getLibrary().lectures || [];
+    const inProgress = lectures.filter((l) => Number(localStorage.getItem(`pos:${l.id}`) || 0) > 12).length;
+    if (!p.xp && !p.streak.current && !inProgress) return;
+    section.hidden = false;
+    document.getElementById("hubStreak").textContent = `${p.streak.current} day streak`;
+    document.getElementById("hubStreakNote").textContent = p.streak.studiedToday ? "Today counts ✓" : "One DPP keeps it alive";
+    document.getElementById("hubXp").textContent = `${p.xp.toLocaleString("en-IN")} XP`;
+    document.getElementById("hubLevel").textContent = `Level ${p.level} · ${p.title}`;
+    document.getElementById("hubBarFill").style.width = `${p.percent}%`;
+    document.getElementById("hubProgress").textContent = inProgress ? `${inProgress} lecture${inProgress === 1 ? "" : "s"} in progress` : "Nothing in progress";
+  } catch {
+    /* a broken hub must never break the home page */
+  }
+})();
+
+/* Picked for you: the goal hiding inside the batches you already open,
+   searched back against the live catalogue. */
+(async function recommendations() {
+  const section = document.getElementById("recoSection");
+  const grid = document.getElementById("recoGrid");
+  if (!section || !grid) return;
+  const names = [
+    ...recentBatches().map((b) => b.name || ""),
+    ...(getLibrary().batches || []).map((b) => b.name || ""),
+  ].join(" ");
+  const goal = GOALS.map((g) => g[2]).find((q) => new RegExp(`\\b${q}\\b`, "i").test(names));
+  if (!goal) return;
+  try {
+    const found = await searchBatches(goal);
+    const rows = (found?.batches || found || []).filter((b) => b && b.id).slice(0, 4);
+    if (!rows.length) return;
+    section.hidden = false;
+    grid.innerHTML = rows.map(batchCard).join("");
+    wireFavourites();
+  } catch {
+    /* recommendations are a garnish, never a failure */
+  }
+})();
+
+/* Voice search: say the batch name instead of typing it (where supported). */
+(function voiceSearch() {
+  const btn = document.getElementById("voiceSearchBtn");
+  const input = document.getElementById("heroSearchInput");
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!btn || !input || !SR) return;
+  btn.hidden = false;
+  btn.addEventListener("click", () => {
+    const rec = new SR();
+    rec.lang = "en-IN";
+    btn.textContent = "🔴";
+    rec.onresult = (e) => {
+      input.value = e.results[0][0].transcript || "";
+      document.getElementById("heroSearch")?.requestSubmit();
+    };
+    rec.onend = () => (btn.textContent = "🎙");
+    rec.onerror = () => (btn.textContent = "🎙");
+    try { rec.start(); } catch { btn.textContent = "🎙"; }
+  });
 })();
 
 async function loadCatalog() {

@@ -331,3 +331,96 @@ window.addEventListener("keydown", (e) => {
     gTimer = setTimeout(() => (gPending = false), 800);
   }
 });
+
+/* ---- focus timer: a small pomodoro that lives in the nav ---- */
+(function focusTimer() {
+  if (!nav) return;
+  const actions = nav.querySelector(".nav-actions");
+  if (!actions || actions.querySelector(".focus-chip")) return;
+  const chip = document.createElement("button");
+  chip.className = "focus-chip";
+  chip.type = "button";
+  chip.title = "Focus timer";
+  chip.innerHTML = `⏱ <span data-focus-label>Focus</span>`;
+  actions.appendChild(chip);
+
+  const pop = document.createElement("div");
+  pop.className = "focus-pop card";
+  pop.hidden = true;
+  pop.innerHTML = `
+    <div class="focus-time" data-f-time>25:00</div>
+    <div class="focus-presets">
+      ${[15, 25, 50].map((m) => `<button type="button" class="goal-chip" data-f-preset="${m}">${m}m</button>`).join("")}
+    </div>
+    <div class="focus-actions">
+      <button type="button" class="btn btn-primary btn-sm" data-f-toggle>Start</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-f-reset>Reset</button>
+    </div>
+    <p class="tiny dim" data-f-count></p>`;
+  document.body.appendChild(pop);
+
+  let total = 25 * 60, left = total, timer = null;
+  const label = chip.querySelector("[data-focus-label]");
+  const timeEl = pop.querySelector("[data-f-time]");
+  const toggle = pop.querySelector("[data-f-toggle]");
+  const countEl = pop.querySelector("[data-f-count]");
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const todayCount = () => {
+    try { return JSON.parse(localStorage.getItem("arsvibe.focus") || "{}"); } catch { return {}; }
+  };
+  const paint = () => {
+    timeEl.textContent = fmt(left);
+    label.textContent = timer ? fmt(left) : "Focus";
+    const day = new Date().toISOString().slice(0, 10);
+    countEl.textContent = `${todayCount()[day] || 0} focus session${(todayCount()[day] || 0) === 1 ? "" : "s"} today`;
+  };
+  const stop = () => { clearInterval(timer); timer = null; toggle.textContent = "Start"; paint(); };
+  const done = () => {
+    stop();
+    left = total;
+    const store = todayCount();
+    const day = new Date().toISOString().slice(0, 10);
+    store[day] = (store[day] || 0) + 1;
+    try { localStorage.setItem("arsvibe.focus", JSON.stringify(store)); } catch { /* ignore */ }
+    paint();
+    import("./app.js").then(({ toast }) => toast("⏱ Focus session complete — nice work. Take a breath.")).catch(() => {});
+  };
+  toggle.addEventListener("click", () => {
+    if (timer) return stop();
+    toggle.textContent = "Pause";
+    timer = setInterval(() => { left -= 1; if (left <= 0) done(); else paint(); }, 1000);
+    paint();
+  });
+  pop.querySelector("[data-f-reset]").addEventListener("click", () => { stop(); left = total; paint(); });
+  pop.querySelectorAll("[data-f-preset]").forEach((b) =>
+    b.addEventListener("click", () => { stop(); total = Number(b.dataset.fPreset) * 60; left = total; paint(); })
+  );
+  chip.addEventListener("click", () => {
+    pop.hidden = !pop.hidden;
+    if (!pop.hidden) {
+      const r = chip.getBoundingClientRect();
+      pop.style.top = `${r.bottom + 10}px`;
+      pop.style.right = `${Math.max(10, innerWidth - r.right)}px`;
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (!pop.hidden && !pop.contains(e.target) && e.target !== chip && !chip.contains(e.target)) pop.hidden = true;
+  });
+  paint();
+})();
+
+/* ---- hover prefetch: pages arrive before the click lands ---- */
+(function hoverPrefetch() {
+  const seen = new Set();
+  document.addEventListener("pointerover", (e) => {
+    const a = e.target.closest?.('a[href^="/"]');
+    if (!a) return;
+    const href = a.getAttribute("href");
+    if (!href || href.startsWith("/api") || seen.has(href)) return;
+    seen.add(href);
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.href = href;
+    document.head.appendChild(link);
+  }, { passive: true });
+})();

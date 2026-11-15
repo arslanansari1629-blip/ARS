@@ -2,6 +2,19 @@
 
 ---
 
+## Round 3: player notes, focus timer, personalised home
+
+Lectures gain a memory: a My Notes card on the watch page pins notes
+and bookmarks to timestamps (stored per lecture in the browser, one
+click seeks back), as a companion module that borrows only the player's
+clock. A focus timer lives in the nav — 15/25/50-minute pomodoros with
+a daily session count. The home page turns personal: a study-hub band
+(streak, XP level and bar, lectures in progress) for returning
+students, and a "Picked for you" rail that finds the exam goal inside
+the batches you already open and searches the catalogue for more.
+Internal links prefetch on hover so pages land before the click.
+Voice search joins the hero where the browser supports it. SW v18.
+
 ## Round 2: accents, goals, continue-watching, shortcuts
 
 The aurora becomes a choice: four accent themes (Aurora, Ocean,

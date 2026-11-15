@@ -142,6 +142,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
             <input class="input" id="heroSearchInput" type="search" placeholder="Search a batch — e.g. Arjuna JEE 2027, Yakeen, Udaan…" />
           </div>
+          <button class="btn btn-ghost" id="voiceSearchBtn" type="button" title="Voice search" hidden>🎙</button>
           <button class="btn btn-primary" type="submit">Search</button>
         </form>
         <div class="search-results hide" id="heroSearchResults"></div>
@@ -184,6 +185,27 @@
         <div class="orb orb-a"></div>
         <div class="orb orb-b"></div>
       </div>
+    </div>
+  </section>
+
+  <section class="section hub-section" id="hubSection" hidden>
+    <div class="shell">
+      <div class="card hub-card">
+        <div class="hub-item"><span class="hub-emoji">🔥</span><div><strong id="hubStreak">0 day streak</strong><span class="tiny dim" id="hubStreakNote">Mark a DPP to light it</span></div></div>
+        <div class="hub-item"><span class="hub-emoji">⭐</span><div><strong id="hubXp">0 XP</strong><span class="tiny dim" id="hubLevel">Level 1</span></div><div class="hub-bar"><i id="hubBarFill"></i></div></div>
+        <div class="hub-item"><span class="hub-emoji">▶️</span><div><strong id="hubProgress">Nothing in progress</strong><span class="tiny dim">Lectures you have started</span></div></div>
+        <a class="btn btn-primary btn-sm" href="/dashboard.html">Open dashboard</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="recoSection" hidden>
+    <div class="shell">
+      <div class="section-head">
+        <span class="eyebrow">Picked for you</span>
+        <h2>Because of what you study</h2>
+      </div>
+      <div class="grid grid-batches" id="recoGrid"></div>
     </div>
   </section>
 

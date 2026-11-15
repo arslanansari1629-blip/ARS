@@ -10168,3 +10168,45 @@ kbd {
   transform: translateX(-60%); transition: opacity 0.25s var(--ease), transform 0.6s var(--ease);
 }
 .batch-card:hover::before { opacity: 1; transform: translateX(60%); }
+
+/* ==========================================================================
+   ROUND 3 — notes, focus, hub (2026)
+   ========================================================================== */
+
+/* Player notes */
+.note-form { display: flex; gap: 8px; margin-top: 10px; }
+.note-form .input { flex: 1; min-width: 0; }
+.note-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.note-row { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 12px; background: rgba(150, 160, 255, 0.05); border: 1px solid rgba(170, 180, 255, 0.09); }
+.note-seek {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 700; color: var(--blue-ink);
+  background: var(--blue-soft); border: 1px solid rgba(157, 140, 255, 0.3);
+  padding: 3px 8px; border-radius: var(--r-pill); cursor: pointer; flex: 0 0 auto;
+}
+.note-seek:hover { background: var(--blue-soft-2); }
+.note-text { flex: 1; font-size: 0.82rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.note-del { background: none; border: 0; color: var(--ink-4); cursor: pointer; font-size: 0.75rem; padding: 2px 4px; }
+.note-del:hover { color: var(--danger); }
+
+/* Focus timer */
+.focus-chip {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 0.78rem; font-weight: 600; color: var(--ink-2);
+  padding: 7px 12px; border-radius: var(--r-pill); margin-left: 8px;
+  background: rgba(150, 160, 255, 0.07); border: 1px solid rgba(170, 180, 255, 0.16);
+}
+.focus-chip:hover { background: rgba(150, 160, 255, 0.13); color: var(--ink); }
+.focus-pop { position: fixed; z-index: 150; width: 250px; padding: 18px; border-radius: 20px; text-align: center; }
+.focus-time { font-family: var(--display); font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; }
+.focus-presets { display: flex; gap: 6px; justify-content: center; margin: 10px 0; }
+.focus-actions { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+
+/* Home study hub */
+.hub-section { padding-bottom: 0; }
+.hub-card { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; padding: 18px 22px; }
+.hub-item { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.hub-item strong { display: block; font-family: var(--display); font-size: 0.98rem; }
+.hub-emoji { font-size: 22px; }
+.hub-bar { width: 110px; height: 7px; border-radius: var(--r-pill); background: rgba(170, 180, 255, 0.14); overflow: hidden; }
+.hub-bar i { display: block; height: 100%; width: 0; background: var(--aurora); border-radius: var(--r-pill); transition: width 0.6s var(--ease); }
+.hub-card .btn { margin-left: auto; }

@@ -330,6 +330,20 @@
           <div class="attach-list" id="docs"></div>
         </div>
 
+        <div class="card pad-md notes-card" id="notesCard">
+          <div class="row between">
+            <h3>📝 My notes</h3>
+            <span class="pill">at <span id="noteStamp">0:00</span></span>
+          </div>
+          <p class="tiny muted mt-1">Notes pinned to the moment in this lecture. Click a time to jump back to it.</p>
+          <div class="note-form">
+            <input class="input" id="noteInput" type="text" maxlength="240" placeholder="What clicked? e.g. sign convention trick…" />
+            <button class="btn btn-primary btn-sm" id="noteAdd" type="button">Add</button>
+            <button class="btn btn-ghost btn-sm" id="noteMark" type="button" title="Bookmark this moment">🔖</button>
+          </div>
+          <div class="note-list" id="notesList"></div>
+        </div>
+
         <div class="card pad-md">
           <h3>FAQ</h3>
           <p class="tiny muted mt-1">
@@ -377,6 +391,7 @@
 </div>
 
 <script type="module" src="/assets/lecture.js"></script>
+<script type="module" src="/assets/watch-notes.js"></script>
 <script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
   <script type="module" src="/assets/telemetry.js"></script>
