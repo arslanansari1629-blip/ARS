@@ -1,6 +1,6 @@
 # ArsVibe PW — Physics Wallah batches, notes, DPPs & lectures
 
-A complete, deployed clone of **[pw.eduvibe.cc.cd](https://pw.eduvibe.cc.cd/)** — the ArsVibe
+A complete, deployed  — the ArsVibe
 "Physics Wallah" learning portal.
 
 Every batch name, subject, chapter list, lecture, class-note PDF, DPP and announcement shown by
