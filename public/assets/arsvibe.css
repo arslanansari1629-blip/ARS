@@ -10210,3 +10210,34 @@ kbd {
 .hub-bar { width: 110px; height: 7px; border-radius: var(--r-pill); background: rgba(170, 180, 255, 0.14); overflow: hidden; }
 .hub-bar i { display: block; height: 100%; width: 0; background: var(--aurora); border-radius: var(--r-pill); transition: width 0.6s var(--ease); }
 .hub-card .btn { margin-left: auto; }
+
+/* ==========================================================================
+   ROUND 4 — player plus + AI doubt (2026)
+   ========================================================================== */
+
+/* Theatre: player takes the row, the side cards line up beneath it */
+body.theatre .lecture-grid { grid-template-columns: 1fr !important; }
+body.theatre .lecture-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start; }
+.player-wrap.has-ambient { box-shadow: 0 0 90px -18px rgba(124, 108, 255, 0.45), var(--lift-3); }
+.scrubber-track { position: relative; }
+.note-marker {
+  position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%;
+  transform: translate(-50%, -50%); z-index: 4; cursor: pointer; padding: 0;
+  background: var(--amber); border: 2px solid rgba(5, 6, 15, 0.85);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.8);
+}
+.note-marker:hover { transform: translate(-50%, -50%) scale(1.35); }
+
+/* AI doubt */
+.ai-log { display: flex; flex-direction: column; gap: 9px; max-height: 320px; overflow-y: auto; margin-top: 10px; padding-right: 2px; }
+.ai-msg { padding: 9px 11px; border-radius: 14px; font-size: 0.83rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-msg p { margin: 2px 0 0; }
+.ai-who { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-4); }
+.ai-msg.me { background: var(--blue-soft); border: 1px solid rgba(157, 140, 255, 0.25); align-self: flex-end; max-width: 88%; }
+.ai-msg.ai { background: rgba(150, 160, 255, 0.05); border: 1px solid rgba(170, 180, 255, 0.1); align-self: flex-start; max-width: 94%; }
+.ai-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.ai-chips .goal-chip { cursor: pointer; font-family: inherit; }
+.ai-settings { margin-top: 12px; }
+.ai-settings label { display: block; margin-top: 8px; }
+.ai-settings .input { width: 100%; margin-top: 4px; }
+.ai-settings .btn { margin-top: 10px; }

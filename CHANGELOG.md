@@ -2,6 +2,24 @@
 
 ---
 
+## Round 4: DPP fixes for big batches, player plus, AI doubt
+
+Three quiet bugs explained "some batches don't work": the chapter and
+contents walks stopped at the first short page (an assumed page size
+of 20), so big subjects lost every chapter past the first page; the DPP
+paper walk read chapters serially inside a 45 s deadline, so exactly
+the big batches timed out; and one shed request from PW's CDN marked a
+paper dead. All three fixed — walks end on an empty or fully-repeated
+page with id dedupe, chapters collect five at a time with partial
+failures staying partial, paper downloads retry a 5xx once with a
+proper referer. The player gains theatre mode, an ambient glow, and
+your note/bookmark timestamps drawn as markers on the scrubber. And AI
+Doubt sits beside the player: instant offline help (site how-tos,
+revision lists and self-tests built from your own notes) plus an
+optional bring-your-own-key model — OpenAI-compatible or Gemini —
+that answers with this lecture as context, the key kept only in the
+browser. Service worker v19.
+
 ## Round 3: player notes, focus timer, personalised home
 
 Lectures gain a memory: a My Notes card on the watch page pins notes

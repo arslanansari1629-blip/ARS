@@ -344,6 +344,35 @@
           <div class="note-list" id="notesList"></div>
         </div>
 
+        <div class="card pad-md ai-card" id="aiCard">
+          <div class="row between">
+            <h3>🤖 AI Doubt</h3>
+            <span class="pill pill-brand">study assistant</span>
+          </div>
+          <p class="tiny muted mt-1">Ask about this lecture, revision, DPPs or the site. Instant answers work offline; connect your own AI key for deep topic answers.</p>
+          <div class="ai-log" id="aiLog" aria-live="polite"></div>
+          <div class="ai-chips">
+            <button class="goal-chip" type="button" data-ai-ask="Summarise this lecture for revision">Summarise</button>
+            <button class="goal-chip" type="button" data-ai-ask="Turn my notes into quiz questions">Quiz me</button>
+            <button class="goal-chip" type="button" data-ai-ask="How do I revise with my notes?">Revision plan</button>
+            <button class="goal-chip" type="button" data-ai-ask="How do I download this lecture?">Download help</button>
+          </div>
+          <div class="note-form">
+            <input class="input" id="aiInput" type="text" maxlength="500" placeholder="Ask a doubt…" />
+            <button class="btn btn-primary btn-sm" id="aiSend" type="button">Ask</button>
+          </div>
+          <details class="ai-settings">
+            <summary class="tiny dim">Connect your AI (optional — key stays in this browser)</summary>
+            <label class="tiny dim">Base URL (OpenAI-compatible; Gemini: https://generativelanguage.googleapis.com/v1beta/openai)
+              <input class="input" id="aiBase" type="text" placeholder="https://api.openai.com/v1" /></label>
+            <label class="tiny dim">Model
+              <input class="input" id="aiModel" type="text" placeholder="gpt-4o-mini / gemini-2.0-flash" /></label>
+            <label class="tiny dim">API key
+              <input class="input" id="aiKey" type="password" placeholder="sk-…" autocomplete="off" /></label>
+            <button class="btn btn-ghost btn-sm" id="aiSave" type="button">Save</button>
+          </details>
+        </div>
+
         <div class="card pad-md">
           <h3>FAQ</h3>
           <p class="tiny muted mt-1">
@@ -392,6 +421,8 @@
 
 <script type="module" src="/assets/lecture.js"></script>
 <script type="module" src="/assets/watch-notes.js"></script>
+<script type="module" src="/assets/player-plus.js"></script>
+<script type="module" src="/assets/ai-doubt.js"></script>
 <script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
   <script type="module" src="/assets/telemetry.js"></script>
