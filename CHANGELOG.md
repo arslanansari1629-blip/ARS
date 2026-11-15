@@ -2,6 +2,20 @@
 
 ---
 
+## Round 5: AI removed, live classes with discussion, smoothness
+
+The AI Doubt panel is removed entirely, as requested. In its place the
+site grows the classroom itself: a Live Classes page gathers today's
+schedule (IST) across your library/recents or the popular batches —
+Live now, Starting soon with ticking countdowns, Earlier today with
+recordings — refreshing every minute, with one tap from a live card
+into the player. Live classes get a Live-edge button in the player and
+a per-lecture Class discussion on the watch page: comments post, list
+and like through the utility route (shared document store; the header
+says plainly when the thread is per-instance memory). Smoothness lands
+as cross-page view transitions, content-visibility on heavy cards, and
+the usual minute-cadence refresh discipline. Service worker v20.
+
 ## Round 4: DPP fixes for big batches, player plus, AI doubt
 
 Three quiet bugs explained "some batches don't work": the chapter and

@@ -39,6 +39,31 @@ if (actions && !document.getElementById("theatreBtn")) {
   });
 }
 
+/* ---- live edge: for a live class, "jump to now" is one tap ---- */
+if (video && actions && !document.getElementById("liveEdgeBtn")) {
+  const btn = document.createElement("button");
+  btn.className = "btn btn-primary btn-sm";
+  btn.id = "liveEdgeBtn";
+  btn.type = "button";
+  btn.textContent = "🔴 Live";
+  btn.title = "Jump to the live edge";
+  btn.hidden = true;
+  actions.appendChild(btn);
+  btn.addEventListener("click", () => {
+    if (Number.isFinite(video.duration) && video.duration) video.currentTime = Math.max(0, video.duration - 2);
+    else if (video.seekable?.length) video.currentTime = video.seekable.end(video.seekable.length - 1);
+    video.play?.().catch(() => {});
+  });
+  const checkLive = () => {
+    const live = video.duration === Infinity || (video.seekable?.length && !Number.isFinite(video.duration));
+    btn.hidden = !live;
+    document.getElementById("commentsCard")?.classList.toggle("is-live", Boolean(live));
+  };
+  video.addEventListener("loadedmetadata", checkLive);
+  video.addEventListener("durationchange", checkLive);
+  checkLive();
+}
+
 /* ---- note markers: your notes, drawn on the scrubber ---- */
 function paintMarkers() {
   if (!track || !video || !lectureId) return;

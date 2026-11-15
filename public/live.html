@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live Classes — ArsVibe PW</title>
+<meta name="description" content="Physics Wallah classes live right now and starting today — join in one tap." />
+<meta name="theme-color" content="#05060f" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ArsVibe" />
+<meta property="og:title" content="Live Classes — ArsVibe" />
+<meta property="og:description" content="PW classes live right now and starting today, across your batches." />
+<meta property="og:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" />
+<link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/live" />
+</head>
+<body data-page="live">
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="/">
+      <img class="brand-img" src="/assets/logo.svg" alt="ArsVibe" width="30" height="30" />
+      <span>ArsVibe<small>Physics Wallah</small></span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <nav class="nav-links" id="navLinks">
+      <a href="/" data-page="home">Home</a>
+      <a href="/live.html" data-page="live">🔴 Live</a>
+      <a href="/batches.html" data-page="batches">Batches</a>
+      <a href="/leaderboard.html" data-page="leaderboard">Leaderboard</a>
+      <a href="/favourites.html" data-page="favourites">Favourites</a>
+      <a href="/library.html" data-page="library">My Library</a>
+      <a href="/downloads.html" data-page="downloads">Downloads</a>
+      <a href="/dashboard.html" data-page="dashboard">Dashboard</a>
+    </nav>
+    <div class="nav-actions" id="sessionChip"></div>
+  </div>
+</header>
+
+<main id="main" class="section">
+  <div class="shell">
+    <div class="section-head">
+      <span class="eyebrow"><span class="dot"></span> Live classes</span>
+      <h1>On air &amp; starting today</h1>
+      <p class="muted">Every class scheduled for today (IST) across your batches and the popular ones — refreshed automatically. Join opens the lecture; while it is live, the class discussion runs beside the player.</p>
+    </div>
+
+    <div class="goal-chips" role="tablist" aria-label="Which batches">
+      <button class="goal-chip live-scope active" type="button" data-scope="mine">My batches</button>
+      <button class="goal-chip live-scope" type="button" data-scope="popular">Popular batches</button>
+      <span class="tiny dim" id="liveStamp" style="align-self:center">Loading…</span>
+    </div>
+
+    <section class="live-block">
+      <h2 class="live-h"><span class="live-dot"></span> Live now <span class="pill pill-accent" id="liveCount">0</span></h2>
+      <div class="live-grid" id="liveNow"></div>
+    </section>
+
+    <section class="live-block">
+      <h2 class="live-h">⏳ Starting soon</h2>
+      <div class="live-grid" id="liveSoon"></div>
+    </section>
+
+    <section class="live-block">
+      <h2 class="live-h">Earlier today</h2>
+      <div class="live-grid" id="liveDone"></div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="shell footer-inner">
+    <div><strong>ArsVibe PW</strong> · <span class="dim">live schedule read from the PW catalogue, IST</span></div>
+    <div class="row"><a href="/batches.html">Batches</a><a href="/dashboard.html">Dashboard</a></div>
+  </div>
+</footer>
+
+<script type="module" src="/assets/live.js"></script>
+<script type="module" src="/assets/shell.mjs"></script>
+<script type="module" src="/assets/ui.js"></script>
+<script type="module" src="/assets/telemetry.js"></script>
+<script type="module" src="/assets/offline-boot.js"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { cors, json, query } from "../lib/http.mjs";
 import { maintenanceGate } from "../lib/maintenance.mjs";
 import { board, publish } from "../lib/leaderboard.mjs";
+import { listComments, postComment, likeComment } from "../lib/comments.mjs";
 import {
   resolveToken,
   pwHeaders,
@@ -306,6 +307,37 @@ async function readJson(req) {
   }
 }
 
+/**
+ * GET  /api/token?route=comments&lecture=<id>            → the thread
+ * POST /api/token?route=comments { lecture, name, text } → add a comment
+ * POST /api/token?route=comments { lecture, like: <id> } → like one
+ *
+ * Class discussion rides this route for the twelve-function reason, like
+ * the leaderboard beside it. Writes are cleaned and capped in
+ * lib/comments.mjs; the store says honestly whether the thread is shared
+ * or living in one instance's memory.
+ */
+async function commentsRoute(req, res) {
+  const params = query(req);
+  if (req.method === "GET") {
+    const out = await listComments(String(params.lecture || ""));
+    return json(res, out.success ? 200 : 400, out, 5);
+  }
+  if (req.method === "POST") {
+    const payload = await readJson(req);
+    if (!payload || typeof payload !== "object") {
+      return json(res, 400, { success: false, error: "A JSON body is required." });
+    }
+    const lecture = String(payload.lecture || "");
+    const out = payload.like
+      ? await likeComment(lecture, String(payload.like))
+      : await postComment(lecture, payload);
+    return json(res, out.success ? 200 : 400, out);
+  }
+  res.setHeader("Allow", "GET, POST, OPTIONS");
+  return json(res, 405, { success: false, error: "Method not allowed" });
+}
+
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
@@ -313,6 +345,7 @@ export default async function handler(req, res) {
 
   const { route } = query(req);
   if (route === "board") return leaderboardRoute(req, res);
+  if (route === "comments") return commentsRoute(req, res);
 
   if (req.method !== "GET") {
     return json(res, 405, { success: false, error: "Method not allowed" });

@@ -10241,3 +10241,41 @@ body.theatre .lecture-side { display: grid; grid-template-columns: repeat(auto-f
 .ai-settings label { display: block; margin-top: 8px; }
 .ai-settings .input { width: 100%; margin-top: 4px; }
 .ai-settings .btn { margin-top: 10px; }
+
+/* ==========================================================================
+   ROUND 5 — live classes, discussion, smoothness (2026)
+   ========================================================================== */
+
+/* Cross-page view transitions where the browser supports them: navigation
+   keeps the frame and cross-fades the content, instead of a white flash. */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.22s; }
+
+/* Off-screen cards cost nothing until they approach */
+.batch-card, .goal-tile, .feature { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+
+/* Live page */
+.live-block { margin-top: 26px; }
+.live-h { display: flex; align-items: center; gap: 9px; font-size: 1.1rem; margin-bottom: 12px; }
+.live-dot { width: 9px; height: 9px; border-radius: 50%; background: #f43f5e; display: inline-block; box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.18); animation: live-pulse 1.6s ease-in-out infinite; }
+@keyframes live-pulse { 50% { box-shadow: 0 0 0 7px rgba(244, 63, 94, 0.05); } }
+.live-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.live-card { padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+.live-title { font-size: 0.98rem; }
+.live-cta { margin-top: auto; padding-top: 8px; }
+.live-pill { background: rgba(244, 63, 94, 0.14); color: #fda4af; border-color: rgba(244, 63, 94, 0.35); display: inline-flex; gap: 6px; align-items: center; }
+.live-empty { padding: 14px 4px; }
+.goal-chip.active { background: var(--blue-soft); color: var(--ink); border-color: rgba(157, 140, 255, 0.45); }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+/* Class discussion */
+.comments-card.is-live { border-color: rgba(244, 63, 94, 0.4); }
+.comments-log { display: flex; flex-direction: column; gap: 10px; max-height: 340px; overflow-y: auto; margin-top: 10px; padding-right: 2px; }
+.comment-row { display: flex; gap: 9px; align-items: flex-start; }
+.comment-avatar { width: 28px; height: 28px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; color: #fff; background: var(--aurora); }
+.comment-main { flex: 1; min-width: 0; }
+.comment-head { display: flex; gap: 8px; align-items: baseline; }
+.comment-head strong { font-size: 0.8rem; }
+.comment-main p { font-size: 0.83rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.comment-like { background: none; border: 0; cursor: pointer; color: var(--ink-4); font-size: 0.75rem; padding: 3px 5px; flex: 0 0 auto; }
+.comment-like:hover { color: #fda4af; }

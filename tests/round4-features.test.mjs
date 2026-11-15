@@ -63,16 +63,11 @@ test("collect papers: chapters read concurrently and failures stay partial", asy
   assert.ok(peak > 1, `chapters still serial (peak ${peak})`);
 });
 
-test("player plus + AI doubt ship on the watch page", async () => {
+test("player plus ships on the watch page", async () => {
   const html = await read("public/watch.html");
   assert.match(html, /player-plus\.js/);
-  assert.match(html, /ai-doubt\.js/);
-  assert.match(html, /id="aiLog"/);
   const plus = await read("public/assets/player-plus.js");
   assert.match(plus, /note-marker/);
   assert.match(plus, /theatre/);
-  const ai = await read("public/assets/ai-doubt.js");
-  assert.match(ai, /instantAnswer/, "offline brain missing");
-  assert.match(ai, /chat\/completions/, "BYO-key model path missing");
-  assert.match(ai, /arsvibe\.ai/, "AI config must persist locally");
+
 });
