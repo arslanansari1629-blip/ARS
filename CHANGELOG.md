@@ -2,6 +2,20 @@
 
 ---
 
+## Round 2: accents, goals, continue-watching, shortcuts
+
+The aurora becomes a choice: four accent themes (Aurora, Ocean,
+Emerald, Sunset) as token overrides, picked from dots in the nav and
+persisted in prefs — buttons, gradients, focus rings and glows all
+follow. The home page gains exam-goal signposts (JEE, NEET, Class
+11/12, GATE, UPSC, SSC, Banking, CAT, Defence) that ride the catalogue
+search, plus a Continue Watching rail that reads the player's own
+position keys — the dashboard knew this already, the front door just
+never asked. Batches gets goal chips above its toolbar. Site-wide
+instruments: a reading-progress hairline, a back-to-top button, and a
+keyboard map — press ? anywhere, travel with g then h/b/f/l/d/w.
+Batch cards get a shine sweep. Service worker v17.
+
 ## Aurora Noir: a premium redesign of the whole site
 
 The light blueprint drawing gives way to a dark premium stage, applied

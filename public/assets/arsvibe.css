@@ -10063,3 +10063,108 @@ body {
   .gradient-text { animation: none; }
   .card:hover, .batch-card:hover, .feature:hover, .btn:hover { transform: none; }
 }
+
+/* ==========================================================================
+   ROUND 2 — accents, goals, and small instruments (2026)
+   ========================================================================== */
+
+/* Accent themes: the aurora is a choice, not a fixture. The picker lives in
+   the nav (ui.js); the choice rides a data attribute on <html> and persists
+   in prefs. Only the accent tokens move — layout never does. */
+html[data-accent="ocean"] {
+  --blue: #38bdf8; --blue-2: #7dd3fc; --blue-ink: #a5e3ff;
+  --blue-soft: rgba(56, 189, 248, 0.14); --blue-soft-2: rgba(56, 189, 248, 0.24);
+  --aurora: linear-gradient(120deg, #0ea5e9 0%, #22d3ee 52%, #34d399 105%);
+  --focus: 0 0 0 3px rgba(56, 189, 248, 0.35), 0 0 24px -6px rgba(56, 189, 248, 0.55);
+}
+html[data-accent="emerald"] {
+  --blue: #34d399; --blue-2: #6ee7b7; --blue-ink: #a7f3d0;
+  --blue-soft: rgba(52, 211, 153, 0.14); --blue-soft-2: rgba(52, 211, 153, 0.24);
+  --aurora: linear-gradient(120deg, #059669 0%, #34d399 52%, #a3e635 105%);
+  --focus: 0 0 0 3px rgba(52, 211, 153, 0.35), 0 0 24px -6px rgba(52, 211, 153, 0.55);
+}
+html[data-accent="sunset"] {
+  --blue: #fb923c; --blue-2: #fdba74; --blue-ink: #fed7aa;
+  --blue-soft: rgba(251, 146, 60, 0.15); --blue-soft-2: rgba(251, 146, 60, 0.25);
+  --aurora: linear-gradient(120deg, #f97316 0%, #ec4899 58%, #facc15 108%);
+  --focus: 0 0 0 3px rgba(251, 146, 60, 0.35), 0 0 24px -6px rgba(251, 146, 60, 0.55);
+}
+
+.accent-picker { display: inline-flex; align-items: center; gap: 7px; margin-left: 10px; }
+.accent-dot {
+  width: 18px; height: 18px; border-radius: 50%; cursor: pointer; flex: 0 0 auto;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: transform 0.15s var(--ease), border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.accent-dot:hover { transform: scale(1.18); }
+.accent-dot.active { border-color: #fff; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22), 0 2px 10px rgba(0, 0, 0, 0.5); }
+.accent-dot[data-accent="aurora"] { background: linear-gradient(135deg, #7c6cff, #ff6ec7, #22d3ee); }
+.accent-dot[data-accent="ocean"] { background: linear-gradient(135deg, #0ea5e9, #34d399); }
+.accent-dot[data-accent="emerald"] { background: linear-gradient(135deg, #059669, #a3e635); }
+.accent-dot[data-accent="sunset"] { background: linear-gradient(135deg, #f97316, #ec4899, #facc15); }
+
+/* Exam-goal tiles (home + batches chips) */
+.goal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.goal-tile {
+  display: flex; flex-direction: column; gap: 4px; padding: 16px;
+  border-radius: 18px; text-decoration: none; color: var(--ink);
+  background: linear-gradient(160deg, rgba(170, 180, 255, 0.07), rgba(170, 180, 255, 0.02));
+  border: 1px solid rgba(170, 180, 255, 0.13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), var(--lift-1);
+  transition: transform 0.18s var(--ease), border-color 0.18s var(--ease), box-shadow 0.22s var(--ease);
+}
+.goal-tile:hover { transform: translateY(-3px); border-color: rgba(170, 180, 255, 0.34); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), var(--lift-2), 0 12px 32px -14px rgba(124, 108, 255, 0.55); color: var(--ink); }
+.goal-tile .goal-emoji { font-size: 22px; }
+.goal-tile strong { font-family: var(--display); font-size: 0.95rem; }
+.goal-tile span { color: var(--ink-4); font-size: 0.72rem; }
+.goal-chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; }
+.goal-chip {
+  padding: 7px 14px; border-radius: var(--r-pill); font-size: 0.78rem; font-weight: 600;
+  color: var(--ink-2); text-decoration: none;
+  background: rgba(150, 160, 255, 0.07); border: 1px solid rgba(170, 180, 255, 0.16);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.goal-chip:hover { background: var(--blue-soft); color: var(--ink); border-color: rgba(170, 180, 255, 0.35); }
+
+/* Reading-progress hairline + back-to-top (ui.js) */
+.scroll-progress {
+  position: fixed; top: 0; left: 0; height: 3px; width: 0%; z-index: 200;
+  background: var(--aurora); background-size: 200% 100%;
+  box-shadow: 0 0 12px rgba(150, 92, 255, 0.55); pointer-events: none;
+}
+.to-top {
+  position: fixed; right: 18px; bottom: 18px; z-index: 120; width: 44px; height: 44px;
+  border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: #fff;
+  background: linear-gradient(160deg, rgba(28, 30, 62, 0.92), rgba(16, 18, 40, 0.92));
+  border: 1px solid rgba(170, 180, 255, 0.28);
+  box-shadow: var(--lift-2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  opacity: 0; transform: translateY(8px); pointer-events: none;
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { border-color: rgba(170, 180, 255, 0.5); }
+
+/* Keyboard shortcuts overlay (ui.js, press ?) */
+.kbd-overlay {
+  position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 18px;
+  background: rgba(4, 5, 13, 0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.kbd-card { width: min(430px, 100%); border-radius: 22px; padding: 22px; }
+.kbd-card h3 { font-family: var(--display); margin-bottom: 12px; }
+.kbd-row { display: flex; justify-content: space-between; gap: 14px; padding: 7px 0; border-bottom: 1px solid rgba(170, 180, 255, 0.09); color: var(--ink-2); font-size: 0.85rem; }
+.kbd-row:last-of-type { border-bottom: 0; }
+.kbd-keys { display: inline-flex; gap: 4px; }
+kbd {
+  font-family: var(--mono); font-size: 0.7rem; padding: 2px 7px; border-radius: 6px; color: var(--ink);
+  background: rgba(170, 180, 255, 0.1); border: 1px solid rgba(170, 180, 255, 0.22);
+  box-shadow: 0 2px 0 rgba(170, 180, 255, 0.15);
+}
+
+/* Card shine sweep on the catalogue */
+.batch-card::before {
+  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.09) 48%, transparent 62%);
+  transform: translateX(-60%); transition: opacity 0.25s var(--ease), transform 0.6s var(--ease);
+}
+.batch-card:hover::before { opacity: 1; transform: translateX(60%); }

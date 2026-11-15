@@ -13,6 +13,7 @@ import {
 } from "./app.js";
 import { loadCatalog as fetchCatalog, searchBatches } from "./data.js";
 import { heartButton, wireFavourites } from "./favourites.js";
+import { getLibrary } from "./library.js";
 
 mountChrome("home");
 wireFavourites();
@@ -45,6 +46,70 @@ function batchCard(b) {
       </div>
     </a>`;
 }
+
+/* Exam goals: the front door's signposts. Each tile is a catalogue search
+   that already works — no new route, just fewer decisions. */
+const GOALS = [
+  ["🧪", "JEE", "JEE", "Arjuna, Lakshya, Prayas…"],
+  ["🧬", "NEET", "NEET", "Yakeen, Samarth…"],
+  ["📚", "Class 12", "Class 12", "Boards + entrance together"],
+  ["📖", "Class 11", "Class 11", "The foundation year"],
+  ["⚙️", "GATE", "GATE", "Engineering entrances"],
+  ["🏛️", "UPSC", "UPSC", "Civil services"],
+  ["📋", "SSC", "SSC", "Government exams"],
+  ["🏦", "Banking", "Bank", "Bank PO & clerk"],
+  ["📊", "CAT / MBA", "CAT", "Management entrances"],
+  ["🪖", "Defence", "NDA", "NDA & AFCAT"],
+];
+const goalGrid = document.getElementById("goalGrid");
+if (goalGrid) {
+  goalGrid.innerHTML = GOALS.map(
+    ([emoji, label, q, sub]) => `
+      <a class="goal-tile" href="/batches.html?q=${encodeURIComponent(q)}">
+        <span class="goal-emoji" aria-hidden="true">${emoji}</span>
+        <strong>${esc(label)}</strong><span>${esc(sub)}</span>
+      </a>`
+  ).join("");
+}
+
+/* Continue watching on the front door too: the dashboard has always known
+   how far into a lecture you are (the player writes pos:<id>); the home
+   page simply never asked. Same keys, same rail, no new storage. */
+(function continueWatching() {
+  const section = document.getElementById("continueSection");
+  const rail = document.getElementById("continueRail");
+  if (!section || !rail) return;
+  let lectures = [];
+  try {
+    lectures = getLibrary().lectures || [];
+  } catch {
+    return;
+  }
+  const resumable = lectures
+    .map((l) => ({ ...l, pos: Number(localStorage.getItem(`pos:${l.id}`) || 0) }))
+    .filter((l) => l.pos > 12)
+    .sort((a, b) => b.pos - a.pos)
+    .slice(0, 6);
+  if (!resumable.length) return;
+  section.hidden = false;
+  rail.innerHTML = resumable
+    .map((l) => {
+      const href = `/watch.html?batch=${encodeURIComponent(l.batch)}&subject=${encodeURIComponent(l.subject)}&id=${encodeURIComponent(l.id)}&title=${encodeURIComponent(l.title || "Lecture")}`;
+      return `
+        <a class="resume-card" href="${href}">
+          <span class="resume-thumb">
+            ${l.thumbnail ? `<img src="${esc(l.thumbnail)}" alt="" loading="lazy" onerror="this.remove()" />` : `<span class="resume-ph">▶</span>`}
+            <span class="resume-at">${Math.round(l.pos / 60)}m in</span>
+          </span>
+          <span class="resume-text">
+            <strong>${esc(l.title || "Lecture")}</strong>
+            <span class="tiny dim">${esc(l.chapter || l.subject || "")}</span>
+          </span>
+          <span class="resume-go">Resume</span>
+        </a>`;
+    })
+    .join("");
+})();
 
 async function loadCatalog() {
   trendingGrid.innerHTML = skeletonCards(8);

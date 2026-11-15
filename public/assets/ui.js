@@ -8,7 +8,7 @@
    ========================================================================= */
 
 import { searchBatches } from "./data.js";
-import { esc, debounce } from "./app.js";
+import { esc, debounce, getPrefs, setPref } from "./app.js";
 
 const reduceMotion =
   typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -229,3 +229,105 @@ if (nav) {
     actions.prepend(btn);
   }
 }
+
+/* ================= Round 2: accents, instruments, shortcuts ================= */
+
+/* ---- accent picker: four auroras, one persisted choice ---- */
+const ACCENTS = ["aurora", "ocean", "emerald", "sunset"];
+function applyAccent(name) {
+  const accent = ACCENTS.includes(name) ? name : "aurora";
+  document.documentElement.dataset.accent = accent;
+  document.querySelectorAll(".accent-dot").forEach((d) =>
+    d.classList.toggle("active", d.dataset.accent === accent)
+  );
+}
+applyAccent(getPrefs().accent || "aurora");
+if (nav) {
+  const actions = nav.querySelector(".nav-actions");
+  if (actions && !actions.querySelector(".accent-picker")) {
+    const picker = document.createElement("div");
+    picker.className = "accent-picker";
+    picker.setAttribute("role", "group");
+    picker.setAttribute("aria-label", "Accent theme");
+    picker.innerHTML = ACCENTS.map(
+      (a) => `<button type="button" class="accent-dot" data-accent="${a}" title="${a[0].toUpperCase() + a.slice(1)} accent" aria-label="${a} accent"></button>`
+    ).join("");
+    picker.addEventListener("click", (e) => {
+      const dot = e.target.closest("[data-accent]");
+      if (!dot) return;
+      setPref("accent", dot.dataset.accent);
+      applyAccent(dot.dataset.accent);
+    });
+    actions.appendChild(picker);
+  }
+}
+
+/* ---- reading progress hairline + back-to-top ---- */
+const progressBar = document.createElement("div");
+progressBar.className = "scroll-progress";
+progressBar.setAttribute("aria-hidden", "true");
+document.body.appendChild(progressBar);
+const toTop = document.createElement("button");
+toTop.className = "to-top";
+toTop.type = "button";
+toTop.setAttribute("aria-label", "Back to top");
+toTop.innerHTML = `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`;
+document.body.appendChild(toTop);
+toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" }));
+let ticking = false;
+window.addEventListener("scroll", () => {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(() => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    progressBar.style.width = `${max > 0 ? Math.min(100, (scrollY / max) * 100) : 0}%`;
+    toTop.classList.toggle("show", scrollY > 700);
+    ticking = false;
+  });
+}, { passive: true });
+
+/* ---- keyboard shortcuts: ? for the map, g+key to travel ---- */
+const SHORTCUTS = [
+  ["⌘K / /", "Search the catalogue"],
+  ["g then h", "Home"],
+  ["g then b", "All batches"],
+  ["g then f", "Favourites"],
+  ["g then l", "My Library"],
+  ["g then d", "Dashboard"],
+  ["g then w", "Downloads"],
+  ["?", "This shortcut map"],
+  ["Esc", "Close dialogs"],
+];
+const GO = { h: "/", b: "/batches.html", f: "/favourites.html", l: "/library.html", d: "/dashboard.html", w: "/downloads.html" };
+let kbdOverlay = null;
+function closeShortcuts() { kbdOverlay?.remove(); kbdOverlay = null; }
+function openShortcuts() {
+  if (kbdOverlay) return closeShortcuts();
+  kbdOverlay = document.createElement("div");
+  kbdOverlay.className = "kbd-overlay";
+  kbdOverlay.innerHTML = `<div class="card kbd-card" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+    <h3>Keyboard shortcuts</h3>
+    ${SHORTCUTS.map(([k, label]) => `<div class="kbd-row"><span>${label}</span><span class="kbd-keys">${k.split(" / ").map((x) => `<kbd>${x}</kbd>`).join("")}</span></div>`).join("")}
+    <p class="tiny dim" style="margin-top:12px">Press <kbd>Esc</kbd> or click anywhere to close.</p>
+  </div>`;
+  kbdOverlay.addEventListener("click", closeShortcuts);
+  document.body.appendChild(kbdOverlay);
+}
+let gPending = false, gTimer = 0;
+window.addEventListener("keydown", (e) => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "") || document.activeElement?.isContentEditable;
+  if (e.key === "Escape") closeShortcuts();
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "?") { e.preventDefault(); openShortcuts(); return; }
+  if (gPending && GO[e.key.toLowerCase()]) {
+    gPending = false;
+    clearTimeout(gTimer);
+    window.location.href = GO[e.key.toLowerCase()];
+    return;
+  }
+  if (e.key.toLowerCase() === "g") {
+    gPending = true;
+    clearTimeout(gTimer);
+    gTimer = setTimeout(() => (gPending = false), 800);
+  }
+});
