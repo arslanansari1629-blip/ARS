@@ -2,6 +2,17 @@
 
 ---
 
+## Round 7: Daylight UI — full light redesign, zero webfonts
+
+Every page changes at once: the Aurora Noir dark theme is replaced by a
+light study-desk design — white paper, indigo pigment, soft daylight
+shadows, white-glass nav — driven by the token layer so all twenty
+pages move together. Exactly one dark object remains: the player stage,
+a cinema screen on the desk. Responses get lighter and faster the
+honest way: Google Fonts is gone from every page (no render-blocking
+font CSS, no font files), the type stack is the operating system's, and
+the nav blur drops from 18px to 10px. Service worker v22.
+
 ## Round 6: ultra-fast player — no-buffer tuning
 
 The freeze budget is gone. A hung fragment used to wait out a 20-second
