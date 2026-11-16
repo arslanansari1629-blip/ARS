@@ -2,6 +2,18 @@
 
 ---
 
+## Round 8: Iris UI + sidebar redesign
+
+The frame changes character. The sidebar is now a deep ink-violet rail —
+gradient brand chip, icon chips on every link, a full gradient pill for
+the page you are on, ghost-white hovers, and a new Live card at its foot
+(pulsing dot, one tap to what is on air) — standing against porcelain
+content. The content palette shifts to Iris (violet → fuchsia → coral
+gradient), corners round out to 20px, cards float on softer shadows and
+batch cards lift on hover, eyebrows become pills and the top-bar search
+goes full-pill. Collapsed and mobile-drawer states inherit the rail's
+dark identity. Service worker v23.
+
 ## Round 7: Daylight UI — full light redesign, zero webfonts
 
 Every page changes at once: the Aurora Noir dark theme is replaced by a

@@ -143,6 +143,12 @@ function buildSidebar() {
 
     <nav class="side-nav" aria-label="Site">${groups}${recentBlock}</nav>
 
+    <a class="side-live" href="/live.html">
+      <span class="side-live-dot" aria-hidden="true"></span>
+      <span class="side-live-text"><strong>Live classes</strong><small>See what is on air now</small></span>
+      <span class="side-live-arrow" aria-hidden="true">→</span>
+    </a>
+
     <div class="side-foot">
       ${
         session

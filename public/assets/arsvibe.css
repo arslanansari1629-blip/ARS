@@ -20,7 +20,7 @@
 
 :root {
   /* Daylight: a clean light stage — white paper, indigo pigment, soft air */
-  --paper: #f4f5fb;
+  --paper: #f7f7fc;
   --paper-2: #eceef7;
   --card: #ffffff;
   --card-2: #f3f4fa;
@@ -38,9 +38,9 @@
   --hair-2: rgba(30, 34, 80, 0.14);
 
   /* Pigment: indigo primary, cyan light, aurora gradient */
-  --blue: #5a4be0;
-  --blue-2: #7c6cff;
-  --blue-ink: #4a3fd1;
+  --blue: #6c3ce9;
+  --blue-2: #8b5cf6;
+  --blue-ink: #5b2bd9;
   --blue-soft: rgba(90, 75, 224, 0.09);
   --blue-soft-2: rgba(90, 75, 224, 0.16);
   --cyan: #0899b8;
@@ -60,7 +60,7 @@
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
 
   /* Geometry: generous, premium radii */
-  --r: 16px;
+  --r: 20px;
   --r-sm: 10px;
   --r-pill: 999px;
 
@@ -71,7 +71,7 @@
   --lift-3: 0 4px 10px rgba(23, 25, 60, 0.07), 0 34px 70px -28px rgba(23, 25, 60, 0.22);
   --focus: 0 0 0 3px rgba(90, 75, 224, 0.25);
   --ease: cubic-bezier(0.2, 0.7, 0.25, 1);
-  --aurora: linear-gradient(120deg, #5a4be0 0%, #8b5cf6 38%, #d946ef 68%, #0899b8 105%);
+  --aurora: linear-gradient(120deg, #6c3ce9 0%, #a855f7 42%, #ec4899 75%, #f97316 108%);
   --aurora-soft: linear-gradient(120deg, rgba(90, 75, 224, 0.12), rgba(139, 92, 246, 0.1), rgba(8, 153, 184, 0.1))}
 
 /* ==========================================================================
@@ -10313,3 +10313,127 @@ code, kbd { background: var(--card-2); color: var(--blue-ink); }
 /* Scrollbars for the light desk */
 * { scrollbar-color: rgba(23, 25, 60, 0.25) transparent; }
 *::-webkit-scrollbar-thumb { background: rgba(23, 25, 60, 0.22); }
+
+/* ==========================================================================
+   ROUND 8 — Iris UI + sidebar redesign (2026)
+   --------------------------------------------------------------------------
+   The frame changes character: the sidebar becomes a deep ink-violet
+   rail (gradient brand chip, icon chips, a gradient pill for the page
+   you are on, and a Live card at its foot) standing against porcelain
+   content. Content keeps the Daylight lightness but with the new Iris
+   palette, rounder corners (20px), floating cards and a pill eyebrow.
+   One dark object became two: the player stage and the rail that leads
+   to it. Collapsed and drawer states inherit the rail's colours below.
+   ========================================================================== */
+
+/* ---- the rail ---- */
+.side {
+  background: linear-gradient(180deg, #1a1438 0%, #120e29 55%, #0d0a1f 100%);
+  border-right: 0;
+  color: #eceaff;
+  padding: 1.1rem 0.85rem 1rem;
+  box-shadow: 18px 0 44px -30px rgba(18, 12, 50, 0.55);
+}
+.side-head { margin-bottom: 0.4rem; }
+.side-brand { border-bottom: 1px solid rgba(255, 255, 255, 0.09); padding-bottom: 1rem; color: #fff; }
+.side-brand .brand-img, .side-brand img {
+  background: var(--aurora);
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: 0 8px 18px -8px rgba(168, 85, 247, 0.8);
+}
+.side-brand-text { color: #fff; }
+.side-brand-text small { color: rgba(216, 210, 255, 0.55); }
+.side-collapse { color: rgba(230, 226, 255, 0.7); border-radius: 10px; }
+.side-collapse:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+
+.side-title { color: rgba(199, 192, 255, 0.5); }
+.side-title::before { color: #c4b5fd; }
+.side-title::after { background: rgba(255, 255, 255, 0.09); }
+
+.side-link {
+  color: #cfcbf3;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 0.55rem 0.6rem;
+  font-weight: 550;
+}
+.side-link svg {
+  width: 23px; height: 23px;
+  padding: 4px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  color: #b7b0ea;
+  opacity: 1;
+  flex: 0 0 auto;
+}
+.side-link:hover { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.08); color: #fff; }
+.side-link:hover svg { color: #fff; }
+.side-link.active {
+  background: var(--aurora);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 650;
+  box-shadow: 0 10px 22px -10px rgba(168, 85, 247, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.side-link.active svg { background: rgba(255, 255, 255, 0.2); border-color: transparent; color: #fff; }
+.side-link kbd { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.65); }
+.side-count { background: #ec4899; color: #fff; border-radius: 999px; }
+
+.side-mini { color: rgba(220, 216, 255, 0.75); border-radius: 10px; }
+.side-mini:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.side-mini img, .side-mini-ph { filter: none; border-color: rgba(255, 255, 255, 0.14); border-radius: 6px; }
+
+/* The Live card at the rail's foot */
+.side-live {
+  display: flex; align-items: center; gap: 0.6rem;
+  margin-top: 0.9rem; padding: 0.7rem 0.75rem;
+  border-radius: 14px; text-decoration: none;
+  background: linear-gradient(120deg, rgba(108, 60, 233, 0.35), rgba(236, 72, 153, 0.28));
+  border: 1px solid rgba(196, 181, 253, 0.35);
+  color: #fff;
+  transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease);
+}
+.side-live:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -12px rgba(236, 72, 153, 0.65); color: #fff; }
+.side-live-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #fb7185; box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.2); animation: live-pulse 1.6s ease-in-out infinite; }
+.side-live-text { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+.side-live-text strong { font-size: 0.8rem; }
+.side-live-text small { font-size: 0.68rem; color: rgba(255, 255, 255, 0.72); }
+.side-live-arrow { font-weight: 700; opacity: 0.85; }
+
+.side-foot { border-top: 1px solid rgba(255, 255, 255, 0.09); }
+.side-who { color: #fff; }
+.side-who-text span { color: rgba(216, 210, 255, 0.6); }
+.side-cta {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e6e2ff;
+}
+.side-cta:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.2); color: #fff; }
+.side-micro { color: rgba(199, 192, 255, 0.38); }
+.avatar { background: var(--aurora); border-color: transparent; }
+
+/* Collapsed rail keeps the dark identity (icon-only tooltips) */
+body.side-collapsed .side { background: linear-gradient(180deg, #1a1438, #0d0a1f); }
+
+/* ---- porcelain content, Iris palette ---- */
+body {
+  background:
+    radial-gradient(900px 480px at 85% -10%, rgba(168, 85, 247, 0.09), transparent 60%),
+    radial-gradient(760px 420px at -10% 0%, rgba(249, 115, 22, 0.05), transparent 55%),
+    var(--paper);
+}
+.eyebrow {
+  background: var(--blue-soft);
+  border: 1px solid rgba(108, 60, 233, 0.18);
+  border-radius: var(--r-pill);
+  padding: 0.32rem 0.7rem;
+}
+.card { border: 1px solid var(--hair-2); box-shadow: 0 1px 2px rgba(23, 25, 60, 0.04), 0 12px 32px -20px rgba(23, 25, 60, 0.18); }
+.batch-card { transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease); }
+.batch-card:hover { transform: translateY(-3px); box-shadow: var(--lift-2); }
+.btn-primary { box-shadow: 0 10px 22px -10px rgba(168, 85, 247, 0.65); }
+.topbar-search { border-radius: var(--r-pill); background: #fff; }
+input[type="search"], .search-well { border-radius: var(--r-pill); }

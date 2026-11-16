@@ -10,7 +10,7 @@ const read = (p) => readFile(new URL(p, root), "utf8");
 
 test("the design tokens are the light Daylight set", async () => {
   const css = await read("public/assets/arsvibe.css");
-  assert.match(css, /--paper: #f4f5fb/);
+  assert.match(css, /--paper: #f7f7fc/);
   assert.match(css, /--card: #ffffff/);
   assert.match(css, /--ink: #141830/);
   assert.match(css, /ROUND 7 — Daylight UI/);
