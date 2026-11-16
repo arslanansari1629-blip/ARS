@@ -284,7 +284,7 @@ export class ProPlayer {
         const t = this.video.currentTime;
         this.video.currentTime = t + 0.25;
       }
-    }, 4500);
+    }, 3000);
   }
 
   /**
@@ -505,14 +505,19 @@ export class ProPlayer {
       // Do not tear the buffer down on a brief stall during a seek.
       testBandwidth: false,
       // A two-hour VOD: never let ABR downshift because of one slow fragment.
-      abrEwmaFastVoD: 4,
-      abrEwmaSlowVoD: 14,
+      abrEwmaFastVoD: 3,
+      abrEwmaSlowVoD: 8,
       // Steady ABR: do not flip renditions every fragment (visible quality
       // pumping) and do not start at the top level on a slow line. The
       // default estimate is deliberately conservative: the first fragment
       // should be a small one that lands fast, and EWMA steps up within a
       // few fragments once real bandwidth is measured.
-      startLevel: -1,
+      // First frame above all: level 0 is the smallest rendition in the
+      // ladder (our master lists lowest first), so the first fragment is a
+      // few hundred KB that lands in well under a second even on 3G. ABR
+      // climbs within a few fragments; a saved quality is applied on
+      // MANIFEST_PARSED and overrides this before anything is visible.
+      startLevel: 0,
       abrEwmaDefaultEstimate: 500000,
       // Begin fetching the first fragment the moment the level playlist is
       // known instead of waiting for a buffer target check.
@@ -522,12 +527,21 @@ export class ProPlayer {
       fragLoadingMaxRetry: zb ? 8 : 6,
       manifestLoadingMaxRetry: 4,
       levelLoadingMaxRetry: 4,
+      // Retry gaps in hundreds of milliseconds: the signer answers in about
+      // a second when it answers at all, so waiting seconds between fragment
+      // retries only stretches a stall the student can already see.
+      fragLoadingRetryDelay: 250,
+      fragLoadingMaxRetryTimeout: 3000,
+      manifestLoadingMaxRetryTimeout: 3000,
+      levelLoadingMaxRetryTimeout: 3000,
       // Timeouts sized so a dead signer stalls one retry cycle, not half a
-      // lecture: a fragment that has not moved in 20 s is not "slow", it is
-      // gone, and the retry budget below is what brings it back.
-      fragLoadingTimeOut: 20000,
-      manifestLoadingTimeOut: 10000,
-      levelLoadingTimeOut: 10000,
+      // lecture: a fragment that has not moved in 8 s is not "slow", it is
+      // gone, and the retry budget below is what brings it back. (This was
+      // 20 s: one hung segment froze the picture for twenty seconds before
+      // anything retried — the single biggest "buffering" complaint.)
+      fragLoadingTimeOut: 8000,
+      manifestLoadingTimeOut: 8000,
+      levelLoadingTimeOut: 8000,
       lowLatencyMode: false,
       enableWorker: true,
       // Start no higher than the first second of the lecture: fetching a few

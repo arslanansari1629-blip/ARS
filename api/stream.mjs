@@ -66,14 +66,15 @@ function isFolderId(value) {
  * relay signs every playlist and segment as it is asked. That plan is the
  * same for every viewer and stays true for minutes, so caching it for 60 s
  * turns a popular lecture's resolution (a signer probe, ~1–3 s) into an
- * edge hit. A plan built from an already-signed CDN URL *does* embed its
+ * edge hit. Four minutes is safe: the URL embeds no signature (the relay
+ * re-signs per segment) and retries always bypass with `attempt > 0`. A plan built from an already-signed CDN URL *does* embed its
  * signature, and a retry (`attempt > 0`) exists precisely because the last
  * plan died — neither may ever be served from a cache.
  */
 function planCacheSeconds(plan, attempt) {
   if (!plan || !plan.playable) return 0;
   if (Number(attempt || 0) > 0) return 0;
-  if (plan.kind === "hls" && String(plan.url || "").startsWith("/api/sign?")) return 60;
+  if (plan.kind === "hls" && String(plan.url || "").startsWith("/api/sign?")) return 240;
   return 0;
 }
 

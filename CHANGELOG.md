@@ -2,6 +2,21 @@
 
 ---
 
+## Round 6: ultra-fast player — no-buffer tuning
+
+The freeze budget is gone. A hung fragment used to wait out a 20-second
+timeout before anything retried; it now fails in 8 s and retries after
+250 ms (capped 3 s), playlists and levels likewise. The first fragment
+is always the smallest rendition — a few hundred KB, sub-second even on
+3G — with ABR climbing on a faster EWMA (slow 14 → 8) and a saved
+quality still overriding before anything is visible. The stall watchdog
+reacts in 3 s instead of 4.5 s. Server-side, a relay plan (which embeds
+no signature; the relay re-signs per segment) is edge-cached for four
+minutes instead of one, so repeat openings skip the signer probe
+entirely, while retries (`attempt > 0`) still never touch the cache.
+The 180-second read-ahead buffer that makes ordinary wobbles invisible
+is unchanged. Service worker v21.
+
 ## Round 5: AI removed, live classes with discussion, smoothness
 
 The AI Doubt panel is removed entirely, as requested. In its place the

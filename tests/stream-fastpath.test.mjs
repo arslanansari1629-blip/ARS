@@ -145,7 +145,7 @@ test("a playable HLS plan is edge-cacheable; a retry never is", async () => {
   stubFetch({ signerOk: true });
   const first = await call(`${BASE}`);
   assert.equal(first.body.playable, true);
-  assert.match(first.headers["cache-control"] || "", /s-maxage=60/, "a fresh HLS plan should be edge-cacheable");
+  assert.match(first.headers["cache-control"] || "", /s-maxage=240/, "a fresh HLS plan should be edge-cacheable");
 
   stubFetch({ signerOk: true });
   const retry = await call(`${BASE}&attempt=1`);
