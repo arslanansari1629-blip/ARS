@@ -473,13 +473,35 @@ async function load(nextType, { refresh = false } = {}) {
     .map(() => `<div class="skeleton sk-row"></div>`)
     .join("")}</div>`;
 
+  // Past six seconds this is no longer "loading", it is "waiting on PW":
+  // say so on the skeleton instead of letting the page look dead.
+  const slowHint = setTimeout(() => {
+    if (body.querySelector(".skeleton")) {
+      body.insertAdjacentHTML(
+        "beforeend",
+        `<p class="tiny dim" style="padding:0.6rem 0.2rem">Still loading — Physics Wallah is answering slowly right now. This usually clears in a few seconds.</p>`
+      );
+    }
+  }, 6000);
+
   try {
     if (archiveMode) {
       // `topic` in the query means this page is *inside* one topic, so the list is
       // its lectures and notes — not the chapter's topic list.
+      clearTimeout(slowHint);
       return qs("topic") ? renderArchiveContents() : renderArchiveTopics();
     }
-    const out = await loadContents(batchId, subjectSlug, chapterId, type);
+    let out;
+    try {
+      out = await loadContents(batchId, subjectSlug, chapterId, type);
+    } catch (firstErr) {
+      // One quiet retry before any error is shown: PW sheds single requests
+      // routinely, and a chapter that loads on the second ask should never
+      // have shown a failure at all. Auth refusals are final — not retried.
+      if (firstErr && firstErr.auth) throw firstErr;
+      await new Promise((r) => setTimeout(r, 600));
+      out = await loadContents(batchId, subjectSlug, chapterId, type);
+    }
     // A notes/DPP tab resolves one storage key per attachment. When PW's
     // rate-limited lookup gives up partway, the tab renders a *shorter* list
     // than the chapter really has, with nothing to say so — which reads as
@@ -489,8 +511,10 @@ async function load(nextType, { refresh = false } = {}) {
     // budget before asking. Either way the list is short of the truth.
     partial = Boolean(d && ((d.failed || 0) > 0 || (d.skipped || 0) > 0));
     cache.set(type, { items: out.items || [], partial });
+    clearTimeout(slowHint);
     render(out.items || []);
   } catch (err) {
+    clearTimeout(slowHint);
     /* An upstream that refuses guest sessions is not a broken page: the chapter
        exists, the lectures are there, and this deployment is simply not allowed
        to list them. Say that, and stay quiet — a red toast for a fact nobody can

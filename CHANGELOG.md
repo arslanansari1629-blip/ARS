@@ -2115,3 +2115,6 @@ approach was removed and has stayed removed.
 
 **Gates at this commit.** `npm test` → 192 passing. `node scripts/build.mjs` → 15
 pages, 10 API functions, 39 assets, 14,201 batches indexed.
+
+## Chapter loading can never hang (2026-11-08)
+- **Root cause of "batch content not loading":** the data layer had no fetch deadline, so one slow Physics Wallah response (the contents function can take up to a minute) left chapter pages on their skeleton indefinitely — diagnosed against batch `6acc6d` "Chemical Reactions and Equations", whose API answers correctly (2 lectures, 2 notes) but only after PW's own latency. **Fix:** a 25s `AbortSignal` deadline in `getJson` so a hang becomes the browser-relay fallback or an honest error; one quiet automatic retry (600ms, skipped for auth refusals) before any error is shown; a "still loading — PW is answering slowly" note on the skeleton after 6s. Service worker v26 so the fixed modules reach returning browsers. Suite 579/579.

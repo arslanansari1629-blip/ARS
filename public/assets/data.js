@@ -3,7 +3,15 @@
 import { upstream, normalizeCatalog, normalizeSearch, normalizeBatch, normalizeChapters, normalizeContents, normalizeAnnouncements, normalizeSchedule, UPSTREAM } from "./client-api.js";
 
 async function getJson(path) {
-  const res = await fetch(path, { headers: { Accept: "application/json" } });
+  // A hung server call used to leave pages on their skeleton forever: the
+  // function may take up to a minute upstream, and "not loading" is what a
+  // student calls a spinner with no deadline. Twenty-five seconds is far
+  // beyond a healthy answer; past it, the relay fallback (or an honest
+  // error with a retry) beats silence.
+  const res = await fetch(path, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(25000),
+  });
   let data = null;
   try {
     data = await res.json();
