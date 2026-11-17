@@ -2,6 +2,21 @@
 
 ---
 
+## Round 10: Vidcloud-style UI
+
+Modelled on the reference the owner pointed at (vidcloud.eu.org): the
+catalogue goes indigo-night — deep #0a0a16 paper, floating #151528
+panel cards, violet pigment with a violet→fuchsia gradient reserved
+for action. Batch cards become the reference's card: banner thumbnail,
+tags over a two-line title, subtitle, and a full-width gradient
+"Let's Study →" call to action drawn on every card (the whole card
+remains the link, as on the reference, so all four card renderers —
+home, batches, favourites, library — match without a DOM change). The
+sidebar returns to a dark panel rail with the gradient pill marking
+the current page; top bar, inputs, pills, tables and footer follow.
+Player stage was already a dark screen; now the whole desk matches it.
+Service worker v25.
+
 ## Round 9: Professional UI, latency-aware healing, network-aware player
 
 The design goes professional: slate paper, white surfaces, navy pigment,

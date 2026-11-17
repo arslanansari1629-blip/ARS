@@ -15,8 +15,8 @@ test("the sidebar is the ink-violet Iris rail", async () => {
   assert.match(css, /\.side\s*\{[^}]*background: ?#fff/);
   assert.match(r8, /\.side-link\.active\s*\{[^}]*background: ?#1e3a8a/);
   assert.match(r8, /\.side-live\s*\{/);
-  assert.match(css, /--blue: ?#1d4ed8/);
-  assert.match(css, /--r: ?12px/);
+  assert.match(css, /--blue: ?#7c6cff/);
+  assert.match(css, /--r: ?16px/);
 });
 
 test("the shell builds the Live card into the sidebar", async () => {

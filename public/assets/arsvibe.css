@@ -20,30 +20,30 @@
 
 :root {
   /* Daylight: a clean light stage — white paper, indigo pigment, soft air */
-  --paper: #f8fafc;
-  --paper-2: #eef2f7;
-  --card: #ffffff;
-  --card-2: #f1f5f9;
+  --paper: #0a0a16;
+  --paper-2: #10101f;
+  --card: #151528;
+  --card-2: #1b1b31;
 
   /* Ink */
-  --ink: #0f172a;
-  --ink-2: #334155;
-  --ink-3: #64748b;
-  --ink-4: #94a3b8;
+  --ink: #f4f4fb;
+  --ink-2: #c9c9dd;
+  --ink-3: #9a9ab5;
+  --ink-4: #6d6d8a;
 
   /* Rules */
-  --rule: rgba(30, 34, 80, 0.1);
-  --rule-2: rgba(30, 34, 80, 0.2);
-  --hair: rgba(30, 34, 80, 0.07);
-  --hair-2: rgba(30, 34, 80, 0.14);
+  --rule: rgba(255, 255, 255, 0.09);
+  --rule-2: rgba(255, 255, 255, 0.18);
+  --hair: rgba(255, 255, 255, 0.06);
+  --hair-2: rgba(255, 255, 255, 0.12);
 
   /* Pigment: indigo primary, cyan light, aurora gradient */
-  --blue: #1d4ed8;
-  --blue-2: #2563eb;
-  --blue-ink: #1e3a8a;
-  --blue-soft: rgba(29, 78, 216, 0.08);
-  --blue-soft-2: rgba(29, 78, 216, 0.14);
-  --cyan: #0369a1;
+  --blue: #7c6cff;
+  --blue-2: #9d8cff;
+  --blue-ink: #b3a8ff;
+  --blue-soft: rgba(124, 108, 255, 0.16);
+  --blue-soft-2: rgba(124, 108, 255, 0.28);
+  --cyan: #38bdf8;
   --ok: #0d9d6c;
   --ok-soft: rgba(13, 157, 108, 0.1);
   --amber: #d97706;
@@ -60,8 +60,8 @@
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
 
   /* Geometry: generous, premium radii */
-  --r: 12px;
-  --r-sm: 8px;
+  --r: 16px;
+  --r-sm: 10px;
   --r-pill: 999px;
 
   /* Elevation: soft daylight shadow */
@@ -69,9 +69,9 @@
   --lift-1: 0 1px 2px rgba(23, 25, 60, 0.05), 0 4px 14px -6px rgba(23, 25, 60, 0.08);
   --lift-2: 0 2px 6px rgba(23, 25, 60, 0.06), 0 18px 40px -18px rgba(23, 25, 60, 0.16);
   --lift-3: 0 4px 10px rgba(23, 25, 60, 0.07), 0 34px 70px -28px rgba(23, 25, 60, 0.22);
-  --focus: 0 0 0 3px rgba(29, 78, 216, 0.22);
+  --focus: 0 0 0 3px rgba(124, 108, 255, 0.35);
   --ease: cubic-bezier(0.2, 0.7, 0.25, 1);
-  --aurora: linear-gradient(120deg, #1e3a8a 0%, #1d4ed8 58%, #2563eb 100%);
+  --aurora: linear-gradient(120deg, #6d5cff 0%, #8b5cf6 48%, #c026d3 100%);
   --aurora-soft: linear-gradient(120deg, rgba(90, 75, 224, 0.12), rgba(139, 92, 246, 0.1), rgba(8, 153, 184, 0.1))}
 
 /* ==========================================================================
@@ -10538,3 +10538,132 @@ body {
 .btn-primary:hover { background: #1e40af; }
 .nav { background: rgba(255, 255, 255, 0.92); }
 h1, h2, h3 { letter-spacing: -0.018em; }
+
+/* ==========================================================================
+   ROUND 10 — Vidcloud-style UI (2026)
+   --------------------------------------------------------------------------
+   Modelled on the reference the owner pointed at (vidcloud.eu.org):
+   a deep indigo-night catalogue, floating panel cards, exam/language
+   tags over the title, and one unmistakable call to action per card —
+   a violet gradient "Let's Study" button. Our cards keep their DOM
+   (the same renderer serves home, batches, favourites and library), so
+   the button is drawn by the card body itself; the whole card is the
+   link, exactly as on the reference.
+   ========================================================================== */
+
+body {
+  background:
+    radial-gradient(900px 480px at 85% -10%, rgba(139, 92, 246, 0.14), transparent 60%),
+    radial-gradient(700px 420px at -10% 0%, rgba(192, 38, 211, 0.07), transparent 55%),
+    var(--paper);
+}
+
+/* ---- chrome: dark glass top bar, panel sidebar ---- */
+.nav, .topbar {
+  background: rgba(13, 13, 26, 0.82);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
+  backdrop-filter: blur(12px) saturate(1.3);
+  border-bottom: 1px solid var(--hair-2);
+}
+.side {
+  background: linear-gradient(180deg, #14142a 0%, #101020 100%);
+  color: var(--ink);
+  border-right: 1px solid var(--hair-2);
+  box-shadow: none;
+}
+.side-brand { border-bottom-color: var(--hair-2); color: #fff; }
+.side-brand .brand-img, .side-brand img { background: var(--aurora); border-radius: 9px; box-shadow: 0 8px 18px -8px rgba(139, 92, 246, 0.8); }
+.side-brand-text { color: #fff; }
+.side-brand-text small { color: var(--ink-4); }
+.side-collapse { color: var(--ink-3); }
+.side-collapse:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.side-title { color: var(--ink-4); }
+.side-title::before { color: var(--blue-2); }
+.side-title::after { background: var(--hair-2); }
+.side-link { color: var(--ink-2); border-radius: 10px; }
+.side-link svg { color: var(--ink-3); }
+.side-link:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.side-link.active {
+  background: var(--aurora);
+  color: #fff;
+  box-shadow: 0 10px 22px -10px rgba(139, 92, 246, 0.7);
+}
+.side-link.active svg { color: #fff; }
+.side-link kbd { background: rgba(255, 255, 255, 0.08); border-color: var(--hair-2); color: var(--ink-3); }
+.side-count { background: #c026d3; color: #fff; }
+.side-mini { color: var(--ink-3); }
+.side-mini:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.side-mini img, .side-mini-ph { border-color: var(--hair-2); }
+.side-live {
+  background: linear-gradient(120deg, rgba(109, 92, 255, 0.3), rgba(192, 38, 211, 0.25));
+  border-color: rgba(157, 140, 255, 0.4);
+  color: #fff;
+}
+.side-live-text strong { color: #fff; }
+.side-live-text small { color: rgba(230, 228, 255, 0.75); }
+.side-live-arrow { color: #fff; }
+.side-foot { border-top-color: var(--hair-2); }
+.side-who { color: #fff; }
+.side-who-text span { color: var(--ink-4); }
+.side-cta { background: rgba(255, 255, 255, 0.05); border-color: var(--hair-2); color: var(--ink-2); }
+.side-cta:hover { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: var(--hair-2); }
+.side-micro { color: var(--ink-4); }
+.avatar { background: var(--aurora); }
+body.side-collapsed .side { background: linear-gradient(180deg, #14142a, #101020); }
+
+/* ---- surfaces & controls on the night panel ---- */
+.card { background: var(--card); border-color: var(--hair-2); box-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.65); }
+.btn { background: #1d1d33; border-color: var(--hair-2); color: var(--ink); box-shadow: none; }
+.btn:hover { background: #23233d; color: #fff; }
+.btn-primary { background: var(--aurora); border-color: transparent; color: #fff; box-shadow: 0 10px 22px -10px rgba(139, 92, 246, 0.7); }
+.btn-primary:hover { background: var(--aurora); color: #fff; filter: brightness(1.08); }
+.input, .select, textarea.input { background: #121222; border-color: var(--hair-2); color: var(--ink); }
+.input::placeholder { color: var(--ink-4); }
+.pill { background: rgba(255, 255, 255, 0.07); border-color: var(--hair-2); color: var(--ink-2); }
+.pill-brand, .pill-accent { background: var(--blue-soft); color: var(--blue-ink); border-color: rgba(124, 108, 255, 0.35); }
+.eyebrow { color: var(--blue-2); }
+.footer { background: #0d0d1c; border-top-color: var(--hair-2); }
+table th { background: var(--card-2); color: var(--ink-2); }
+code, kbd { background: var(--card-2); color: var(--blue-ink); }
+.topbar-search { background: #121222; border-color: var(--hair-2); color: var(--ink-3); }
+* { scrollbar-color: rgba(255, 255, 255, 0.22) transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
+
+/* ---- the batch card, reference-style ---- */
+.grid-batches, .grid-cards { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.1rem; }
+.batch-card {
+  background: var(--card);
+  border: 1px solid var(--hair-2);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.7);
+  transition: transform 0.18s var(--ease), border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.batch-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(157, 140, 255, 0.45);
+  box-shadow: 0 22px 44px -18px rgba(109, 92, 255, 0.45);
+}
+.batch-thumb { aspect-ratio: 16 / 8.2; background: #1d1d33; }
+.batch-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.batch-body { padding: 0.85rem 0.95rem 1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.batch-title {
+  color: #fff; font-weight: 700; font-size: 0.95rem; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.batch-sub { color: var(--ink-3); font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.batch-meta { gap: 0.4rem; margin-top: 0.15rem; }
+/* The reference's one call to action, drawn on every card. */
+.batch-body::after {
+  content: "Let's Study →";
+  margin-top: 0.7rem;
+  display: flex; align-items: center; justify-content: center;
+  height: 38px; border-radius: 10px;
+  background: var(--aurora); color: #fff;
+  font-size: 0.83rem; font-weight: 700; letter-spacing: 0.01em;
+  box-shadow: 0 10px 20px -10px rgba(139, 92, 246, 0.7);
+}
+.batch-card:hover .batch-body::after { filter: brightness(1.1); }
+.batch-thumb .free {
+  background: var(--aurora); color: #fff; border-radius: 999px; font-weight: 700;
+}
