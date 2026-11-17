@@ -20,16 +20,16 @@
 
 :root {
   /* Daylight: a clean light stage — white paper, indigo pigment, soft air */
-  --paper: #f7f7fc;
-  --paper-2: #eceef7;
+  --paper: #f8fafc;
+  --paper-2: #eef2f7;
   --card: #ffffff;
-  --card-2: #f3f4fa;
+  --card-2: #f1f5f9;
 
   /* Ink */
-  --ink: #141830;
-  --ink-2: #3d4266;
-  --ink-3: #5d6285;
-  --ink-4: #8b90ad;
+  --ink: #0f172a;
+  --ink-2: #334155;
+  --ink-3: #64748b;
+  --ink-4: #94a3b8;
 
   /* Rules */
   --rule: rgba(30, 34, 80, 0.1);
@@ -38,12 +38,12 @@
   --hair-2: rgba(30, 34, 80, 0.14);
 
   /* Pigment: indigo primary, cyan light, aurora gradient */
-  --blue: #6c3ce9;
-  --blue-2: #8b5cf6;
-  --blue-ink: #5b2bd9;
-  --blue-soft: rgba(90, 75, 224, 0.09);
-  --blue-soft-2: rgba(90, 75, 224, 0.16);
-  --cyan: #0899b8;
+  --blue: #1d4ed8;
+  --blue-2: #2563eb;
+  --blue-ink: #1e3a8a;
+  --blue-soft: rgba(29, 78, 216, 0.08);
+  --blue-soft-2: rgba(29, 78, 216, 0.14);
+  --cyan: #0369a1;
   --ok: #0d9d6c;
   --ok-soft: rgba(13, 157, 108, 0.1);
   --amber: #d97706;
@@ -60,8 +60,8 @@
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
 
   /* Geometry: generous, premium radii */
-  --r: 20px;
-  --r-sm: 10px;
+  --r: 12px;
+  --r-sm: 8px;
   --r-pill: 999px;
 
   /* Elevation: soft daylight shadow */
@@ -69,9 +69,9 @@
   --lift-1: 0 1px 2px rgba(23, 25, 60, 0.05), 0 4px 14px -6px rgba(23, 25, 60, 0.08);
   --lift-2: 0 2px 6px rgba(23, 25, 60, 0.06), 0 18px 40px -18px rgba(23, 25, 60, 0.16);
   --lift-3: 0 4px 10px rgba(23, 25, 60, 0.07), 0 34px 70px -28px rgba(23, 25, 60, 0.22);
-  --focus: 0 0 0 3px rgba(90, 75, 224, 0.25);
+  --focus: 0 0 0 3px rgba(29, 78, 216, 0.22);
   --ease: cubic-bezier(0.2, 0.7, 0.25, 1);
-  --aurora: linear-gradient(120deg, #6c3ce9 0%, #a855f7 42%, #ec4899 75%, #f97316 108%);
+  --aurora: linear-gradient(120deg, #1e3a8a 0%, #1d4ed8 58%, #2563eb 100%);
   --aurora-soft: linear-gradient(120deg, rgba(90, 75, 224, 0.12), rgba(139, 92, 246, 0.1), rgba(8, 153, 184, 0.1))}
 
 /* ==========================================================================
@@ -10437,3 +10437,104 @@ body {
 .btn-primary { box-shadow: 0 10px 22px -10px rgba(168, 85, 247, 0.65); }
 .topbar-search { border-radius: var(--r-pill); background: #fff; }
 input[type="search"], .search-well { border-radius: var(--r-pill); }
+
+/* ==========================================================================
+   ROUND 9 — Professional (2026)
+   --------------------------------------------------------------------------
+   The Iris playfulness retires for a professional register: slate paper,
+   white surfaces, navy pigment, flat primaries, 12px corners, hairline
+   borders over shadows. The sidebar becomes what a work tool's sidebar
+   should be — white, quiet, with a solid navy pill marking the current
+   page and no decoration competing with the content. The Live card
+   stays, in professional dress: pale blue, navy text, one red dot.
+   ========================================================================== */
+
+/* ---- professional rail ---- */
+.side {
+  background: #fff;
+  color: var(--ink);
+  border-right: 1px solid var(--rule);
+  box-shadow: none;
+  padding: 1rem 0.8rem 0.9rem;
+}
+.side-brand { border-bottom: 1px solid var(--hair-2); color: var(--ink); }
+.side-brand .brand-img, .side-brand img {
+  background: #1e3a8a;
+  border-radius: 8px;
+  padding: 5px;
+  box-shadow: none;
+}
+.side-brand-text { color: var(--ink); }
+.side-brand-text small { color: var(--ink-4); }
+.side-collapse { color: var(--ink-3); border-radius: 8px; }
+.side-collapse:hover { background: var(--card-2); color: var(--ink); }
+
+.side-title { color: var(--ink-4); }
+.side-title::before { color: var(--blue); }
+.side-title::after { background: var(--hair-2); }
+
+.side-link { color: var(--ink-2); border-radius: 8px; padding: 0.5rem 0.55rem; }
+.side-link svg {
+  width: 18px; height: 18px; padding: 0;
+  background: none; border: 0; border-radius: 0;
+  color: var(--ink-3);
+}
+.side-link:hover { background: var(--card-2); border-color: transparent; color: var(--ink); }
+.side-link:hover svg { color: var(--ink-2); }
+.side-link.active {
+  background: #1e3a8a;
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 14px -8px rgba(30, 58, 138, 0.55);
+}
+.side-link.active svg { background: none; color: #fff; }
+.side-link kbd { background: var(--card-2); border-color: var(--hair-2); color: var(--ink-4); }
+.side-count { background: #1d4ed8; }
+
+.side-mini { color: var(--ink-3); border-radius: 8px; }
+.side-mini:hover { background: var(--card-2); color: var(--ink); }
+.side-mini img, .side-mini-ph { border-color: var(--rule); border-radius: 4px; }
+
+.side-live {
+  background: var(--blue-soft);
+  border: 1px solid rgba(29, 78, 216, 0.22);
+  border-radius: 10px;
+  color: var(--ink);
+  box-shadow: none;
+}
+.side-live:hover { transform: none; box-shadow: var(--lift-1); color: var(--ink); }
+.side-live-text strong { color: var(--blue-ink); }
+.side-live-text small { color: var(--ink-3); }
+.side-live-arrow { color: var(--blue); }
+
+.side-foot { border-top: 1px solid var(--hair-2); }
+.side-who { color: var(--ink); }
+.side-who-text span { color: var(--ink-4); }
+.side-cta { background: #fff; border-color: var(--rule-2); color: var(--ink-2); border-radius: 8px; }
+.side-cta:hover { background: var(--card-2); border-color: var(--rule-2); color: var(--ink); }
+.side-micro { color: var(--ink-4); }
+.avatar { background: #1e3a8a; }
+body.side-collapsed .side { background: #fff; }
+
+/* ---- professional content ---- */
+body {
+  background:
+    radial-gradient(900px 480px at 85% -10%, rgba(29, 78, 216, 0.05), transparent 60%),
+    var(--paper);
+}
+.eyebrow {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: var(--blue);
+}
+.card { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+.batch-card:hover { transform: translateY(-2px); box-shadow: var(--lift-1); }
+.btn-primary {
+  background: #1d4ed8;
+  box-shadow: 0 6px 14px -8px rgba(29, 78, 216, 0.6);
+}
+.btn-primary:hover { background: #1e40af; }
+.nav { background: rgba(255, 255, 255, 0.92); }
+h1, h2, h3 { letter-spacing: -0.018em; }

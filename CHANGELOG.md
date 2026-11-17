@@ -2,6 +2,23 @@
 
 ---
 
+## Round 9: Professional UI, latency-aware healing, network-aware player
+
+The design goes professional: slate paper, white surfaces, navy pigment,
+flat primaries, 12px corners, hairlines over shadows. The sidebar is a
+quiet white rail with plain icons and a solid navy pill for the current
+page; the Live card stays in pale professional blue. Responses get
+lighter: the build now minifies the stylesheet (237 KB → 165 KB) with a
+brace-balance sanity check that fails the build rather than shipping a
+broken sheet. Self-healing learns latency: signer trust is now an EWMA
+of answer time as well as a failure count — a signer answering in six
+seconds fades towards a 0.3 floor (demoted, never skipped) and recovers
+as it speeds up; probe and relay timings feed it, and the health report
+shows ewmaMs per host. The player reads the Network Information API:
+slow links and data-saver start capped (360–480p) instead of spending
+the first minute oscillating, an explicit saved quality still wins, and
+the cap is reported in the player health line. Service worker v24.
+
 ## Round 8: Iris UI + sidebar redesign
 
 The frame changes character. The sidebar is now a deep ink-violet rail —

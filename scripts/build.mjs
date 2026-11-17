@@ -221,6 +221,31 @@ async function main() {
     process.exit(1);
   }
 
+  // Minify the design sheet for the deployment. 230 KB of hand-commented
+  // CSS is a first-paint tax on every page; the comments and indentation
+  // are for the source, not the wire. Conservative by design: comments and
+  // whitespace only — no token rewriting, no shorthand merging — and the
+  // brace balance is verified before the file is replaced, so a minifier
+  // bug fails the build instead of shipping a broken sheet.
+  const cssPath = path.join(PUBLIC, "assets", "arsvibe.css");
+  const cssSource = await readFile(cssPath, "utf8");
+  const minified = cssSource
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*([{};,>])\s*/g, "$1")
+    .replace(/;}/g, "}")
+    .trim();
+  const opens = (minified.match(/{/g) || []).length;
+  const closes = (minified.match(/}/g) || []).length;
+  if (opens !== closes || minified.length > cssSource.length) {
+    problems.push(`CSS minify failed its sanity check (${opens}/${closes} braces)`);
+  } else {
+    await writeFile(cssPath, minified + "\n");
+    console.log(
+      `CSS minified — ${Math.round(cssSource.length / 1024)} KB → ${Math.round(minified.length / 1024)} KB`
+    );
+  }
+
   const stamp = {
     builtAt: new Date().toISOString(),
     pages: pages.sort(),

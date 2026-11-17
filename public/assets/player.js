@@ -565,6 +565,7 @@ export class ProPlayer {
         index: l.index ?? hls.levels.indexOf(l),
       }));
       this.state({ engine: "hls", qualityLevels: levels });
+      this._applyNetworkCap(hls, levels);
       this._applySavedQuality(levels);
       if (autoplay) this.play();
     });
@@ -655,6 +656,38 @@ export class ProPlayer {
     });
     player.initialize(this.video, plan.url, false);
     this.state({ engine: "dash" });
+  }
+
+  /**
+   * Cap the ladder to what this connection can actually carry.
+   *
+   * The Network Information API is the browser saying the quiet part out
+   * loud: on a 2G-class link or with data-saver on, ABR's probe-and-climb
+   * spends the first minute oscillating and re-buffering before it learns
+   * what the browser already knew. Capping auto mode up front (480p on
+   * slow links, 360p under data-saver) removes that learning period. An
+   * explicit saved quality is a student's choice and still wins — it is
+   * applied after this and pins the level.
+   */
+  _applyNetworkCap(hls, levels) {
+    try {
+      const conn = typeof navigator !== "undefined" ? navigator.connection : null;
+      if (!conn || !Array.isArray(levels) || !levels.length) return;
+      const type = String(conn.effectiveType || "");
+      const cap = conn.saveData ? 360 : type === "2g" || type === "slow-2g" ? 360 : type === "3g" ? 480 : 0;
+      if (!cap) return;
+      let best = -1;
+      levels.forEach((l, i) => {
+        if ((l.height || 0) <= cap) best = i;
+      });
+      if (best >= 0 && best < levels.length - 1) {
+        hls.maxAutoLevel = best;
+        this._networkCap = cap;
+        this.state({ networkCap: cap, note: `Connection-aware quality (up to ${cap}p)` });
+      }
+    } catch {
+      /* the API is a hint; playback never depends on it */
+    }
   }
 
   /* ------------------------------- libraries ------------------------------ */
@@ -1160,6 +1193,7 @@ export class ProPlayer {
       currentTime: this.video ? Math.round(this.video.currentTime || 0) : 0,
       stalledForMs: this.lastTickAt ? Date.now() - this.lastTickAt : 0,
       heartbeats: this._healthBeats,
+      networkCap: this._networkCap || 0,
     };
   }
 
