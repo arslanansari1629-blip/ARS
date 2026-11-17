@@ -22,6 +22,14 @@ import { ProPlayer, fmtTime, folderOf } from "./player.js";
 
 mountChrome("batches");
 
+/**
+ * The window this module booted in. The outage retry below is scheduled on a
+ * plain timer; if the page has been replaced since (a navigation the module
+ * cannot hear about), the retry must stand down rather than fire requests
+ * from a page that no longer exists.
+ */
+const pageWindow = typeof window !== "undefined" ? window : null;
+
 const batchId = qs("batch");
 const subjectSlug = qs("subject");
 const lectureId = qs("id");
@@ -509,6 +517,8 @@ async function resolvePlan(n, level) {
  */
 let silent = 0;
 const SILENT_ATTEMPTS = 3;
+/** Bumped whenever a manual retry supersedes a scheduled outage retry. */
+let outageGen = 0;
 
 /** Short, widening pause between silent attempts. */
 const pause = (n) => new Promise((r) => setTimeout(r, Math.min(4000, 700 * n)));
@@ -551,7 +561,45 @@ async function startStream() {
   // A refusal that names an access limit will answer exactly the same way next
   // time, so retrying it only delays the explanation by five seconds and then
   // fails anyway. Only *transient* answers are worth a silent retry.
-  const permanent = isPermanent(plan && plan.reason);
+  // A total signing outage wears the same refusal prose as a per-lecture
+  // refusal, but it is not permanent: relays come back. The server marks it
+  // `signerDown`, and while it lasts the page retries on its own instead of
+  // parking the student on a message that expired minutes ago.
+  const permanent = isPermanent(plan && plan.reason) && !(plan && plan.signerDown);
+
+  // A signing outage gets the explanation *now* — the notes link included —
+  // and keeps retrying behind it. Parking the student on a spinner for the
+  // whole outage hides the one thing that still works (the PDFs), and a
+  // message with no retry strands them when the relays come back a minute
+  // later. Eight background attempts at the server's delay is ~2 minutes;
+  // after that the final message below takes over.
+  if (plan && !plan.playable && plan.signerDown && silent < 8) {
+    silent += 1;
+    attempt += 1;
+    const gen = ++outageGen;
+    showMessage(
+      "Signing service is down",
+      `${plan.reason || "Physics Wallah's signing relays are not answering right now."} Retrying automatically in the background — the lecture starts on its own when signing recovers.`,
+      false,
+      `<a class="btn btn-primary" href="/chapter.html?batch=${encodeURIComponent(
+        qs("batch") || ""
+      )}&subject=${encodeURIComponent(qs("subject") || "")}&chapter=${encodeURIComponent(
+        qs("chapter") || ""
+      )}&name=${encodeURIComponent(qs("chapterName") || "")}#notes">Open the notes &amp; DPPs for this chapter</a>
+       <button class="btn btn-ghost" id="retryNowBtn">Retry now</button>`
+    );
+    $("retryNowBtn")?.addEventListener("click", () => {
+      outageGen += 1;
+      hideOverlay();
+      startStream();
+    });
+    setTimeout(() => {
+      if (gen !== outageGen) return;
+      if (pageWindow && typeof window !== "undefined" && window !== pageWindow) return;
+      startStream();
+    }, (plan.retryAfter || 15) * 1000);
+    return;
+  }
 
   // Upstream signing is intermittently rate-limited; a short retry is cheaper
   // than showing the student an error they cannot act on.
@@ -627,7 +675,11 @@ async function startStream() {
          <button class="btn btn-ghost" id="retryBtn">Retry</button>`;
 
     showMessage(
-      isAccessLimit ? "This lecture's stream was refused just now" : "This class has no video yet",
+      plan && plan.signerDown
+        ? "Signing service is still down"
+        : isAccessLimit
+          ? "This lecture's stream was refused just now"
+          : "This class has no video yet",
       reason,
       false,
       actions

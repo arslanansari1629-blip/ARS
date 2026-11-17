@@ -1704,7 +1704,7 @@ test("a lecture that cannot play sends you to its notes, not a retry loop", asyn
   // The copy moved when playback started working: "needs a PW account" was true
   // for a while and is not any more. What the page must still do is explain the
   // state it is in rather than spin, and always offer the notes tab.
-  assert.match(text, /no video yet|refused just now|has no released video/i, "the page must explain, not spin");
+  assert.match(text, /no video yet|refused just now|has no released video|signing service is down/i, "the page must explain, not spin");
   assert.doesNotMatch(text, /needs a PW account/i, "the page still claims playback requires an account");
   const links = [...doc.querySelectorAll("a.btn")].map((a) => a.getAttribute("href") || "");
   const notesLink = links.find((h) => /chapter\.html/.test(h) && /#notes/.test(h));
