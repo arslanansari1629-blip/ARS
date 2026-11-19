@@ -1,0 +1,8 @@
+# Cloudflare Pages — arsvibe (free *.pages.dev subdomain; no custom domain needed)
+# Dashboard settings mirror this file: build command `node scripts/build.mjs`,
+# build output directory `public`. The /functions directory is picked up
+# automatically and compiled into a single Pages Function.
+name = "arsvibe"
+pages_build_output_dir = "public"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
