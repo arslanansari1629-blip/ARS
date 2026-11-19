@@ -1,8 +1,16 @@
-# Cloudflare Pages — arsvibe (free *.pages.dev subdomain; no custom domain needed)
-# Dashboard settings mirror this file: build command `node scripts/build.mjs`,
-# build output directory `public`. The /functions directory is picked up
-# automatically and compiled into a single Pages Function.
+# Cloudflare Workers — arsvibe (free *.workers.dev subdomain; no custom domain needed)
+# Git-connected build settings (dashboard → Settings → Build):
+#   Build command:  node scripts/build.mjs
+#   Deploy command: npx wrangler deploy        (the default)
 name = "arsvibe"
-pages_build_output_dir = "public"
+main = "cloudflare/worker.js"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[triggers]
+crons = ["0 3 * * *"]
