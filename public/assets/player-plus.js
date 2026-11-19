@@ -103,3 +103,4 @@ if (video && track) {
   setInterval(paintMarkers, 4000);
   paintMarkers();
 }
+

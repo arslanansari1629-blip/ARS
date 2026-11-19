@@ -20,38 +20,38 @@
 
 :root {
   /* Daylight: a clean light stage — white paper, indigo pigment, soft air */
-  --paper: #0a0a16;
-  --paper-2: #10101f;
-  --card: #151528;
-  --card-2: #1b1b31;
+  --paper: #faf6ef;
+  --paper-2: #f3ecdf;
+  --card: #fffdf8;
+  --card-2: #f7f1e5;
 
   /* Ink */
-  --ink: #f4f4fb;
-  --ink-2: #c9c9dd;
-  --ink-3: #9a9ab5;
-  --ink-4: #6d6d8a;
+  --ink: #1c1917;
+  --ink-2: #44403c;
+  --ink-3: #78716c;
+  --ink-4: #a8a29e;
 
   /* Rules */
-  --rule: rgba(255, 255, 255, 0.09);
-  --rule-2: rgba(255, 255, 255, 0.18);
-  --hair: rgba(255, 255, 255, 0.06);
-  --hair-2: rgba(255, 255, 255, 0.12);
+  --rule: rgba(28, 25, 23, 0.16);
+  --rule-2: rgba(28, 25, 23, 0.3);
+  --hair: rgba(28, 25, 23, 0.09);
+  --hair-2: rgba(28, 25, 23, 0.18);
 
   /* Pigment: indigo primary, cyan light, aurora gradient */
-  --blue: #7c6cff;
-  --blue-2: #9d8cff;
-  --blue-ink: #b3a8ff;
-  --blue-soft: rgba(124, 108, 255, 0.16);
-  --blue-soft-2: rgba(124, 108, 255, 0.28);
-  --cyan: #38bdf8;
+  --blue: #e4572e;
+  --blue-2: #f0763a;
+  --blue-ink: #bc3f14;
+  --blue-soft: rgba(228, 87, 46, 0.13);
+  --blue-soft-2: rgba(228, 87, 46, 0.24);
+  --cyan: #0e7c86;
   --ok: #0d9d6c;
   --ok-soft: rgba(13, 157, 108, 0.1);
   --amber: #d97706;
   --danger: #e11d48;
 
   /* Drawing grid -> faint blueprint */
-  --grid-minor: rgba(70, 80, 180, 0.045);
-  --grid-major: rgba(70, 80, 180, 0.07);
+  --grid-minor: rgba(120, 80, 40, 0.05);
+  --grid-major: rgba(120, 80, 40, 0.08);
 
   /* Type: system stack — zero webfont downloads, instant first paint */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
@@ -60,8 +60,8 @@
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
 
   /* Geometry: generous, premium radii */
-  --r: 16px;
-  --r-sm: 10px;
+  --r: 14px;
+  --r-sm: 8px;
   --r-pill: 999px;
 
   /* Elevation: soft daylight shadow */
@@ -69,10 +69,10 @@
   --lift-1: 0 1px 2px rgba(23, 25, 60, 0.05), 0 4px 14px -6px rgba(23, 25, 60, 0.08);
   --lift-2: 0 2px 6px rgba(23, 25, 60, 0.06), 0 18px 40px -18px rgba(23, 25, 60, 0.16);
   --lift-3: 0 4px 10px rgba(23, 25, 60, 0.07), 0 34px 70px -28px rgba(23, 25, 60, 0.22);
-  --focus: 0 0 0 3px rgba(124, 108, 255, 0.35);
+  --focus: 0 0 0 3px rgba(228, 87, 46, 0.45);
   --ease: cubic-bezier(0.2, 0.7, 0.25, 1);
-  --aurora: linear-gradient(120deg, #6d5cff 0%, #8b5cf6 48%, #c026d3 100%);
-  --aurora-soft: linear-gradient(120deg, rgba(90, 75, 224, 0.12), rgba(139, 92, 246, 0.1), rgba(8, 153, 184, 0.1))}
+  --aurora: linear-gradient(120deg, #e4572e 0%, #f59e0b 55%, #d92632 100%);
+  --aurora-soft: linear-gradient(120deg, rgba(228, 87, 46, 0.12), rgba(245, 158, 11, 0.1), rgba(14, 124, 134, 0.1))}
 
 /* ==========================================================================
    02 — Base
@@ -10667,3 +10667,69 @@ code, kbd { background: var(--card-2); color: var(--blue-ink); }
 .batch-thumb .free {
   background: var(--aurora); color: #fff; border-radius: 999px; font-weight: 700;
 }
+
+/* ==========================================================================
+   ROUND 11 — Study Press (2026): warm paper, espresso ink, vermilion.
+   An editorial identity of our own: chunky ink rules, hard offset shadows,
+   mono micro-labels, and a warm-black player stage with a vermilion rail.
+   ========================================================================== */
+body { background: radial-gradient(1100px 500px at 85% -5%, rgba(245, 158, 11, 0.1), transparent 60%), var(--paper); color: var(--ink); }
+h1, h2, .display { font-family: var(--display); font-weight: 800; letter-spacing: -0.022em; }
+.nav, .topbar { background: rgba(250, 246, 239, 0.92); border-bottom: 2px solid var(--ink); backdrop-filter: blur(10px); }
+.brand { font-weight: 800; letter-spacing: -0.02em; }
+
+/* Espresso rail, paper text, vermilion active pill */
+.side { background: linear-gradient(180deg, #241c14 0%, #171310 100%); color: #f5efe4; border-right: 2px solid #171310; }
+.side a, .side .side-link { color: #d9d0bf; }
+.side-link.active { background: var(--blue); color: #fff; box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45); }
+.side-live { background: rgba(245, 158, 11, 0.12); border: 1.5px solid rgba(245, 158, 11, 0.45); color: #f5efe4; }
+
+/* Press buttons: ink rule, hard shadow, mechanical press on click */
+.btn { border: 2px solid var(--ink); border-radius: 10px; box-shadow: 3px 3px 0 var(--ink); font-weight: 700; transition: transform 0.08s var(--ease), box-shadow 0.08s var(--ease), background 0.15s var(--ease); }
+.btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.btn:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+.btn-primary { background: var(--blue); border-color: var(--ink); color: #fff; }
+.btn-primary:hover { background: var(--blue-2); }
+.btn-ghost { background: var(--card); color: var(--ink); }
+
+/* Cards sit on the page like printed plates */
+.card, .batch-card, .stat-card, .goal-card { background: var(--card); border: 2px solid var(--ink); border-radius: var(--r); box-shadow: 5px 5px 0 rgba(28, 25, 23, 0.9); }
+.batch-card:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 rgba(28, 25, 23, 0.9); }
+.batch-thumb { border-bottom: 2px solid var(--ink); }
+.batch-body::after { content: "Let's Study \2192"; background: var(--ink); color: var(--paper); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; border-radius: 8px; }
+.batch-card:hover .batch-body::after { background: var(--blue); color: #fff; }
+
+/* Mono micro-labels everywhere a tag speaks */
+.pill, .tag, .chip { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.68rem; border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); border-radius: 6px; }
+.input, select.input, textarea.input { border: 2px solid var(--ink); background: var(--card); border-radius: 10px; color: var(--ink); }
+.input:focus { box-shadow: var(--focus); outline: none; }
+.tab.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+table { border: 2px solid var(--ink); background: var(--card); }
+th { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.7rem; }
+.footer { background: #171310; color: #d9d0bf; border-top: 2px solid #171310; }
+.skeleton { background: linear-gradient(100deg, var(--card-2) 40%, #efe6d4 50%, var(--card-2) 60%); }
+
+/* ---- Player: warm-black stage, vermilion rail, paper menus ---- */
+.player-stage { background: radial-gradient(circle at 50% 42%, #2a1e12 0%, #171310 68%, #0d0a08 100%); }
+.player-wrap.has-ambient { --ambient: rgba(228, 87, 46, 0.35); }
+.player-bar { background: linear-gradient(180deg, transparent, rgba(13, 10, 8, 0.88)); }
+.scrubber-played { background: var(--aurora); }
+.scrubber-buffered { background: rgba(250, 246, 239, 0.28); }
+.scrubber-knob { background: #fff; border: 2.5px solid var(--blue); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.55); }
+.scrubber-track { background: rgba(250, 246, 239, 0.22); }
+.scrubber-tip { background: var(--paper); color: var(--ink); border: 1.5px solid var(--ink); font-family: var(--mono); box-shadow: 2px 2px 0 var(--ink); }
+.icon-btn { color: #f5efe4; border-radius: 9px; }
+.icon-btn:hover { background: rgba(250, 246, 239, 0.14); }
+.icon-btn.icon-primary { background: var(--blue); color: #fff; box-shadow: 2.5px 2.5px 0 rgba(0, 0, 0, 0.5); }
+.big-play { background: var(--blue); color: #fff; border: 2.5px solid #fff3e6; box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.5); }
+.player-menu { background: var(--paper); color: var(--ink); border: 2px solid var(--ink); box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.55); border-radius: 12px; }
+.player-menu .menu-link, .player-menu .menu-row { color: var(--ink); }
+.player-chip { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.07em; background: rgba(23, 19, 16, 0.85); color: #ffd9a8; border: 1px solid rgba(245, 158, 11, 0.5); }
+.buffer-chip { font-family: var(--mono); background: rgba(23, 19, 16, 0.85); color: #f5efe4; }
+.gesture-flash { background: rgba(23, 19, 16, 0.72); color: var(--paper); border: 1.5px solid rgba(250, 246, 239, 0.5); font-family: var(--mono); }
+.note-marker { background: var(--amber, #f59e0b); }
+.player-stats { background: rgba(23, 19, 16, 0.88); color: #f5efe4; border: 1.5px solid rgba(250, 246, 239, 0.25); font-family: var(--mono); }
+
+/* The mini dock, in Press dress: ink frame, hard shadow, vermilion edge */
+.player-wrap.is-mini { border: 2px solid var(--ink); border-radius: 14px; overflow: hidden; box-shadow: 6px 6px 0 rgba(28, 25, 23, 0.85); }
+.player-wrap.is-mini .player-stage { border-radius: 12px; }

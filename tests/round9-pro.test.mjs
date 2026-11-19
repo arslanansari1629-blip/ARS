@@ -15,9 +15,9 @@ test("the professional design: white rail, navy active pill, flat primary", asyn
   assert.match(r9, /\.side\s*\{[^}]*background: ?#fff/);
   assert.match(r9, /\.side-link\.active\s*\{[^}]*background: ?#1e3a8a/);
   assert.match(r9, /\.btn-primary\s*\{[^}]*background: ?#1e3a8a|\.btn-primary\s*\{[^}]*background: ?#1d4ed8/);
-  assert.match(css, /--blue: ?#7c6cff/);
-  assert.match(css, /--paper: ?#0a0a16/);
-  assert.match(css, /--r: ?16px/);
+  assert.match(css, /--blue: ?#e4572e/);
+  assert.match(css, /--paper: ?#faf6ef/);
+  assert.match(css, /--r: ?14px/);
 });
 
 test("signer trust is latency-aware: slow hosts fade, never vanish", async () => {

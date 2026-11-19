@@ -10,9 +10,9 @@ const read = (p) => readFile(new URL(p, root), "utf8");
 
 test("the design tokens are the light Daylight set", async () => {
   const css = await read("public/assets/arsvibe.css");
-  assert.match(css, /--paper: ?#0a0a16/);
-  assert.match(css, /--card: ?#151528/);
-  assert.match(css, /--ink: ?#f4f4fb/);
+  assert.match(css, /--paper: ?#faf6ef/);
+  assert.match(css, /--card: ?#fffdf8/);
+  assert.match(css, /--ink: ?#1c1917/);
   assert.match(css, /\.footer\s*\{[^}]*background: ?#fff/);
   // No webfont families remain in the type stack.
   assert.doesNotMatch(css, /--font: "Inter"/);
@@ -27,7 +27,7 @@ test("no page loads Google Fonts and every page declares the light theme", async
     assert.doesNotMatch(html, /fonts\.googleapis|fonts\.gstatic/, `${page} still loads webfonts`);
   }
   const watch = await read("public/watch.html");
-  assert.match(watch, /theme-color" content="#0a0a16"/);
+  assert.match(watch, /theme-color" content="#faf6ef"/);
 });
 
 test("the player stage stays a dark cinema screen", async () => {
