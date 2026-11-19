@@ -265,6 +265,13 @@ test("a sleepy mirror does not set the latency of the lecture", async () => {
   // cannot change the plan, so the request must not wait for them.
   resetToken();
   forgetSignerToken();
+  // The opening wave now asks one host first, so this test's "healthy host"
+  // must also be the *top-ranked* one: earlier tests in this file record
+  // refusals against vidcloud, and a demoted vidcloud would make the wave
+  // open on a wedged mirror for reasons that have nothing to do with the
+  // property under test (a slow host must not set the latency).
+  const { resetSelfHeal } = await import("../lib/selfheal.mjs");
+  resetSelfHeal();
   process.env.PW_TOKEN = "";
   const healthy = "https://vidcloud.eu.org";
   globalThis.fetch = async (input, init) => {
