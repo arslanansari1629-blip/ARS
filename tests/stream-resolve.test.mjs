@@ -797,3 +797,38 @@ test("renditions refused anonymously are re-asked with a minted token, patiently
     else process.env.PW_TOKEN = previousToken;
   }
 });
+
+test("the signer probe stays inside a Workers-style subrequest budget", async () => {
+  // Cloudflare Workers allows 50 subrequests per invocation on the free
+  // plan, shared with the contents/token calls in the same request. The
+  // old probe (25 burst + 25 polite + credential retries) blew past it:
+  // every fetch past the cap throws "Too many subrequests", which the
+  // probe reported as "signer unreachable" on every lecture while the
+  // single-fetch relay route worked. The probe must cap its own asks.
+  const { probeRenditions, forgetSignerToken } = await import("../lib/api-data.mjs");
+  const { resetToken } = await import("../lib/pw-auth.mjs");
+  resetToken();
+  forgetSignerToken();
+  let signerAsks = 0;
+  const probe = await withFetch(
+    async (url) => {
+      const u = String(url);
+      if (u.includes("generate_token")) {
+        return new Response(JSON.stringify({ token: "guest-token-value-123456" }), { status: 200 });
+      }
+      if (u.includes("get-hls-key")) {
+        signerAsks += 1;
+        throw new Error("Too many subrequests by single Worker invocation.");
+      }
+      return new Response("nope", { status: 404 });
+    },
+    () => probeRenditions({ folder: "77777777-1234-4234-8234-1234567890ab", fresh: true })
+  );
+  assert.equal(probe.renditions.length, 0);
+  assert.ok(probe.unreachable, "transport failures must still read as unreachable");
+  assert.ok(
+    signerAsks > 0 && signerAsks <= 24,
+    `probe made ${signerAsks} signer asks; the budget is 24`
+  );
+  assert.match(probe.probeError || "", /subrequests/i);
+});
