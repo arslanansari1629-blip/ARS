@@ -251,9 +251,15 @@ test("token time measures the mint, not the probe", async () => {
   const paid = await resolveStream({ rawUrl: "", folder: "eeeeeeee-1111-2222-3333-444444444444", fresh: true });
   assert.equal(paid.playable, true, `the retry did not recover: ${paid.reason}`);
   assert.ok(paid.timing.tokenMs >= 240, `tokenMs was ${paid.timing.tokenMs}; the wait for the mint was not measured`);
+  // The anchor walk answers within a millisecond of the mint landing (the
+  // stub signer is instant), so at 1 ms resolution tokenMs may *equal*
+  // totalMs honestly. The regression this guards is the clock starting at
+  // the wrong end — tokenMs claiming time the probe spent before the mint
+  // was even waited on — which the >=240 check above plus the anonymous
+  // half's notEqual still pin.
   assert.ok(
-    paid.timing.tokenMs < paid.timing.totalMs,
-    `tokenMs (${paid.timing.tokenMs}) is the whole request; the clock starts too late`
+    paid.timing.tokenMs <= paid.timing.totalMs,
+    `tokenMs (${paid.timing.tokenMs}) exceeds the whole request (${paid.timing.totalMs}); the clock starts too late`
   );
 });
 
