@@ -2126,3 +2126,6 @@ pages, 10 API functions, 39 assets, 14,201 batches indexed.
 - **Unique identity, not a clone:** warm paper (`#faf6ef`), espresso ink (`#1c1917`), vermilion (`#e4572e`) with an amber→crimson aurora; chunky 2px ink rules, hard offset shadows that physically press on click, mono uppercase micro-labels, espresso sidebar with vermilion active pill, paper topbar. Batch cards are printed plates with an ink "Let's Study →" plate-button that fills vermilion on hover.
 - **Player upgrade:** warm-black stage (`#2a1e12` heart), vermilion→amber scrubber rail, paper settings menus with ink frame and hard shadow, vermilion play puck, mono chips/stats, and the existing mini-dock reframed in ink with a hard shadow. Engine untouched (already: ABR + network cap, theatre, PiP, screenshot, sleep timer, up-next, note markers, hold-for-2×, 0.5–3× speeds).
 - `theme-color #faf6ef` on all pages; service worker v28; suite 586/586.
+
+## Cloudflare go-live (2026-11-19)
+- Production moves to a Git-connected Cloudflare Worker (`arsvibe`): static assets from `public/`, all API handlers via the fetch adapter, daily scanner cron. First Cloudflare production build triggered from this commit.
