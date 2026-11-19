@@ -60,6 +60,62 @@ async function grab(url, { retry = true } = {}) {
   return out;
 }
 
+/**
+ * Run one of our own `/api/sign` URLs through the sign handler in-process.
+ *
+ * The checker used to fetch its own origin over HTTP, which was merely
+ * wasteful on Vercel and is fatal on Cloudflare: a Worker fetching its
+ * own workers.dev address is refused ("error code: 1042"), so every
+ * healthy lecture reported playlist_failed. Same handlers, same bytes —
+ * no loopback.
+ */
+async function grabInProcess(path) {
+  const { default: signRelay } = await import("../lib/sign.mjs");
+  return new Promise((resolve) => {
+    const chunks = [];
+    const headers = {};
+    const res2 = {
+      statusCode: 0,
+      headersSent: false,
+      setHeader(k, v) {
+        headers[String(k).toLowerCase()] = v;
+      },
+      getHeader(k) {
+        return headers[String(k).toLowerCase()];
+      },
+      write(b) {
+        chunks.push(Buffer.from(b));
+      },
+      end(b) {
+        if (b) chunks.push(Buffer.from(b));
+        resolve({ status: this.statusCode, type: headers["content-type"] || "", buf: Buffer.concat(chunks) });
+      },
+    };
+    try {
+      const maybe = signRelay({ method: "GET", url: path, headers: { host: "check.local" } }, res2);
+      if (maybe && typeof maybe.catch === "function") {
+        maybe.catch(() => resolve({ status: 0, type: "", buf: Buffer.alloc(0) }));
+      }
+    } catch {
+      resolve({ status: 0, type: "", buf: Buffer.alloc(0) });
+    }
+  });
+}
+
+/** Own-origin sign URLs go in-process; everything else is a real fetch. */
+async function grabAny(url, base) {
+  if (String(url).includes("/api/sign?")) {
+    const u = new URL(url, base || "http://check.local");
+    let out = await grabInProcess(`${u.pathname}${u.search}`);
+    if (out.status === 502 || out.status === 403 || out.status === 429) {
+      await new Promise((r) => setTimeout(r, 1500));
+      out = await grabInProcess(`${u.pathname}${u.search}`);
+    }
+    return out;
+  }
+  return grab(url);
+}
+
 /** Pull just the bits of `Schedule` that decide whether anything can play. */
 async function scheduleInfo(batch, subject, id) {
   // Deliberately the same reader the lecture page uses (`fetchSchedule`), so
@@ -155,7 +211,7 @@ async function checkLecture({ batch, subject, id, url, base }) {
 
     /* 2 ── playlist -------------------------------------------------------- */
     const playlistUrl = plan.url.startsWith("http") ? plan.url : base + plan.url;
-    const pl = await grab(playlistUrl);
+    const pl = await grabAny(playlistUrl, base);
     const plText = pl.buf.toString("utf8");
     report.steps.playlist = {
       url: playlistUrl,
@@ -201,7 +257,7 @@ async function checkLecture({ batch, subject, id, url, base }) {
       const variant = best && best.uri;
       if (variant) {
         mediaUrl = variant.startsWith("http") ? variant : new URL(variant, playlistUrl).toString();
-        const v = await grab(mediaUrl);
+        const v = await grabAny(mediaUrl, base);
         mediaText = v.buf.toString("utf8");
         report.steps.variant = {
           url: mediaUrl,
@@ -228,7 +284,7 @@ async function checkLecture({ batch, subject, id, url, base }) {
     let key = null;
     if (keyUri) {
       const kUrl = keyUri.startsWith("http") ? keyUri : new URL(keyUri, mediaUrl).toString();
-      const k = await grab(kUrl);
+      const k = await grabAny(kUrl, base);
       report.steps.key = { url: kUrl, status: k.status, bytes: k.buf.length };
       if (k.status === 200 && k.buf.length === 16) key = k.buf;
       else {
@@ -250,7 +306,7 @@ async function checkLecture({ batch, subject, id, url, base }) {
     const segUrl = segments[0].startsWith("http")
       ? segments[0]
       : new URL(segments[0], mediaUrl).toString();
-    const seg = await grab(segUrl);
+    const seg = await grabAny(segUrl, base);
     report.steps.segment = { url: segUrl, status: seg.status, bytes: seg.buf.length };
 
     if (seg.status !== 200 || seg.buf.length < 1000) {
