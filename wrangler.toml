@@ -14,3 +14,10 @@ run_worker_first = ["/api/*"]
 
 [triggers]
 crons = ["0 3 * * *"]
+
+# The catalogue gzip is imported by lib/catalog.mjs where no filesystem
+# exists (Workers); on Node the same file is read from disk as before.
+[[rules]]
+type = "Data"
+globs = ["**/data/batches.json.gz"]
+fallthrough = true
