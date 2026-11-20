@@ -74,3 +74,25 @@ test("live-to-VOD lectures get a retry, a contents fallback and a signer hunt", 
   assert.match(stream, /Live-to-VOD hunt/);
   assert.match(stream, /huntedFrom/);
 });
+
+test("live classes read every stream field and explain themselves honestly", async () => {
+  const data = await read("lib/api-data.mjs");
+  assert.match(data, /vd\.hls_url \|\| d\.newCdnLink/);
+  assert.match(data, /classStatus: d\.status/);
+  const playback = await read("lib/playback.mjs");
+  assert.match(playback, /This class is live right now/);
+  assert.match(playback, /has not started yet/);
+  const today = await read("lib/today.mjs");
+  assert.match(today, /row\.newCdnLink \|\| row\.ytStreamUrl/);
+  const stream = await read("api/stream.mjs");
+  assert.match(stream, /const ended = !detail\?\.endTime/);
+});
+
+test("schedule resolution merges generations and sweeps pinned hosts", async () => {
+  const data = await read("lib/api-data.mjs");
+  assert.match(data, /Merge, don't pick/);
+  assert.match(data, /Ask the remaining PW hosts pinned/);
+  assert.match(data, /streamOf/);
+  const upstream = await read("lib/upstream.mjs");
+  assert.match(upstream, /opts\.upstream/);
+});

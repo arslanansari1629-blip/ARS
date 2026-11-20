@@ -40,6 +40,8 @@ async function readSchedule(batch, subject, id) {
     detail: {
       title: l.title,
       status: l.videoStatus,
+      classStatus: l.classStatus || "",
+      endTime: l.end || "",
       lectureType: l.urlType,
       drm: l.drm,
       isVideoLecture: l.isVideoLecture,
@@ -164,9 +166,10 @@ export default async function handler(req, res) {
         // these ids *is* the signer folder — probe them (the probe is
         // budget-capped and anchor-first) before telling a student the
         // lecture does not exist.
-        const candidates = [sched.findKey, sched.videoId, sched.dRoomId].filter(
-          (v, i, a) => v && a.indexOf(v) === i
-        );
+        const ended = !detail?.endTime || Date.parse(detail.endTime) < Date.now();
+        const candidates = ended
+          ? [sched.findKey, sched.videoId, sched.dRoomId].filter((v, i, a) => v && a.indexOf(v) === i)
+          : [];
         for (const cand of candidates) {
           const hunted = await resolveStream({
             rawUrl: "",
