@@ -409,7 +409,10 @@ async function quizRoute(req, res, params) {
 
   const paper = await fetchDppPaper({ testId });
   if (!paper.ok) {
-    return json(res, paper.locked ? 403 : 502, {
+    // 200 with the refusal spelled out: the practice page reads the body
+    // either way, and a bare 403 hides which of the two honest outcomes
+    // (locked vs unreachable) the student actually hit.
+    return json(res, 200, {
       success: false,
       locked: Boolean(paper.locked),
       error: paper.error || "The test could not be read.",
@@ -473,7 +476,7 @@ async function dppListRoute(req, res, params) {
     batchSubjectId,
     page: Math.max(1, Math.min(50, Number(params.page) || 1)),
   });
-  return json(res, list.ok ? 200 : list.auth ? 403 : 502, {
+  return json(res, 200, {
     success: list.ok,
     batch,
     batchSubjectId,
