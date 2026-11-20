@@ -1,8 +1,9 @@
 import { cors, json, query, badRequest } from "../lib/http.mjs";
 import { maintenanceGate } from "../lib/maintenance.mjs";
 import { getSession } from "../lib/admin.mjs";
-import { resolvePdfUrl, fetchBatch } from "../lib/api-data.mjs";
+import { resolvePdfUrl, fetchBatch, fetchChapters, fetchChapterContents } from "../lib/api-data.mjs";
 import { fetchDppPaper, fetchDppList, quizPayload, scoreQuiz } from "../lib/dpp.mjs";
+import { collectDppPapers } from "../lib/dpp-paper.mjs";
 import {
   readDppPaper,
   scorePaper,
@@ -414,11 +415,19 @@ async function quizRoute(req, res, params) {
     // 200 with the refusal spelled out: the practice page reads the body
     // either way, and a bare 403 hides which of the two honest outcomes
     // (locked vs unreachable) the student actually hit.
-    return json(res, 200, {
+    const body = {
       success: false,
       locked: Boolean(paper.locked),
       error: paper.error || "The test could not be read.",
-    });
+    };
+    // Locked is PW's enrollment wall, not the end of the road: the same
+    // DPP ships in the chapter as a guest-readable PDF paper, and the
+    // paper test is the same test sat a different way. Find its twin and
+    // hand the page the address to open instead.
+    if (paper.locked && req.method === "GET" && params.batch && params.subject) {
+      body.fallback = await paperTwin(params).catch(() => null);
+    }
+    return json(res, 200, body);
   }
 
   if (req.method === "POST") {
@@ -445,6 +454,40 @@ async function quizRoute(req, res, params) {
     ...payload,
     title: paper.name || String(params.name || "") || payload.title,
   });
+}
+
+const normTitle = (t) =>
+  String(t || "")
+    .toLowerCase()
+    .replace(/\(quiz\)/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** The chapter's DPP PDF whose title best matches the quiz's, if any. */
+async function paperTwin(params) {
+  const wanted = normTitle(params.name || params.title || "");
+  if (!wanted) return null;
+  const collected = await collectDppPapers({
+    batch: String(params.batch),
+    subject: String(params.subject),
+    wantedChapter: String(params.chapter || ""),
+    maxChapters: 1,
+    fetchChapters,
+    fetchChapterContents,
+  });
+  if (!collected.ok || !collected.papers?.length) return null;
+  const wantedWords = new Set(wanted.split(" ").filter((w) => w.length > 2));
+  let best = null;
+  for (const p of collected.papers) {
+    const t = normTitle(p.title);
+    if (t === wanted) return { paperUrl: p.url, name: p.title };
+    const words = t.split(" ").filter((w) => w.length > 2);
+    const overlap = words.filter((w) => wantedWords.has(w)).length;
+    const score = words.length ? overlap / words.length : 0;
+    if (score >= 0.6 && (!best || score > best.score)) best = { paperUrl: p.url, name: p.title, score };
+  }
+  return best ? { paperUrl: best.paperUrl, name: best.name } : null;
 }
 
 /**

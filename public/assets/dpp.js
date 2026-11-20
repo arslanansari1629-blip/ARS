@@ -26,7 +26,7 @@ const paperName = qs("name") || qs("title");
 const quizId = qs("id") || qs("quiz") || "";
 /** What this attempt is stored under — the paper address, or the test id. */
 const attemptKey = quizId ? `quiz:${quizId}` : paperUrl;
-const batchId = qs("batch");
+const batchId = qs("batch") || qs("batchId");
 const subjectSlug = qs("subject");
 const chapterId = qs("chapter");
 const chapterName = qs("name");
@@ -96,11 +96,27 @@ async function loadPaper() {
   try {
     const res = await fetch(
       quizId
-        ? `/api/pdf?quiz=${encodeURIComponent(quizId)}&name=${encodeURIComponent(paperName || "")}`
+        ? `/api/pdf?quiz=${encodeURIComponent(quizId)}&name=${encodeURIComponent(paperName || "")}` +
+          `&batch=${encodeURIComponent(batchId || "")}&subject=${encodeURIComponent(subjectSlug || "")}` +
+          `&chapter=${encodeURIComponent(chapterId || "")}`
         : `/api/pdf?dpp=${encodeURIComponent(paperUrl)}`
     );
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
+      // A quiz locked behind PW's enrollment wall has a paper twin in the
+      // chapter (the server found it): sit that instead of dead-ending.
+      if (quizId && data.fallback?.paperUrl) {
+        const next = new URLSearchParams({
+          paper: data.fallback.paperUrl,
+          name: data.fallback.name || paperName || "DPP",
+          batch: batchId || "",
+          subject: subjectSlug || "",
+          chapter: chapterId || "",
+          chapterName: chapterName || "",
+        });
+        window.location.replace(`/dpp.html?${next.toString()}`);
+        return;
+      }
       fail(data.error || `The paper could not be read (${res.status}).`);
       return;
     }
