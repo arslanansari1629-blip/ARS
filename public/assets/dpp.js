@@ -19,7 +19,13 @@ mountChrome("batches");
 // carries the address as `paper`, and a link is the only way in. Accept either, so a
 // hand-written or older link opens the paper it names instead of the empty state.
 const paperUrl = qs("dpp") || qs("paper");
-const paperName = qs("name");
+const paperName = qs("name") || qs("title");
+// An interactive DPP test (PW's test service) names itself the aryavidya
+// way: an id, not a PDF address. `?id=` is their link shape; `?quiz=` is
+// the same thing spelled out.
+const quizId = qs("id") || qs("quiz") || "";
+/** What this attempt is stored under — the paper address, or the test id. */
+const attemptKey = quizId ? `quiz:${quizId}` : paperUrl;
 const batchId = qs("batch");
 const subjectSlug = qs("subject");
 const chapterId = qs("chapter");
@@ -65,11 +71,11 @@ const state = {
   reviewFilter: "all",
 };
 
-const STORE = `arsvibe.dpp.${paperUrl || "none"}`;
+const STORE = `arsvibe.dpp.${attemptKey || "none"}`;
 
 /* ------------------------------------------------------------------ boot */
 
-if (!paperUrl) {
+if (!paperUrl && !quizId) {
   introTitle.textContent = "Pick a DPP paper first";
   introNote.innerHTML =
     "Open a chapter, choose the <strong>DPPs</strong> tab and press <strong>Practice</strong> " +
@@ -88,7 +94,11 @@ if (!paperUrl) {
 
 async function loadPaper() {
   try {
-    const res = await fetch(`/api/pdf?dpp=${encodeURIComponent(paperUrl)}`);
+    const res = await fetch(
+      quizId
+        ? `/api/pdf?quiz=${encodeURIComponent(quizId)}&name=${encodeURIComponent(paperName || "")}`
+        : `/api/pdf?dpp=${encodeURIComponent(paperUrl)}`
+    );
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
       fail(data.error || `The paper could not be read (${res.status}).`);
@@ -119,8 +129,12 @@ function fail(message) {
   loading.hidden = true;
   introTitle.textContent = "This paper could not be read";
   introNote.innerHTML = `${esc(message)} <br /><br />
-    <a class="btn btn-ghost btn-sm" href="${esc(backHref())}">Back to the chapter</a>
-    <a class="btn btn-ghost btn-sm" href="${esc(pdfHref())}" target="_blank" rel="noopener">Open the PDF instead</a>`;
+    <a class="btn btn-ghost btn-sm" href="${esc(backHref())}">Back to the chapter</a>${
+      paperUrl
+        ? `
+    <a class="btn btn-ghost btn-sm" href="${esc(pdfHref())}" target="_blank" rel="noopener">Open the PDF instead</a>`
+        : ""
+    }`;
   testEl.hidden = true;
 }
 
@@ -191,9 +205,15 @@ function startTest(paper) {
     }
   }
 
-  document.getElementById("dppOpenPdf").href = pdfHref();
+  const openPdf = document.getElementById("dppOpenPdf");
+  if (quizId) {
+    // A quiz has no paper PDF behind it; the button would open nothing.
+    openPdf.hidden = true;
+  } else {
+    openPdf.href = pdfHref();
+    openPdf.textContent = "Open the paper PDF";
+  }
   document.getElementById("dppBackChapter").href = backHref();
-  document.getElementById("dppOpenPdf").textContent = "Open the paper PDF";
 }
 
 function restoredNote(saved) {
@@ -397,7 +417,7 @@ function elapsedMs() {
 /* -------------------------------------------------------------- the attempt */
 
 function save() {
-  if (!paperUrl || state.submitted) return;
+  if (!attemptKey || state.submitted) return;
   try {
     localStorage.setItem(
       STORE,
@@ -415,7 +435,7 @@ function save() {
 }
 
 function restore() {
-  if (!paperUrl) return null;
+  if (!attemptKey) return null;
   try {
     const raw = localStorage.getItem(STORE);
     if (!raw) {
@@ -459,10 +479,10 @@ function restore() {
  * record of what the student got wrong.
  */
 function rememberScore(result) {
-  if (!paperUrl || !result) return;
+  if (!attemptKey || !result) return;
   try {
     localStorage.setItem(
-      `arsvibe.dpp.result.${paperUrl}`,
+      `arsvibe.dpp.result.${attemptKey}`,
       JSON.stringify({
         percent: Number(result.percent) || 0,
         correct: Number(result.correct) || 0,
@@ -514,14 +534,17 @@ async function submit() {
   button.textContent = "Marking…";
 
   try {
-    const res = await fetch(`/api/pdf?dpp=${encodeURIComponent(paperUrl)}`, {
-      method: "POST",
+    const res = await fetch(
+      quizId ? `/api/pdf?quiz=${encodeURIComponent(quizId)}` : `/api/pdf?dpp=${encodeURIComponent(paperUrl)}`,
+      {
+        method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        answers: Object.fromEntries(state.answers),
-        elapsedMs: state.elapsedBefore,
-      }),
-    });
+        body: JSON.stringify({
+          answers: Object.fromEntries(state.answers),
+          elapsedMs: state.elapsedBefore,
+        }),
+      }
+    );
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
       throw new Error(data.error || "The paper could not be marked.");
@@ -537,7 +560,7 @@ async function submit() {
     // XP is awarded from what the *server* marked, never from the browser's own
     // count, and never twice for the same paper on the same day (see progress.js).
     const earned = recordPaper({
-      url: paperUrl,
+      url: attemptKey,
       correct: Number(data.result?.correct) || 0,
       scored: Number(data.result?.scored) || 0,
       percent: Number(data.result?.percent) || 0,

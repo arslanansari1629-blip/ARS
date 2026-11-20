@@ -1,7 +1,8 @@
 import { cors, json, query, badRequest } from "../lib/http.mjs";
 import { maintenanceGate } from "../lib/maintenance.mjs";
 import { getSession } from "../lib/admin.mjs";
-import { resolvePdfUrl } from "../lib/api-data.mjs";
+import { resolvePdfUrl, fetchBatch } from "../lib/api-data.mjs";
+import { fetchDppPaper, fetchDppList, quizPayload, scoreQuiz } from "../lib/dpp.mjs";
 import {
   readDppPaper,
   scorePaper,
@@ -391,12 +392,131 @@ async function describeLayout(url, { runs = false, dumpPage = 0 } = {}) {
   };
 }
 
+/**
+ * GET  /api/pdf?quiz=<testId>  → the test, without its key
+ * POST /api/pdf?quiz=<testId>  → the marked attempt, with the analysis
+ *
+ * The split is the same honesty rule as the PDF paper: questions are
+ * public, the key is only revealed against a submitted attempt.
+ */
+async function quizRoute(req, res, params) {
+  if (overBudget(clientOf(req))) {
+    res.setHeader("Retry-After", "600");
+    return json(res, 429, { success: false, error: "Too many tests in a few minutes. Try again shortly." });
+  }
+  const testId = String(params.quiz || "").trim();
+  if (!/^[0-9a-f]{24}$/i.test(testId)) return badRequest(res, "A DPP test id is required.");
+
+  const paper = await fetchDppPaper({ testId });
+  if (!paper.ok) {
+    return json(res, paper.locked ? 403 : 502, {
+      success: false,
+      locked: Boolean(paper.locked),
+      error: paper.error || "The test could not be read.",
+    });
+  }
+
+  if (req.method === "POST") {
+    const payload = await readBody(req);
+    const answers = payload && typeof payload.answers === "object" ? payload.answers : {};
+    const result = scoreQuiz(paper, answers, { elapsedMs: Number(payload?.elapsedMs) || 0 });
+    return json(res, 200, {
+      success: true,
+      source: "quiz",
+      title: paper.name || String(params.name || ""),
+      result,
+      review: result.rows,
+    });
+  }
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET, POST, OPTIONS");
+    return json(res, 405, { success: false, error: "Method not allowed" });
+  }
+
+  const payload = quizPayload(paper);
+  return json(res, 200, {
+    success: true,
+    source: "quiz",
+    ...payload,
+    title: paper.name || String(params.name || "") || payload.title,
+  });
+}
+
+/**
+ * GET /api/pdf?dppList=1&batch=&subject= → the subject's DPP tests.
+ *
+ * `subject` may be the slug the chapter page carries or the batch-subject
+ * document id the test service keys on; the slug is resolved through the
+ * batch, the same way the operator route does it.
+ */
+async function dppListRoute(req, res, params) {
+  if (req.method !== "GET") {
+    res.setHeader("Allow", "GET, OPTIONS");
+    return json(res, 405, { success: false, error: "Method not allowed" });
+  }
+  const batch = String(params.batch || "").trim();
+  const asked = String(params.subject || "").trim();
+  if (!batch || !asked) return badRequest(res, "batch and subject are required.");
+
+  let batchSubjectId = asked;
+  if (!/^[0-9a-f]{24}$/i.test(asked)) {
+    const info = await fetchBatch(batch).catch(() => null);
+    const match = (info?.subjects || []).find(
+      (s) => s.slug === asked || s.subjectId === asked || s.id === asked
+    );
+    if (!match) return json(res, 404, { success: false, error: "That subject is not part of this batch." });
+    batchSubjectId = match.id || match.subjectId || "";
+  }
+
+  const list = await fetchDppList({
+    batch,
+    batchSubjectId,
+    page: Math.max(1, Math.min(50, Number(params.page) || 1)),
+  });
+  return json(res, list.ok ? 200 : list.auth ? 403 : 502, {
+    success: list.ok,
+    batch,
+    batchSubjectId,
+    items: (list.items || []).map((it) => ({
+      id: it.id,
+      name: it.name,
+      questions: it.questions,
+      marks: it.marks,
+      minutes: it.minutes,
+      free: it.free,
+    })),
+    total: list.total || 0,
+    page: list.page || 1,
+    pages: list.pages || 1,
+    error: list.error || "",
+  });
+}
+
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.end();
   if (await maintenanceGate(req, res)) return;
 
   const params = query(req);
+
+  // The interactive DPP quiz (PW's test service, the aryavidya shape):
+  // students ask for a test by id and sit it here. This used to exist only
+  // behind the operator sign-in on /api/admin, which meant the one audience
+  // it was built for could never reach it.
+  if (params.quiz) {
+    try {
+      return await quizRoute(req, res, params);
+    } catch (err) {
+      return json(res, 502, { success: false, error: err?.message || "The test could not be read." });
+    }
+  }
+  if (params.dppList) {
+    try {
+      return await dppListRoute(req, res, params);
+    } catch (err) {
+      return json(res, 502, { success: false, error: err?.message || "The DPP list could not be read." });
+    }
+  }
 
   // The practice test: a paper read here, marked here, answers kept here.
   if (params.dpp) {

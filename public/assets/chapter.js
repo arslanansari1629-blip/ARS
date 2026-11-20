@@ -589,7 +589,65 @@ function render(items) {
     const gap = partial
       ? `<p class="tiny dim chapter-hint">Some files did not resolve — Physics Wallah limits how fast links can be fetched. <button class="btn btn-ghost btn-sm" type="button" data-retry="${type}">Load the rest</button></p>`
       : "";
-    body.innerHTML = `${gap}<div class="list">${items.map(docItemRow).join("")}</div>`;
+    // The interactive DPP tests for this subject ride above the papers:
+    // same DPPs, but sat as a timed quiz and marked on the spot.
+    const quizzes = type === "DppNotes" ? `<div id="dppQuizzes"></div>` : "";
+    body.innerHTML = `${quizzes}${gap}<div class="list">${items.map(docItemRow).join("")}</div>`;
+    if (type === "DppNotes") loadDppQuizzes();
+  }
+}
+
+/** The subject's interactive DPP tests, listed above the PDF papers. */
+let dppQuizzesLoaded = false;
+async function loadDppQuizzes() {
+  const host = document.getElementById("dppQuizzes");
+  if (!host || dppQuizzesLoaded) return;
+  dppQuizzesLoaded = true;
+  try {
+    const res = await fetch(
+      `/api/pdf?dppList=1&batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(subjectSlug)}`
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success || !data.items?.length) return;
+    host.innerHTML = `
+      <h3 class="h4" style="margin:4px 0 10px">DPP tests — attempt &amp; get marked</h3>
+      <div class="list" style="margin-bottom:18px">${data.items
+        .map((it, i) => {
+          const last = quizLastScore(it.id);
+          const href =
+            `/dpp.html?id=${encodeURIComponent(it.id)}` +
+            `&batch=${encodeURIComponent(batchId)}` +
+            `&subject=${encodeURIComponent(subjectSlug)}` +
+            `&chapter=${encodeURIComponent(chapterId)}` +
+            `&chapterName=${encodeURIComponent(chapterName || "")}` +
+            `&title=${encodeURIComponent(it.name || "DPP test")}`;
+          return `
+      <a class="list-row fade-up" href="${esc(href)}">
+        <span class="index">${String(i + 1).padStart(2, "0")}</span>
+        <span class="grow">
+          <span class="title">${esc(it.name || "DPP test")}</span>
+          <span class="meta">
+            ${it.questions ? `<span>${esc(it.questions)} questions</span>` : ""}
+            ${it.marks ? `<span>${esc(it.marks)} marks</span>` : ""}
+            ${it.minutes ? `<span>${esc(it.minutes)} min</span>` : ""}
+            ${last ? `<span>${last.percent}% last time</span>` : ""}
+          </span>
+        </span>
+        <span class="btn btn-primary btn-sm">Start test</span>
+      </a>`;
+        })
+        .join("")}</div>`;
+  } catch {
+    /* the PDF papers below still work; the quiz list is an addition */
+  }
+}
+
+/** The last score this device recorded for a quiz, if any. */
+function quizLastScore(id) {
+  try {
+    return JSON.parse(localStorage.getItem(`arsvibe.dpp.result.quiz:${id}`) || "null");
+  } catch {
+    return null;
   }
 }
 

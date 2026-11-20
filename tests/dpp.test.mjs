@@ -200,3 +200,56 @@ test("the headline counts papers, questions and marks", () => {
   assert.match(dppHeadline({ ok: true, items: [], total: 0 }), /no DPPs/i);
   assert.match(dppHeadline({ ok: false, error: "Physics Wallah said no" }), /said no/);
 });
+
+test("quizPayload withholds the key and scoreQuiz marks against it", async () => {
+  const { quizPayload, scoreQuiz } = await import("../lib/dpp.mjs");
+  const paper = {
+    name: "Lec 1 DPP",
+    totalMarks: 8,
+    minutes: 30,
+    questions: [
+      {
+        id: "q1",
+        number: 1,
+        text: "2 + 2?",
+        answer: "Basic addition.",
+        options: [
+          { id: "a", text: "3", correct: false },
+          { id: "b", text: "4", correct: true },
+        ],
+      },
+      {
+        id: "q2",
+        number: 2,
+        text: "3 + 3?",
+        options: [
+          { id: "a", text: "6", correct: true },
+          { id: "b", text: "7", correct: false },
+        ],
+      },
+    ],
+  };
+
+  const payload = quizPayload(paper);
+  assert.equal(payload.duration, 30);
+  assert.equal(payload.questions[0].options[1].letter, "B");
+  assert.ok(!JSON.stringify(payload).includes("correct"), "the key must not reach the browser");
+
+  const result = scoreQuiz(paper, { 0: "B", 1: "B" }, { elapsedMs: 5000 });
+  assert.equal(result.correct, 1);
+  assert.equal(result.wrong, 1);
+  assert.equal(result.percent, 50);
+  assert.equal(result.rows[0].outcome, "correct");
+  assert.equal(result.rows[1].answer, "A");
+  assert.equal(result.rows[0].solution, "Basic addition.");
+});
+
+test("the public quiz route is mounted on /api/pdf, not the operator wall", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const route = await readFile(new URL("../api/pdf.mjs", import.meta.url), "utf8");
+  assert.match(route, /params\.quiz/);
+  assert.match(route, /params\.dppList/);
+  const page = await readFile(new URL("../public/assets/dpp.js", import.meta.url), "utf8");
+  assert.match(page, /qs\("id"\)/);
+  assert.match(page, /api\/pdf\?quiz=/);
+});
