@@ -424,7 +424,11 @@ async function quizRoute(req, res, params) {
     // DPP ships in the chapter as a guest-readable PDF paper, and the
     // paper test is the same test sat a different way. Find its twin and
     // hand the page the address to open instead.
-    if (paper.locked && req.method === "GET" && params.batch && params.subject) {
+    // Mirrors disagree on the refusal's shape (401 on the official host,
+    // 404 through a proxy that does not serve the test service); both mean
+    // "not readable with this session", so both earn the twin hunt.
+    const refused = paper.locked || /401|403|404/.test(String(paper.error || ""));
+    if (refused && req.method === "GET" && params.batch && params.subject) {
       body.fallback = await paperTwin(params).catch(() => null);
     }
     return json(res, 200, body);
