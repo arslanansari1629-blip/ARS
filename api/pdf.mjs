@@ -405,7 +405,9 @@ async function quizRoute(req, res, params) {
     return json(res, 429, { success: false, error: "Too many tests in a few minutes. Try again shortly." });
   }
   const testId = String(params.quiz || "").trim();
-  if (!/^[0-9a-f]{24}$/i.test(testId)) return badRequest(res, "A DPP test id is required.");
+  if (!/^[0-9a-f]{24}$/i.test(testId)) {
+    return json(res, 200, { success: false, error: "A DPP test id is required." });
+  }
 
   const paper = await fetchDppPaper({ testId });
   if (!paper.ok) {
