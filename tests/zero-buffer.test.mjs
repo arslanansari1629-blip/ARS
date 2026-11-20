@@ -12,7 +12,7 @@ const read = (p) => readFile(new URL(`../${p}`, import.meta.url), "utf8");
 test("the Worker edge-caches signed media", async () => {
   const worker = await read("cloudflare/worker.js");
   assert.match(worker, /caches\.default/);
-  assert.match(worker, /url\.pathname === "\/api\/sign"/);
+  assert.match(worker, /CACHEABLE\.has\(url\.pathname\)/);
   assert.match(worker, /x-ars-cache/);
   assert.match(worker, /res\.status === 200/);
 });
@@ -29,4 +29,25 @@ test("the player reads five minutes ahead in zero-buffer mode", async () => {
   assert.match(player, /maxBufferLength: zb \? 300 : 90/);
   assert.match(player, /maxMaxBufferLength: zb \? 900 : 240/);
   assert.match(player, /abrEwmaDefaultEstimate: 1500000/);
+});
+
+test("the DASH gateway is edge-cached too, and hits are CORS-correct", async () => {
+  const worker = await read("cloudflare/worker.js");
+  assert.match(worker, /CACHEABLE = new Set\(\["\/api\/sign", "\/api\/hls"\]\)/);
+  assert.match(worker, /access-control-allow-origin", origin/);
+});
+
+test("serving a playlist warms the edge with its key and first segments", async () => {
+  const worker = await read("cloudflare/worker.js");
+  assert.match(worker, /prefetchPlaylist/);
+  assert.match(worker, /urls\.length >= 8/);
+  assert.match(worker, /dispatch\(req, env\)/);
+});
+
+test("the relay honours Range and times out per asset type", async () => {
+  const sign = await read("lib/sign.mjs");
+  assert.match(sign, /upstream\.status === 206 \? 206 : 200/);
+  assert.match(sign, /AbortSignal\.timeout\(isMediaKey \? 6000 : 10000\)/);
+  assert.match(sign, /range: isMedia \? String\(req\.headers\.range/);
+  assert.match(sign, /Access-Control-Max-Age/);
 });
