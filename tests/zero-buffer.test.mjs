@@ -64,3 +64,13 @@ test("catalogue JSON is edge-cached, no-store bodies never are", async () => {
   assert.match(worker, /"\/api\/contents"/);
   assert.match(worker, /no-store\|private/);
 });
+
+test("live-to-VOD lectures get a retry, a contents fallback and a signer hunt", async () => {
+  const data = await read("lib/api-data.mjs");
+  assert.match(data, /findKey: vd\.findKey/);
+  assert.match(data, /contents fallback|No stream on either schedule generation/);
+  assert.match(data, /setTimeout\(r, 700\)/);
+  const stream = await read("api/stream.mjs");
+  assert.match(stream, /Live-to-VOD hunt/);
+  assert.match(stream, /huntedFrom/);
+});

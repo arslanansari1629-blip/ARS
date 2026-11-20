@@ -34,6 +34,9 @@ async function readSchedule(batch, subject, id) {
   return {
     ok: true,
     rawUrl: l.videoUrl,
+    findKey: l.findKey || "",
+    videoId: l.videoId || "",
+    dRoomId: l.dRoomId || "",
     detail: {
       title: l.title,
       status: l.videoStatus,
@@ -153,6 +156,34 @@ export default async function handler(req, res) {
       const sched = await readSchedule(batch, subject, id);
       detail = sched.detail;
       rawUrl = sched.rawUrl;
+
+      if (!rawUrl) {
+        // Live-to-VOD hunt: the schedule knows the class happened and is
+        // "Ready" but PW has not attached a CDN URL to it yet. In the
+        // batches where the recording lands on the signer first, one of
+        // these ids *is* the signer folder — probe them (the probe is
+        // budget-capped and anchor-first) before telling a student the
+        // lecture does not exist.
+        const candidates = [sched.findKey, sched.videoId, sched.dRoomId].filter(
+          (v, i, a) => v && a.indexOf(v) === i
+        );
+        for (const cand of candidates) {
+          const hunted = await resolveStream({
+            rawUrl: "",
+            folder: cand,
+            fresh: Number(attempt || 0) > 0,
+            startLevel: level || "",
+          }).catch(() => null);
+          if (hunted && hunted.playable) {
+            return json(
+              res,
+              200,
+              { success: true, ...hunted, resolvedFrom: "", huntedFrom: cand, ...(detail ? { lecture: detail } : {}) },
+              planCacheSeconds(hunted, attempt)
+            );
+          }
+        }
+      }
 
       if (!rawUrl) {
         return json(
