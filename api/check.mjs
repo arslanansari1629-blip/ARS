@@ -34,7 +34,10 @@ const UA =
 
 /** Verifying a chapter is bounded — a function has a wall-clock limit. */
 const SWEEP_LIMIT = 6;
-const SWEEP_CONCURRENCY = 2;
+// One at a time: two lectures probing concurrently is thirty signer
+// asks in the same second from one egress, and the relays throttle
+// exactly that — the sweep was manufacturing the failures it reported.
+const SWEEP_CONCURRENCY = 1;
 
 function selfBase(req) {
   const proto = (req.headers["x-forwarded-proto"] || "https").toString().split(",")[0];

@@ -137,7 +137,7 @@ test("upstream walks respect the subrequest budget", async () => {
   const data = await read("lib/api-data.mjs");
   assert.match(data, /\(UPSTREAMS \|\| \[\]\)\.slice\(0, 4\)/);
   const check = await read("api/check.mjs");
-  assert.match(check, /SWEEP_CONCURRENCY = 2/);
+  assert.match(check, /SWEEP_CONCURRENCY = 1/);
 });
 
 test("chapter sweeps verify plans, single lectures verify bytes", async () => {
