@@ -130,3 +130,12 @@ test("the watch page plays a lecture straight from its CDN address", async () =>
   assert.match(lecture, /qs\("video_url"\)/);
   assert.match(lecture, /const viaUrl = archiveMode \? knownVideoUrl : directVideoUrl/);
 });
+
+test("upstream walks respect the subrequest budget", async () => {
+  const proxy = await read("lib/pw-proxy.mjs");
+  assert.match(proxy, /No host even answered/);
+  const data = await read("lib/api-data.mjs");
+  assert.match(data, /\(UPSTREAMS \|\| \[\]\)\.slice\(0, 4\)/);
+  const check = await read("api/check.mjs");
+  assert.match(check, /SWEEP_CONCURRENCY = 2/);
+});

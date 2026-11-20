@@ -34,7 +34,7 @@ const UA =
 
 /** Verifying a chapter is bounded — a function has a wall-clock limit. */
 const SWEEP_LIMIT = 6;
-const SWEEP_CONCURRENCY = 3;
+const SWEEP_CONCURRENCY = 2;
 
 function selfBase(req) {
   const proto = (req.headers["x-forwarded-proto"] || "https").toString().split(",")[0];
