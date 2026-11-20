@@ -104,3 +104,111 @@ if (video && track) {
   paintMarkers();
 }
 
+
+/* =========================================================================
+   Player God Mode — cinematic opening, centre flash, living ambient glow.
+   -------------------------------------------------------------------------
+   Three layers the core player does not know about:
+     1. an opening animation that plays while the stream is being signed,
+        and lifts on the first real frame;
+     2. a centre transport flash (play/pause) drawn on the film itself;
+     3. an ambient glow whose colour is sampled from the playing video,
+        so the room light follows the lecture instead of a fixed tint.
+   Every layer is cosmetic: remove this block and playback is unchanged.
+   ========================================================================= */
+
+const stageEl = document.getElementById("playerStage");
+
+/* ---- 1 · the opening: ARS PLAYER, drawn while the signer works ---- */
+if (wrap && stageEl && video && !document.getElementById("playerIntro")) {
+  const intro = document.createElement("div");
+  intro.className = "player-intro";
+  intro.id = "playerIntro";
+  intro.setAttribute("aria-hidden", "true");
+  intro.innerHTML = `
+    <span class="pi-ring"></span>
+    <img class="pi-logo" src="/assets/logo.svg" alt="" width="54" height="54" />
+    <div class="pi-word">ARS&nbsp;PLAYER</div>
+    <div class="pi-title" id="piTitle">Preparing your lecture…</div>
+    <div class="pi-bars" aria-hidden="true">${"<i></i>".repeat(7)}</div>`;
+  stageEl.appendChild(intro);
+
+  const piTitle = intro.querySelector("#piTitle");
+  const paintTitle = () => {
+    const t = document.getElementById("lectureTitle")?.textContent?.trim();
+    if (t && !/loading/i.test(t)) piTitle.textContent = t;
+  };
+  paintTitle();
+  const titleTimer = setInterval(paintTitle, 600);
+
+  let introGone = false;
+  const liftIntro = () => {
+    if (introGone) return;
+    introGone = true;
+    clearInterval(titleTimer);
+    paintTitle();
+    intro.classList.add("pi-out");
+    setTimeout(() => intro.remove(), 750);
+  };
+  video.addEventListener("playing", liftIntro, { once: true });
+  intro.addEventListener("click", liftIntro);
+  // A stream that errors must not leave the curtain up over the retry UI.
+  setTimeout(liftIntro, 8000);
+}
+
+/* ---- 2 · centre flash: the tap, acknowledged on the film ---- */
+if (stageEl && video && !document.getElementById("centerFlash")) {
+  const flashEl = document.createElement("div");
+  flashEl.className = "center-flash";
+  flashEl.id = "centerFlash";
+  flashEl.setAttribute("aria-hidden", "true");
+  flashEl.innerHTML = `
+    <svg class="cf-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5Z"/></svg>
+    <svg class="cf-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>`;
+  stageEl.appendChild(flashEl);
+  let flashTimer = null;
+  const flash = (kind) => {
+    flashEl.dataset.kind = kind;
+    flashEl.classList.remove("on");
+    void flashEl.offsetWidth;
+    flashEl.classList.add("on");
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => flashEl.classList.remove("on"), 480);
+  };
+  video.addEventListener("play", () => flash("play"));
+  video.addEventListener("pause", () => {
+    // A pause at the very end is the up-next card's moment, not a flash's.
+    if (!video.ended) flash("pause");
+  });
+}
+
+/* ---- 3 · living ambient: the glow takes the lecture's own colour ---- */
+if (wrap && video) {
+  const sample = document.createElement("canvas");
+  sample.width = 16;
+  sample.height = 16;
+  const sctx = sample.getContext("2d", { willReadFrequently: true });
+  let last = { r: 228, g: 87, b: 46 };
+  const tick = () => {
+    if (video.paused || video.ended || video.readyState < 2 || !sctx) return;
+    try {
+      sctx.drawImage(video, 0, 0, 16, 16);
+      const data = sctx.getImageData(0, 0, 16, 16).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < data.length; i += 16) {
+        r += data[i]; g += data[i + 1]; b += data[i + 2]; n += 1;
+      }
+      if (!n) return;
+      // Ease towards the new colour so the room light breathes, not strobes.
+      last = {
+        r: Math.round(last.r + (r / n - last.r) * 0.35),
+        g: Math.round(last.g + (g / n - last.g) * 0.35),
+        b: Math.round(last.b + (b / n - last.b) * 0.35),
+      };
+      wrap.style.setProperty("--ambient", `rgba(${last.r}, ${last.g}, ${last.b}, 0.5)`);
+    } catch {
+      /* a tainted canvas (cross-origin frame) just keeps the last colour */
+    }
+  };
+  setInterval(tick, 900);
+}

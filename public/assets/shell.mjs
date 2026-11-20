@@ -130,6 +130,10 @@ function buildSidebar() {
     }
   })();
 
+  const hour = new Date().getHours();
+  const daypart = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const firstName = session ? String(session.name || "Scholar").trim().split(/\s+/)[0] : "Scholar";
+
   aside.innerHTML = `
     <div class="side-head">
       <a class="side-brand" href="/">
@@ -139,6 +143,13 @@ function buildSidebar() {
       <button class="side-collapse" type="button" data-side-collapse title="Collapse navigation" aria-label="Collapse navigation">
         ${icon("collapse")}
       </button>
+    </div>
+
+    <div class="side-hero">
+      <span class="side-hero-kicker">Study OS · DWG AV-01</span>
+      <strong>${esc(daypart)}, ${esc(firstName)}</strong>
+      <span class="side-hero-sub">Pick up right where you left off.</span>
+      <span class="side-hero-rule" aria-hidden="true"></span>
     </div>
 
     <nav class="side-nav" aria-label="Site">${groups}${recentBlock}</nav>
@@ -229,6 +240,51 @@ function openSearch() {
   field.focus();
 }
 
+/* ------------------------- opening animation ----------------------------- */
+
+/**
+ * The curtain: a 1.6 s brand splash the first time the shell mounts in a
+ * session. Paper field, the mark drawing itself, the wordmark staggering
+ * up, a vermilion rule sweeping under it — then the whole sheet lifts.
+ *
+ * Deliberately conservative: once per session, never on the home page
+ * (its opening sheet is the front door's own ceremony), never for
+ * reduced-motion readers, click to skip, and a hard failsafe removal so
+ * the splash can never be the reason a page is unreachable.
+ */
+function playSplash() {
+  if (page === "home") return;
+  try {
+    if (sessionStorage.getItem("arsvibe.splash") === "1") return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    sessionStorage.setItem("arsvibe.splash", "1");
+  } catch {
+    return;
+  }
+  const el = document.createElement("div");
+  el.className = "splash";
+  el.id = "splash";
+  el.setAttribute("aria-hidden", "true");
+  el.innerHTML = `
+    <div class="splash-core">
+      <img class="splash-mark" src="/assets/logo.svg" alt="" width="72" height="72" />
+      <div class="splash-word" aria-hidden="true">${"ArsVibe".split("").map((c) => `<span>${c}</span>`).join("")}</div>
+      <div class="splash-tag">Physics Wallah · Study OS</div>
+      <div class="splash-bar"><i></i></div>
+    </div>`;
+  document.body.appendChild(el);
+  let gone = false;
+  const done = () => {
+    if (gone) return;
+    gone = true;
+    el.classList.add("splash-out");
+    setTimeout(() => el.remove(), 700);
+  };
+  el.addEventListener("click", done);
+  setTimeout(done, 1750);
+  setTimeout(() => el.remove(), 3200);
+}
+
 /* --------------------------------- assembly ------------------------------- */
 
 function mount() {
@@ -241,6 +297,8 @@ function mount() {
     document.body.classList.add("bare");
     return;
   }
+
+  playSplash();
 
   const aside = buildSidebar();
   document.body.insertBefore(aside, document.body.firstChild);
