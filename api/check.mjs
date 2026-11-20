@@ -401,7 +401,19 @@ async function sweepChapter({ batch, subject, chapter, base, limit }) {
   async function worker() {
     while (cursor < take.length) {
       const item = take[cursor++];
-      const r = await checkLecture({ batch, subject, id: item.id, base, light: true });
+      // His method, as an audit: the chapter listing already carries the
+      // lecture's CDN address, so hand it straight to the resolver and
+      // skip the schedule hunt. Only a listing row without an address
+      // pays for the schedule read. This is what keeps six lectures
+      // inside one invocation's subrequest budget.
+      const r = await checkLecture({
+        batch,
+        subject,
+        id: item.id,
+        url: item.videoId || item.url || "",
+        base,
+        light: true,
+      });
       results.push({
         id: item.id,
         title: item.title || r.title || "",
