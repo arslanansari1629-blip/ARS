@@ -96,3 +96,13 @@ test("schedule resolution merges generations and sweeps pinned hosts", async () 
   const upstream = await read("lib/upstream.mjs");
   assert.match(upstream, /opts\.upstream/);
 });
+
+test("god-level edge: rolling prefetch, stale-if-error, edge retry, Range-safe", async () => {
+  const worker = await read("cloudflare/worker.js");
+  assert.match(worker, /prefetchNextSegments/);
+  assert.match(worker, /idx \+ 4/);
+  assert.match(worker, /stale-shadow/);
+  assert.match(worker, /x-ars-cache", "stale"/);
+  assert.match(worker, /res\.status === 502 && url\.pathname === "\/api\/sign"/);
+  assert.match(worker, /rangeAsk/);
+});

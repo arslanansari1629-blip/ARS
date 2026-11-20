@@ -63,6 +63,50 @@ async function prefetchPlaylist(request, res, env, cache) {
   }
 }
 
+/**
+ * Rolling prefetch: keep the edge a few segments ahead of the playhead.
+ *
+ * Playlists warm the *opening* segments; this warms the *next* ones.
+ * Whenever a segment is served (hit or miss), the following four are
+ * pulled into the edge in the background, so a viewer who keeps watching
+ * never waits on a signer again — the cache chases the playhead. Segment
+ * names are sequential (`360/041.ts`), so the future URLs are derivable
+ * from the current one. Bounded and cache-checked: already-warm segments
+ * cost one lookup, never a fetch.
+ */
+async function prefetchNextSegments(request, env, cache) {
+  try {
+    const url = new URL(request.url);
+    const key = url.searchParams.get("key") || "";
+    const m = key.match(/^(\d+)\/(\d+)\.(ts|m4s)$/i);
+    if (!m) return;
+    const idx = Number(m[2]);
+    const jobs = [];
+    for (let n = idx + 1; n <= idx + 4; n += 1) {
+      const next = new URL(url.toString());
+      next.searchParams.set("key", `${m[1]}/${String(n).padStart(m[2].length, "0")}.${m[3]}`);
+      jobs.push(next.toString());
+    }
+    await Promise.all(
+      jobs.map(async (u) => {
+        const req = new Request(u);
+        if (await cache.match(req).catch(() => null)) return;
+        const r = await dispatch(req, env).catch(() => null);
+        if (r && r.status === 200) await cache.put(req, r).catch(() => {});
+      })
+    );
+  } catch {
+    /* warming is best-effort */
+  }
+}
+
+/** The stale-shadow key for a URL: same request, fragment marker. */
+function shadowKey(request) {
+  const u = new URL(request.url);
+  u.hash = "stale-shadow";
+  return new Request(u.toString(), { method: "GET" });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -73,7 +117,13 @@ export default {
       // ride along at their own short Cache-Control. Only GETs on the two
       // media relays are cached, only on a 200, and the Cache API honours
       // the response's own Cache-Control — errors (no-store) never stick.
-      if (request.method === "GET" && CACHEABLE.has(url.pathname) && typeof caches !== "undefined") {
+      const rangeAsk = Boolean(request.headers.get("range"));
+      if (
+        request.method === "GET" &&
+        !rangeAsk &&
+        CACHEABLE.has(url.pathname) &&
+        typeof caches !== "undefined"
+      ) {
         const cache = caches.default;
         const hit = await cache.match(request).catch(() => null);
         if (hit) {
@@ -85,9 +135,32 @@ export default {
           if (origin && out.headers.has("access-control-allow-origin")) {
             out.headers.set("access-control-allow-origin", origin);
           }
+          if (ctx && typeof ctx.waitUntil === "function") {
+            ctx.waitUntil(prefetchNextSegments(request, env, cache));
+          }
           return out;
         }
-        const res = await dispatch(request, env);
+        let res = await dispatch(request, env);
+        // Edge retry: signer refusals come in seconds-long bursts, and a
+        // playlist/segment 502 this instant is routinely a 200 a breath
+        // later. One quiet re-ask at the edge (only for media relays,
+        // only on a 502) absorbs the burst before the player ever sees it.
+        if (res.status === 502 && url.pathname === "/api/sign") {
+          await new Promise((r) => setTimeout(r, 400));
+          const again = await dispatch(request, env).catch(() => null);
+          if (again && again.status === 200) res = again;
+        }
+        // Stale-if-error: a rendition playlist's segment list cannot
+        // change mid-lecture, so yesterday's copy beats today's outage.
+        // Playlists keep a long-lived shadow copy for exactly this.
+        if (res.status !== 200 && /\.m3u8/i.test(url.searchParams.get("key") || "")) {
+          const stale = await cache.match(shadowKey(request)).catch(() => null);
+          if (stale) {
+            const out = new Response(stale.body, stale);
+            out.headers.set("x-ars-cache", "stale");
+            return out;
+          }
+        }
         const cacheable200 =
           res.status === 200 && !/no-store|private/i.test(res.headers.get("cache-control") || "");
         if (cacheable200 && ctx && typeof ctx.waitUntil === "function") {
@@ -98,7 +171,17 @@ export default {
           ctx.waitUntil(
             cache
               .put(request, stored)
-              .then(() => prefetchPlaylist(request, res, env, cache))
+              .then(async () => {
+                // Shadow copy with a day-long life, read only when the
+                // signer is down (see stale-if-error above).
+                if (/mpegurl/i.test(res.headers.get("content-type") || "")) {
+                  const shadow = new Response(res.clone().body, res);
+                  shadow.headers.set("Cache-Control", "public, max-age=86400");
+                  await cache.put(shadowKey(request), shadow).catch(() => {});
+                }
+                await prefetchPlaylist(request, res, env, cache);
+                await prefetchNextSegments(request, env, cache);
+              })
               .catch(() => {})
           );
         }
