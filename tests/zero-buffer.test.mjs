@@ -33,7 +33,7 @@ test("the player reads five minutes ahead in zero-buffer mode", async () => {
 
 test("the DASH gateway is edge-cached too, and hits are CORS-correct", async () => {
   const worker = await read("cloudflare/worker.js");
-  assert.match(worker, /CACHEABLE = new Set\(\["\/api\/sign", "\/api\/hls"\]\)/);
+  assert.match(worker, /"\/api\/sign",\s*"\/api\/hls"/);
   assert.match(worker, /access-control-allow-origin", origin/);
 });
 
@@ -50,4 +50,17 @@ test("the relay honours Range and times out per asset type", async () => {
   assert.match(sign, /AbortSignal\.timeout\(isMediaKey \? 6000 : 10000\)/);
   assert.match(sign, /range: isMedia \? String\(req\.headers\.range/);
   assert.match(sign, /Access-Control-Max-Age/);
+});
+
+test("chapters come from the modern topics route, legacy as fallback", async () => {
+  const data = await read("lib/api-data.mjs");
+  assert.match(data, /\/v2\/batches\/\$\{encodeURIComponent\(batchId\)\}\/subject\//);
+  assert.match(data, /topics\?page=/);
+  assert.match(data, /route = "legacy"/);
+});
+
+test("catalogue JSON is edge-cached, no-store bodies never are", async () => {
+  const worker = await read("cloudflare/worker.js");
+  assert.match(worker, /"\/api\/contents"/);
+  assert.match(worker, /no-store\|private/);
 });

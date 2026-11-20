@@ -12,7 +12,19 @@
 
 import { dispatch } from "../functions/api/[[route]].js";
 
-const CACHEABLE = new Set(["/api/sign", "/api/hls"]);
+const CACHEABLE = new Set([
+  "/api/sign",
+  "/api/hls",
+  // Catalogue JSON rides along: chapters/contents/batch pages declare
+  // their own short s-maxage, and the Cache API honours it — a popular
+  // subject page then costs one upstream walk per edge per few minutes
+  // instead of one per student, which is also what keeps PW's throttle
+  // from turning into empty chapter lists. Error bodies are no-store
+  // and the put below only ever stores a 200.
+  "/api/contents",
+  "/api/batch",
+  "/api/batches",
+]);
 
 /**
  * Warm the edge with the bytes playback needs next.
@@ -76,7 +88,9 @@ export default {
           return out;
         }
         const res = await dispatch(request, env);
-        if (res.status === 200 && ctx && typeof ctx.waitUntil === "function") {
+        const cacheable200 =
+          res.status === 200 && !/no-store|private/i.test(res.headers.get("cache-control") || "");
+        if (cacheable200 && ctx && typeof ctx.waitUntil === "function") {
           // Re-wrap so the headers are ours to edit: a platform response's
           // header list may be immutable, and the put must not die on it.
           const stored = new Response(res.clone().body, res);
