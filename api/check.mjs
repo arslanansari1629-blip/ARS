@@ -156,7 +156,7 @@ async function scheduleInfo(batch, subject, id) {
  * Walk the whole playback path for one lecture.
  * @returns {Promise<object>} always a report — never a thrown error
  */
-async function checkLecture({ batch, subject, id, url, base }) {
+async function checkLecture({ batch, subject, id, url, base, light = false }) {
   const report = { success: true, checkedAt: new Date().toISOString(), steps: {} };
 
   try {
@@ -193,6 +193,18 @@ async function checkLecture({ batch, subject, id, url, base }) {
       report.ok = false;
       report.result = "no_playable_plan";
       report.explain = plan.reason || "The resolver could not build a playable plan.";
+      return report;
+    }
+
+    // Light mode (chapter sweeps): a resolved plan is the verdict. A full
+    // verification — playlist, key, segment, decrypt — costs dozens of
+    // signer fetches per lecture, and six of those in one invocation blow
+    // straight through the Workers subrequest budget, which made healthy
+    // chapters report as broken. Depth stays on the single-lecture check.
+    if (light) {
+      report.ok = true;
+      report.result = "plays";
+      report.explain = "Plan resolves with a full quality ladder (light sweep).";
       return report;
     }
 
@@ -389,7 +401,7 @@ async function sweepChapter({ batch, subject, chapter, base, limit }) {
   async function worker() {
     while (cursor < take.length) {
       const item = take[cursor++];
-      const r = await checkLecture({ batch, subject, id: item.id, base });
+      const r = await checkLecture({ batch, subject, id: item.id, base, light: true });
       results.push({
         id: item.id,
         title: item.title || r.title || "",
