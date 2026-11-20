@@ -429,7 +429,7 @@ async function quizRoute(req, res, params) {
     // "not readable with this session", so both earn the twin hunt.
     const refused = paper.locked || /401|403|404/.test(String(paper.error || ""));
     if (refused && req.method === "GET" && params.batch && params.subject) {
-      body.fallback = await paperTwin(params).catch(() => null);
+      body.fallback = await paperTwin(params).catch((err) => ({ error: String(err?.message || err).slice(0, 120) }));
     }
     return json(res, 200, body);
   }
