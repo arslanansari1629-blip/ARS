@@ -47,6 +47,21 @@ const titleParam = qs("title");
  */
 const programId = qs("program");
 const archiveMode = programId ? "1" : "";
+
+/**
+ * His method, adopted: play a lecture straight from its PW CDN address.
+ *
+ * Other PW players (vidcloud, aryavidya) are just `play.php?video_url=<…>`
+ * — a page that takes the CloudFront `master.mpd` and plays it. The watch
+ * page now accepts the same door: `?video_url=` (or `?url=`) with any PW
+ * CDN address resolves through `/api/stream?url=` exactly like a Khazana
+ * link, no batch/subject/id needed. The resolver still decides what is
+ * playable (DRM and foreign hosts get their honest explanations).
+ */
+const directVideoUrl = (() => {
+  const u = qs("video_url") || qs("url") || "";
+  return /^https?:\/\//i.test(u) ? u : "";
+})();
 const topicSlug = qs("topic");
 const chapterSlug = qs("chapter");
 /**
@@ -444,13 +459,14 @@ async function resolvePlan(n, level) {
   // `/api/stream?url=` turns that into a signed HLS plan. Asking the schedule
   // route first would spend two refused upstream calls before reaching the same
   // place.
-  if (archiveMode && knownVideoUrl) {
-    let plan = await api(`/api/stream?url=${encodeURIComponent(knownVideoUrl)}`);
+  const viaUrl = archiveMode ? knownVideoUrl : directVideoUrl;
+  if (viaUrl) {
+    let plan = await api(`/api/stream?url=${encodeURIComponent(viaUrl)}`);
     if (plan && !plan.playable && !plan.retryAfter && silent < SILENT_ATTEMPTS) {
       // Signing is rate-limited now and then; one refresh is cheaper than an
       // error the reader cannot act on.
       silent += 1;
-      plan = await api(`/api/stream?url=${encodeURIComponent(knownVideoUrl)}&attempt=${n || 1}&cb=${Date.now().toString(36)}`);
+      plan = await api(`/api/stream?url=${encodeURIComponent(viaUrl)}&attempt=${n || 1}&cb=${Date.now().toString(36)}`);
     }
     return plan;
   }

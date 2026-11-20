@@ -123,3 +123,10 @@ test("a resolved plan warms its whole playback chain at the edge", async () => {
   assert.match(worker, /warmPlan/);
   assert.match(worker, /url\.pathname === "\/api\/stream"/);
 });
+
+test("the watch page plays a lecture straight from its CDN address", async () => {
+  const lecture = await read("public/assets/lecture.js");
+  assert.match(lecture, /directVideoUrl/);
+  assert.match(lecture, /qs\("video_url"\)/);
+  assert.match(lecture, /const viaUrl = archiveMode \? knownVideoUrl : directVideoUrl/);
+});
