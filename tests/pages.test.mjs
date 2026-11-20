@@ -2554,7 +2554,7 @@ test("lectures live on the watch page now, and the engine is zero-buffer", async
   // and the next lecture's plan resolved before this one ends.
   const player = await (await nativeFetch(`${BASE}/assets/player.js`)).text();
   assert.match(player, /maxStarvationDelay: 4/, "ABR does not yield under starvation");
-  assert.match(player, /maxBufferLength: zb \? 180 : 90/, "zero-buffer read-ahead is not configured");
+  assert.match(player, /maxBufferLength: zb \? 300 : 90/, "zero-buffer read-ahead is not configured");
   assert.match(player, /FRAG_BUFFERED/, "no proactive refill on buffered fragments");
   assert.match(player, /nextLoadLevel = this\.hls\.currentLevel - 1/, "stall refill does not drop a rendition");
   const lecture = await (await nativeFetch(`${BASE}/assets/lecture.js`)).text();

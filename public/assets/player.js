@@ -485,8 +485,8 @@ export class ProPlayer {
     const hls = new Hls({
       // A lecture is watched in long stretches: keep a real read-ahead buffer so
       // an ordinary network wobble never reaches the screen.
-      maxBufferLength: zb ? 180 : 90,
-      maxMaxBufferLength: zb ? 600 : 240,
+      maxBufferLength: zb ? 300 : 90,
+      maxMaxBufferLength: zb ? 900 : 240,
       maxBufferSize: (zb ? 150 : 90) * 1000 * 1000,
       backBufferLength: 90,
       // When the buffer is starving, do not wait for the ideal fragment:
@@ -518,7 +518,7 @@ export class ProPlayer {
       // climbs within a few fragments; a saved quality is applied on
       // MANIFEST_PARSED and overrides this before anything is visible.
       startLevel: 0,
-      abrEwmaDefaultEstimate: 500000,
+      abrEwmaDefaultEstimate: 1500000,
       // Begin fetching the first fragment the moment the level playlist is
       // known instead of waiting for a buffer target check.
       startFragPrefetch: true,
