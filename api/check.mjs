@@ -7,6 +7,7 @@ import {
   fetchSchedule,
   fetchChapterContents,
   resolveTimings,
+  guestToken,
 } from "../lib/api-data.mjs";
 import { upstreamJson } from "../lib/upstream.mjs";
 import { explainNoVideo } from "../lib/playback.mjs";
@@ -401,6 +402,11 @@ async function sweepChapter({ batch, subject, chapter, base, limit }) {
   const results = [];
   let cursor = 0;
 
+  // Mint once, up front: every probe after this starts with the relay
+  // token in hand instead of an anonymous burst the signer throttles —
+  // the listing read just before already spent the burst allowance.
+  await guestToken().catch(() => "");
+
   async function worker() {
     while (cursor < take.length) {
       const item = take[cursor++];
@@ -425,6 +431,9 @@ async function sweepChapter({ batch, subject, chapter, base, limit }) {
         quality: (r.steps.plan && r.steps.plan.quality) || "",
         explain: r.explain || r.error || "",
       });
+      // A breath between lectures: signer throttles are per-second
+      // windows, and a sweep that outruns them reports its own haste.
+      if (cursor < take.length) await new Promise((r) => setTimeout(r, 1200));
     }
   }
   await Promise.all(Array.from({ length: Math.min(SWEEP_CONCURRENCY, take.length) }, worker));
