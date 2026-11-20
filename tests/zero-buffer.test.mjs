@@ -145,3 +145,11 @@ test("chapter sweeps verify plans, single lectures verify bytes", async () => {
   assert.match(check, /light = false/);
   assert.match(check, /light: true/);
 });
+
+test("edge warming resolves relative playlist links against the request", async () => {
+  const worker = await read("cloudflare/worker.js");
+  assert.match(worker, /new URL\(variant, request\.url\)/);
+  assert.match(worker, /new URL\(m\[1\], request\.url\)/);
+  const hls = await read("lib/hls.mjs");
+  assert.match(hls, /const base = "";/);
+});

@@ -46,8 +46,8 @@ async function prefetchPlaylist(request, res, env, cache) {
     const text = await res.clone().text();
     const urls = [];
     for (const line of text.split("\n")) {
-      const m = line.match(/URI="([^"]+)"/) || line.trim().match(/^(https?:\/\/\S+)$/);
-      if (m && m[1].includes("/api/sign?")) urls.push(m[1]);
+      const m = line.match(/URI="([^"]+)"/) || line.trim().match(/^((?:https?:\/\/)?\/?\S+)$/);
+      if (m && m[1].includes("/api/sign?")) urls.push(new URL(m[1], request.url).toString());
       if (urls.length >= 8) break;
     }
     await Promise.all(
@@ -132,7 +132,7 @@ async function warmPlan(request, res, env, cache) {
           .map((l) => l.trim())
           .find((l) => l.includes("/api/sign?"));
         if (variant) {
-          const vReq = new Request(variant);
+          const vReq = new Request(new URL(variant, request.url).toString());
           if (!(await cache.match(vReq).catch(() => null))) {
             const vRes = await dispatch(vReq, env).catch(() => null);
             if (vRes && vRes.status === 200) {

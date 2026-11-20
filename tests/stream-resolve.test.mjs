@@ -554,7 +554,9 @@ test("the relay mints a playable master playlist instead of asking the signer", 
   assert.match(variants[0], /key=360%2Fmain\.m3u8/, "lowest rendition must come first");
   assert.match(variants[1], /key=720%2Fmain\.m3u8/);
   for (const v of variants) {
-    assert.match(v, /^https:\/\/arsvibe\.test\/api\/sign\?/, `variant is not same-origin: ${v}`);
+    // Relative: the master is edge-cached, and an absolute link would
+    // hand every later student whichever host asked first.
+    assert.match(v, /^\/api\/sign\?/, `variant is not a relative relay link: ${v}`);
   }
 
   const bad = await call("videoKey=abc-123&key=master.m3u8");

@@ -125,22 +125,25 @@ test("/api/sign rewrites every playlist child reference through itself", async (
   assert.equal(res.statusCode, 200);
   const body = res.body;
 
-  // no bare relative references may survive
+  // Every reference is our own RELATIVE relay link: absolute links baked
+  // the asking host into edge-cached playlists (variants pointing at
+  // localhost), and no reference may carry an upstream signature.
   for (const line of body.split("\n")) {
     const raw = line.trim();
     if (!raw || raw.startsWith("#EXT")) continue;
     if (raw.startsWith("#")) continue;
-    assert.match(raw, /^https:\/\/example\.test\/api\/sign\?/, `unrewritten line: ${raw}`);
+    assert.match(raw, /^\/api\/sign\?/, `unrewritten line: ${raw}`);
   }
 
   // the AES key and both segments are relayed with the right key paths
-  assert.match(body, /URI="https:\/\/example\.test\/api\/sign\?videoKey=[^"]*&key=720%2Fenc\.key"/);
+  assert.match(body, /URI="\/api\/sign\?videoKey=[^"]*&key=720%2Fenc\.key"/);
   assert.match(body, /key=720%2F000\.ts/);
-  // An absolute URL that already carries a CloudFront signature is proxied
-  // as-is (`direct=`): the signature is the credential, no signer can mint
-  // the segment, and re-asking one per segment is what burned the relays'
-  // quotas. It must never be reduced to a bare key and re-sent for signing.
-  assert.match(body, /api\/sign\?direct=https%3A%2F%2Fsec1\.pw\.live/, "signed absolute URLs must be proxied directly");
+  // An absolute URL that already carries a CloudFront signature is reduced
+  // to its folder-relative key and re-minted per request: the signature
+  // itself expires in minutes, and a cached playlist carrying it stranded
+  // players on "the signer stream link expired" until the cache aged out.
+  assert.ok(!body.includes("direct="), "no expiring signed URL may be embedded in a playlist");
+  assert.ok(!body.includes("Signature="), "no upstream signature may survive rewriting");
   assert.ok(!body.includes("get-hls-key"), "the signer endpoint must not leak into a rewritten playlist");
 });
 
