@@ -107,10 +107,65 @@ function shadowKey(request) {
   return new Request(u.toString(), { method: "GET" });
 }
 
+/**
+ * Warm the whole chain when a lecture resolves.
+ *
+ * `/api/stream` answers with a plan whose URL is our own master playlist.
+ * The student still has to press play, but the edge does not have to wait
+ * for that: dispatch the master, then its first variant playlist (which
+ * triggers the key + opening-segment warm), all in the background. Press
+ * play a second later and every first request is already an edge hit.
+ */
+async function warmPlan(request, res, env, cache) {
+  try {
+    const plan = await res.clone().json();
+    const target = plan && typeof plan.url === "string" ? plan.url : "";
+    if (!target.startsWith("/api/sign?")) return;
+    const masterReq = new Request(new URL(target, request.url).toString());
+    if (!(await cache.match(masterReq).catch(() => null))) {
+      const master = await dispatch(masterReq, env).catch(() => null);
+      if (master && master.status === 200) {
+        await cache.put(masterReq, master.clone()).catch(() => {});
+        const text = await master.text().catch(() => "");
+        const variant = text
+          .split("\n")
+          .map((l) => l.trim())
+          .find((l) => l.includes("/api/sign?"));
+        if (variant) {
+          const vReq = new Request(variant);
+          if (!(await cache.match(vReq).catch(() => null))) {
+            const vRes = await dispatch(vReq, env).catch(() => null);
+            if (vRes && vRes.status === 200) {
+              await cache.put(vReq, vRes.clone()).catch(() => {});
+              await prefetchPlaylist(vReq, vRes, env, cache);
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    /* warming is best-effort */
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
+      // A resolved lecture plan warms its whole playback chain (see
+      // warmPlan) — by the time the student presses play, the master,
+      // the first variant, its key and its opening segments are edge hits.
+      if (
+        request.method === "GET" &&
+        url.pathname === "/api/stream" &&
+        typeof caches !== "undefined" &&
+        ctx &&
+        typeof ctx.waitUntil === "function"
+      ) {
+        const res = await dispatch(request, env);
+        if (res.status === 200) ctx.waitUntil(warmPlan(request, res, env, caches.default));
+        return res;
+      }
       // Zero-buffer rule #1: a signed segment is the same bytes for every
       // viewer forever, so the second play of any lecture must be an edge
       // hit (~20 ms), never another signer round trip (~1 s). Playlists

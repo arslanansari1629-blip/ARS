@@ -106,3 +106,20 @@ test("god-level edge: rolling prefetch, stale-if-error, edge retry, Range-safe",
   assert.match(worker, /res\.status === 502 && url\.pathname === "\/api\/sign"/);
   assert.match(worker, /rangeAsk/);
 });
+
+test("god-level memory: token and last-good signer are shared across isolates", async () => {
+  const auth = await read("lib/pw-auth.mjs");
+  assert.match(auth, /SHARED_TOKEN_URL/);
+  assert.match(auth, /sharedTokenWrite/);
+  assert.match(auth, /edge-shared/);
+  const sign = await read("lib/sign.mjs");
+  assert.match(sign, /SHARED_DOOR_URL/);
+  assert.match(sign, /loadSharedDoor/);
+  assert.match(sign, /shareDoor\(\)/);
+});
+
+test("a resolved plan warms its whole playback chain at the edge", async () => {
+  const worker = await read("cloudflare/worker.js");
+  assert.match(worker, /warmPlan/);
+  assert.match(worker, /url\.pathname === "\/api\/stream"/);
+});
