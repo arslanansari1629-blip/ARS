@@ -589,13 +589,13 @@ async function startStream() {
   // message with no retry strands them when the relays come back a minute
   // later. Eight background attempts at the server's delay is ~2 minutes;
   // after that the final message below takes over.
-  if (plan && !plan.playable && plan.signerDown && silent < 8) {
+  if (plan && !plan.playable && (plan.signerDown || plan.livePending) && silent < 8) {
     silent += 1;
     attempt += 1;
     const gen = ++outageGen;
     showMessage(
-      "Signing service is down",
-      `${plan.reason || "Physics Wallah's signing relays are not answering right now."} Retrying automatically in the background — the lecture starts on its own when signing recovers.`,
+      plan.livePending ? "Live class has not started yet" : "Signing service is down",
+      `${plan.reason || "Physics Wallah's signing relays are not answering right now."} Retrying automatically in the background — the lecture starts on its own when it is ready.`,
       false,
       `<a class="btn btn-primary" href="/chapter.html?batch=${encodeURIComponent(
         qs("batch") || ""
