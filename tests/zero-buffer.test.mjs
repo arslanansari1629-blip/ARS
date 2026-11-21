@@ -159,7 +159,7 @@ test("playable plans are edge-cached, refusals never are", async () => {
   assert.match(worker, /x-ars-cache", "edge-plan"/);
   assert.match(worker, /plan\.playable/);
   const auth = await read("lib/pw-auth.mjs");
-  assert.match(auth, /Promise\.any\(TOKEN_SOURCES\.map/);
+  assert.match(auth, /Promise\.any\(sources\.map/);
   assert.match(auth, /controllers\.forEach\(\(c\) => c\.abort\(\)\)/);
   assert.match(auth, /SHARED_TOKEN_STALE_URL/);
 });
