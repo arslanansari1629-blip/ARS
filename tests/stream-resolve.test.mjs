@@ -848,3 +848,40 @@ test("a live awsVideo address resolves to a gateway live plan", async () => {
   assert.equal(plan.kind, "hls");
   assert.match(plan.url, /^\/api\/hls\?host=d273n6bx0smh99\.cloudfront\.net&asset=index\.m3u8$/);
 });
+
+test("the gateway relays a folder-less live playlist and never caches it", async () => {
+  const { default: hls } = await import("../lib/hls.mjs");
+  const livePlaylist =
+    "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\nchunklist_360.m3u8\n";
+  const r = await withFetch(
+    async (url) => {
+      if (String(url) === "https://d273n6bx0smh99.cloudfront.net/index.m3u8") {
+        return new Response(livePlaylist, {
+          status: 200,
+          headers: { "content-type": "application/vnd.apple.mpegurl" },
+        });
+      }
+      return new Response("nope", { status: 404 });
+    },
+    async () => {
+      const chunks = [];
+      const res = {
+        statusCode: 200,
+        headers: {},
+        setHeader(k, v) { this.headers[k] = v; },
+        write(b) { chunks.push(Buffer.from(b)); },
+        end(b) { if (b) chunks.push(Buffer.from(b)); },
+        body: () => Buffer.concat(chunks).toString("utf8"),
+      };
+      await hls(
+        { method: "GET", url: "/api/hls?host=d273n6bx0smh99.cloudfront.net&asset=index.m3u8", headers: { host: "x.test" } },
+        res
+      );
+      return res;
+    }
+  );
+  assert.ok(r, "gateway answered");
+  assert.equal(r.statusCode, 200);
+  assert.equal(r.headers["Cache-Control"], "no-store");
+  assert.match(r.body(), /\/api\/hls\?folder=&asset=chunklist_360\.m3u8/);
+});
