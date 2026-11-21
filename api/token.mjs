@@ -352,7 +352,10 @@ export default async function handler(req, res) {
   }
 
   const { fresh } = query(req);
-  const { token, source, cached } = await resolveToken(fresh === "1");
+  // ?fresh=1 is an explicit operator ask: force one re-mint past the
+  // negative cache. Ordinary fresh asks (a credential was rejected)
+  // respect the window — see resolveToken.
+  const { token, source, cached } = await resolveToken(fresh === "1", { force: fresh === "1" });
 
   const probes = await Promise.all(PROBES.map((p) => probe({ ...p, token })));
 
