@@ -472,6 +472,25 @@ const normTitle = (t) =>
 async function paperTwin(params) {
   const wanted = normTitle(params.name || params.title || "");
   if (!wanted) return null;
+  // Known chapter: read its DPP tab directly instead of walking the
+  // chapter list first — one upstream walk, and it keeps working in
+  // windows where the chapter list itself is refused.
+  if (params.chapter) {
+    const out = await fetchChapterContents(
+      String(params.batch),
+      String(params.subject),
+      String(params.chapter),
+      "DppNotes"
+    ).catch(() => null);
+    const papers = [];
+    for (const item of out?.items || []) {
+      for (const doc of item.docs || []) {
+        if (doc.url) papers.push({ url: doc.url, title: (doc.topic || item.title || doc.name || "DPP").trim() });
+      }
+    }
+    const twin = matchTwin(papers, wanted);
+    if (twin) return twin;
+  }
   const collected = await collectDppPapers({
     batch: String(params.batch),
     subject: String(params.subject),
@@ -481,9 +500,14 @@ async function paperTwin(params) {
     fetchChapterContents,
   });
   if (!collected.ok || !collected.papers?.length) return null;
+  return matchTwin(collected.papers, wanted);
+}
+
+/** Best title match for the quiz name among candidate papers. */
+function matchTwin(papers, wanted) {
   const wantedWords = new Set(wanted.split(" ").filter((w) => w.length > 2));
   let best = null;
-  for (const p of collected.papers) {
+  for (const p of papers) {
     const t = normTitle(p.title);
     if (t === wanted) return { paperUrl: p.url, name: p.title };
     const words = t.split(" ").filter((w) => w.length > 2);
