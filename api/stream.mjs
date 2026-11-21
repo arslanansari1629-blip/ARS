@@ -215,6 +215,35 @@ export default async function handler(req, res) {
       startLevel: level || "",
     });
 
+    // A live plan is only real once the teacher is actually streaming:
+    // the address exists in the schedule from the moment the class is
+    // booked, but the playlist 404s until ingest starts. Probe it once
+    // (one fetch) and answer "not started" — a state the page retries
+    // on its own — instead of handing the player a dead manifest it
+    // would report as an expired link.
+    if (plan.playable && plan.live) {
+      const started = await fetch(rawUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
+        signal: AbortSignal.timeout(6000),
+      }).catch(() => null);
+      if (!started || !started.ok) {
+        return json(res, 200, {
+          success: true,
+          playable: false,
+          kind: "live",
+          live: true,
+          livePending: true,
+          retryAfter: 20,
+          url: "",
+          reason:
+            "This live class has not started streaming yet. This page checks again automatically — the lecture opens on its own when the teacher goes live.",
+          resolvedFrom: rawUrl,
+          ...(detail ? { lecture: detail } : {}),
+        });
+      }
+      started.body?.cancel?.().catch?.(() => {});
+    }
+
     // The schedule succeeded but no rendition answered: upstream signing is
     // usually rate-limited for a few seconds, not permanently broken, so say
     // so and tell the player it may retry instead of dead-ending the lecture.
