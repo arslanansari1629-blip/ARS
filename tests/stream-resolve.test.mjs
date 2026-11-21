@@ -837,3 +837,14 @@ test("the signer probe stays inside a Workers-style subrequest budget", async ()
   );
   assert.match(probe.probeError || "", /subrequests/i);
 });
+
+test("a live awsVideo address resolves to a gateway live plan", async () => {
+  const { resolveStream } = await import("../lib/api-data.mjs");
+  const plan = await resolveStream({
+    rawUrl: "https://d273n6bx0smh99.cloudfront.net/index.m3u8",
+  });
+  assert.equal(plan.playable, true);
+  assert.equal(plan.live, true);
+  assert.equal(plan.kind, "hls");
+  assert.match(plan.url, /^\/api\/hls\?host=d273n6bx0smh99\.cloudfront\.net&asset=index\.m3u8$/);
+});
