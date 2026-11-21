@@ -98,7 +98,10 @@ test("tries the next signer host when the first one rejects", async () => {
       if (String(url).includes("get-hls-key")) {
         const host = new URL(String(url)).host;
         hosts.push(host);
-        if (host === "vidcloud.eu.org") {
+        // Whichever host the ladder asks first rejects; the rest answer.
+        // (The ranked order depends on healer state from earlier tests,
+        // so naming a host here would test the ranking, not the walk.)
+        if (host === hosts[0]) {
           return new Response("Forbidden", { status: 403 });
         }
         return playlistResponse();
