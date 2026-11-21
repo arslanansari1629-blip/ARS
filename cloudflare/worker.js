@@ -162,8 +162,35 @@ export default {
         ctx &&
         typeof ctx.waitUntil === "function"
       ) {
+        const cache = caches.default;
+        // A resolved plan is only relative relay links (the aryavidya
+        // rule), so it cannot expire in a cache the way a signed plan
+        // once could. Two minutes at the edge turns repeat opens of a
+        // popular lecture into a ~20 ms answer with no schedule walk and
+        // no signer probe at all. Only playable plans are stored: a
+        // refusal cached for two minutes would park students on an
+        // outage that already ended.
+        const hit = await cache.match(request).catch(() => null);
+        if (hit) {
+          const out = new Response(hit.body, hit);
+          out.headers.set("x-ars-cache", "edge-plan");
+          return out;
+        }
         const res = await dispatch(request, env);
-        if (res.status === 200) ctx.waitUntil(warmPlan(request, res, env, caches.default));
+        if (res.status === 200) {
+          ctx.waitUntil(warmPlan(request, res.clone(), env, cache));
+          try {
+            const plan = await res.clone().json();
+            if (plan && plan.playable) {
+              const stored = new Response(res.clone().body, res);
+              stored.headers.set("Cache-Control", "public, max-age=120");
+              stored.headers.delete("set-cookie");
+              ctx.waitUntil(cache.put(request, stored).catch(() => {}));
+            }
+          } catch {
+            /* a non-JSON answer is simply not cached */
+          }
+        }
         return res;
       }
       // Zero-buffer rule #1: a signed segment is the same bytes for every
