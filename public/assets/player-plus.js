@@ -212,3 +212,93 @@ if (wrap && video) {
   };
   setInterval(tick, 900);
 }
+
+/* =========================================================================
+   Playback tools — stream stats and a frame snapshot.
+   -------------------------------------------------------------------------
+   Two small instruments in the same row as Theatre:
+     · Stats draws the numbers the player already knows (resolution,
+       buffer ahead, dropped frames, live latency) once a second;
+     · Snapshot saves the current frame as a PNG for the student's
+       notes. The relay serves CORS-clean media, so the canvas is not
+       tainted; if a browser still refuses, the button says so.
+   Both are cosmetic: remove this block and playback is unchanged.
+   ========================================================================= */
+
+if (video && wrap && actions && !document.getElementById("statsBtn")) {
+  const statsBtn = document.createElement("button");
+  statsBtn.className = "btn btn-ghost btn-sm";
+  statsBtn.id = "statsBtn";
+  statsBtn.type = "button";
+  statsBtn.textContent = "Stats";
+  statsBtn.title = "Stream statistics (resolution, buffer, dropped frames)";
+  actions.appendChild(statsBtn);
+
+  const panel = document.createElement("div");
+  panel.className = "player-stats";
+  panel.id = "playerStats";
+  panel.hidden = true;
+  panel.setAttribute("role", "status");
+  wrap.appendChild(panel);
+
+  const fmt = (n, unit = "") => (Number.isFinite(n) ? `${Math.round(n)}${unit}` : "—");
+  let timer = null;
+  const paint = () => {
+    const live = !Number.isFinite(video.duration);
+    const bufferedEnd = video.buffered?.length ? video.buffered.end(video.buffered.length - 1) : 0;
+    const ahead = Math.max(0, bufferedEnd - (video.currentTime || 0));
+    const q = video.getVideoPlaybackQuality?.();
+    const latency = live && video.seekable?.length
+      ? Math.max(0, video.seekable.end(video.seekable.length - 1) - video.currentTime)
+      : NaN;
+    panel.innerHTML = [
+      ["Resolution", video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : "—"],
+      ["Speed", `${Number(video.playbackRate) || 1}×`],
+      [live ? "Behind live" : "Buffered ahead", fmt(live ? latency : ahead, "s")],
+      ["Dropped frames", q ? `${q.droppedVideoFrames} / ${q.totalVideoFrames}` : "—"],
+      ["State", video.paused ? "paused" : live ? "live" : "playing"],
+    ]
+      .map(([k, v]) => `<div class="ps-row"><span>${k}</span><strong>${v}</strong></div>`)
+      .join("");
+  };
+  const setOn = (on) => {
+    panel.hidden = !on;
+    statsBtn.classList.toggle("active", on);
+    clearInterval(timer);
+    timer = null;
+    if (on) {
+      paint();
+      timer = setInterval(paint, 1000);
+    }
+  };
+  statsBtn.addEventListener("click", () => setOn(panel.hidden));
+}
+
+if (video && actions && !document.getElementById("snapBtn")) {
+  const snapBtn = document.createElement("button");
+  snapBtn.className = "btn btn-ghost btn-sm";
+  snapBtn.id = "snapBtn";
+  snapBtn.type = "button";
+  snapBtn.textContent = "Snapshot";
+  snapBtn.title = "Save this frame as a PNG for your notes";
+  actions.appendChild(snapBtn);
+  snapBtn.addEventListener("click", () => {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `ars-frame-${Math.floor(video.currentTime || 0)}s.png`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      }, "image/png");
+    } catch {
+      snapBtn.textContent = "Snapshot blocked";
+      setTimeout(() => (snapBtn.textContent = "Snapshot"), 1800);
+    }
+  });
+}

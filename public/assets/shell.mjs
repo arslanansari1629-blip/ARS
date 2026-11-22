@@ -37,6 +37,15 @@ const NAV = [
     ],
   },
   {
+    key: "practice",
+    title: "Practice",
+    items: [
+      { id: "dpp", href: "/dpp.html", label: "DPP tests", icon: "target" },
+      { id: "live2", href: "/live.html", label: "Live now", icon: "live" },
+      { id: "leaderboard2", href: "/leaderboard.html", label: "Leaderboard", icon: "trophy" },
+    ],
+  },
+  {
     key: "languages",
     title: "Language",
     items: [
@@ -70,6 +79,8 @@ const ICONS = {
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   list: '<path d="M4 6h16M4 12h16M4 18h10"/>',
   heart: '<path d="M12 20.3 4.9 13.4a4.2 4.2 0 0 1 0-6 4.3 4.3 0 0 1 6 0l1.1 1.1 1.1-1.1a4.3 4.3 0 0 1 6 0 4.2 4.2 0 0 1 0 6Z"/>',
+  target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+  live: '<circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M6 18a9 9 0 0 1 0-12M18 6a9 9 0 0 1 0 12"/>',
   collapse: '<path d="M9 6l-6 6 6 6"/><path d="M21 6v12"/>',
   pin: '<path d="M9 4h6l-1 6 3 3H7l3-3-1-6Z"/><path d="M12 13v7"/>',
   help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.6v.4"/><path d="M12 17h.01"/>',
@@ -94,7 +105,8 @@ function buildSidebar() {
             ${icon(item.icon)}<span>${item.label}</span><kbd>${item.kbd}</kbd>
           </button>`;
         }
-        return `<a class="side-link${active}" href="${item.href}" data-label="${item.label}">${icon(item.icon)}<span>${item.label}</span>${
+        const liveDot = item.icon === "live" ? '<i class="side-live-dot" aria-hidden="true"></i>' : "";
+        return `<a class="side-link${active}" href="${item.href}" data-label="${item.label}">${icon(item.icon)}<span>${item.label}</span>${liveDot}${
           item.badge === "fav" ? `<em class="side-count" data-fav-count hidden>0</em>` : ""
         }</a>`;
       })

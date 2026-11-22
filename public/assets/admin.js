@@ -272,6 +272,38 @@ function renderHero(data) {
     .join("");
 }
 
+/**
+ * The student-side truth, from the public /api/token probe: whether a
+ * lecture can be signed and played right now. The session stats say how
+ * the server is doing; this says how a student's evening is doing. It
+ * polls on its own minute and needs no session to be honest.
+ */
+async function paintPublicHealth() {
+  const set = (id, text, good) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    el.dataset.state = good === null ? "warn" : good ? "good" : "bad";
+  };
+  try {
+    const res = await fetch("/api/token", { headers: { Accept: "application/json" } });
+    const data = await res.json();
+    const signing = data.lectureSigning === "working";
+    set("phSigner", signing ? "signer working" : "signer unavailable", signing ? true : data.lectureSigning ? false : null);
+    const src = String(data.token?.source || "");
+    set("phToken", src.includes("fallback") ? "guest token: fallback" : "guest token: minted", !src.includes("fallback"));
+    const playing = data.lecturePlayback === "working";
+    set("phPlayback", playing ? "lecture plays end-to-end" : "lecture not playing", playing);
+  } catch {
+    set("phSigner", "signer unknown", null);
+    set("phToken", "token unknown", null);
+    set("phPlayback", "playback unknown", null);
+  }
+}
+paintPublicHealth();
+const phTimer = setInterval(paintPublicHealth, 60000);
+phTimer?.unref?.();
+
 function renderHealth(data) {
   const rows = data.health
     .map((h) => {

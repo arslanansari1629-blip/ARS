@@ -10927,3 +10927,182 @@ tbody tr:hover { background: rgba(245, 158, 11, 0.07); }
     transition: none !important;
   }
 }
+
+/* ==========================================================================
+   26 — Sidebar refresh: aurora accents, live pulse, rail tooltips
+   --------------------------------------------------------------------------
+   The frame (section 20) owns the mechanics; this layer owns the finish:
+   the active row carries the site's aurora bar, live links breathe, and
+   on the collapsed rail every icon labels itself on hover — a rail of
+   mystery icons is a navigation nobody uses.
+   ========================================================================== */
+
+.side-brand .brand-mark {
+  background: var(--aurora);
+  border: 0;
+  box-shadow: 0 4px 14px -6px rgba(217, 38, 50, 0.55);
+}
+
+.side-link {
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+.side-link:hover {
+  transform: translateX(2px);
+}
+
+.side-link.active {
+  background: linear-gradient(90deg, rgba(228, 87, 46, 0.13), rgba(245, 158, 11, 0.07) 70%, transparent);
+  box-shadow: inset 3px 0 0 var(--blue), var(--lift-1);
+}
+
+.side-link.active svg {
+  color: var(--blue);
+  opacity: 1;
+}
+
+/* Live links carry a breathing dot; the class is painted by the shell. */
+.side-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d92632;
+  flex: 0 0 auto;
+  animation: side-live-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes side-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 38, 50, 0.45); opacity: 1; }
+  50% { box-shadow: 0 0 0 5px rgba(217, 38, 50, 0); opacity: 0.75; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-live-dot { animation: none; }
+  .side-link:hover { transform: none; }
+}
+
+/* The nav band scrolls alone; give it a quiet, thin scrollbar. */
+.side-nav {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(13, 26, 43, 0.25) transparent;
+}
+
+.side-nav::-webkit-scrollbar { width: 5px; }
+.side-nav::-webkit-scrollbar-thumb { background: rgba(13, 26, 43, 0.22); border-radius: 3px; }
+
+/* Group headings fold: the chevron turns with the disclosure. */
+.side-group .chev-mark {
+  transition: transform 0.18s var(--ease);
+}
+
+.side-group:not([open]) .chev-mark {
+  transform: rotate(-90deg);
+}
+
+/* Rail tooltips: the label the link already carries (data-label). */
+body.side-rail .side-link {
+  position: relative;
+}
+
+body.side-rail .side-link::after {
+  content: attr(data-label);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  padding: 0.32rem 0.55rem;
+  border-radius: var(--r-sm);
+  background: #0d1a2b;
+  color: #f4f7fb;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+  z-index: 90;
+}
+
+body.side-rail .side-link:hover::after,
+body.side-rail .side-link:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Playback tools (player-plus): the stats card sits over the film. */
+.player-stats {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 30;
+  min-width: 210px;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--r);
+  background: rgba(9, 17, 29, 0.82);
+  color: #eef3f9;
+  font-size: 0.74rem;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.ps-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.2rem;
+  padding: 0.14rem 0;
+}
+
+.ps-row span { color: rgba(238, 243, 249, 0.62); }
+.ps-row strong { font-family: var(--mono); font-weight: 600; }
+
+#statsBtn.active {
+  background: var(--blue-soft);
+  color: var(--blue-ink);
+  border-color: var(--blue-soft-2);
+}
+
+/* Admin: the student-side health strip inside the hero. */
+.admin-public-health {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--hair);
+}
+
+.ph-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-right: 0.2rem;
+}
+
+.ph-chip {
+  padding: 0.28rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.ph-chip[data-state="good"] { border-color: rgba(22, 163, 74, 0.45); color: #15803d; background: rgba(22, 163, 74, 0.08); }
+.ph-chip[data-state="bad"] { border-color: rgba(217, 38, 50, 0.45); color: #b91c1c; background: rgba(217, 38, 50, 0.07); }
+.ph-chip[data-state="warn"] { border-color: rgba(245, 158, 11, 0.5); color: #b45309; background: rgba(245, 158, 11, 0.08); }
+
+.ph-link {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--blue-ink);
+  margin-left: 0.35rem;
+}
+
+.ph-link:hover { text-decoration: underline; }
