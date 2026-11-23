@@ -43,6 +43,7 @@ const NAV = [
       { id: "dpp", href: "/dpp.html", label: "DPP tests", icon: "target" },
       { id: "live2", href: "/live.html", label: "Live now", icon: "live" },
       { id: "leaderboard2", href: "/leaderboard.html", label: "Leaderboard", icon: "trophy" },
+      { id: "chat", href: "/chat.html", label: "Study Hall chat", icon: "chat" },
     ],
   },
   {
@@ -79,6 +80,7 @@ const ICONS = {
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   list: '<path d="M4 6h16M4 12h16M4 18h10"/>',
   heart: '<path d="M12 20.3 4.9 13.4a4.2 4.2 0 0 1 0-6 4.3 4.3 0 0 1 6 0l1.1 1.1 1.1-1.1a4.3 4.3 0 0 1 6 0 4.2 4.2 0 0 1 0 6Z"/>',
+  chat: '<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-3-.4-4.2-1.1L3 20l1.1-5.8A8.5 8.5 0 1 1 21 11.5Z"/>',
   bell: '<path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
   live: '<circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M6 18a9 9 0 0 1 0-12M18 6a9 9 0 0 1 0 12"/>',

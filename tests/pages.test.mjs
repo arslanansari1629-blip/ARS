@@ -2530,7 +2530,7 @@ test("the player is ultra: up-next, hold-for-2x, sleep timer, screenshot, mini d
   assert.ok(/\.upnext/.test(css), "the up-next overlay has no styles");
   assert.match(js, /bandwidthEstimate/, "stats never show the bandwidth estimate");
   assert.match(js, /getVideoPlaybackQuality/, "stats never show dropped frames");
-  assert.match(js, /SPEEDS = \[0\.5, 0\.75, 1, 1\.25, 1\.5, 1\.75, 2, 2\.5, 3\]/, "speeds do not run 0.5x-3x");
+  assert.match(js, /SPEEDS = \[0\.5, 0\.75, 1, 1\.25, 1\.5, 1\.75, 2, 2\.5, 3, 3\.5, 4, 5, 6\]/, "speeds do not run 0.5x-6x");
   for (const speed of ["2.5", "3"]) {
     assert.ok(html.includes(`data-speed="${speed}"`), `the ${speed}x speed button is missing`);
   }

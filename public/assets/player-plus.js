@@ -361,7 +361,7 @@ if (video) {
       e.preventDefault();
       video.currentTime = Math.max(0, (video.currentTime || 0) + (e.key === "." ? 1 / 30 : -1 / 30));
     } else if (e.key === "<" || e.key === ">") {
-      const next = Math.min(4, Math.max(0.25, (Number(video.playbackRate) || 1) + (e.key === ">" ? 0.25 : -0.25)));
+      const next = Math.min(6, Math.max(0.25, (Number(video.playbackRate) || 1) + (e.key === ">" ? 0.25 : -0.25)));
       video.playbackRate = Math.round(next * 100) / 100;
     }
   });

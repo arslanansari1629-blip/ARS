@@ -150,3 +150,21 @@ test("self-heal v2: one ladder, memory, budget, prediction, failover", () => {
   const plus = read("public/assets/player-plus.js");
   assert.match(plus, /Self-heal/);
 });
+
+test("ultra speed: the ladder runs to 6x in menu and engine", () => {
+  const lecture = read("public/assets/lecture.js");
+  assert.match(lecture, /SPEEDS = \[0\.5, 0\.75, 1, 1\.25, 1\.5, 1\.75, 2, 2\.5, 3, 3\.5, 4, 5, 6\]/);
+  const html = read("public/watch.html");
+  assert.match(html, /data-speed="6"/);
+});
+
+test("study hall: chat page, room wiring and sidebar door ship", () => {
+  const chat = read("public/assets/chat.js");
+  assert.match(chat, /const ROOM = "study-hall"/);
+  assert.match(chat, /route=comments/);
+  const html = read("public/chat.html");
+  assert.match(html, /id="chatList"/);
+  assert.match(html, /id="chatForm"/);
+  const shell = read("public/assets/shell.mjs");
+  assert.match(shell, /href: "\/chat\.html", label: "Study Hall chat"/);
+});
