@@ -11221,3 +11221,177 @@ body.side-rail .side-link:focus-visible::after {
   color: var(--blue-ink);
   border-color: var(--blue-soft-2);
 }
+
+/* ==========================================================================
+   28 — Midnight theme + experience layer (the advanced round)
+   --------------------------------------------------------------------------
+   The whole site already speaks in tokens (--paper, --card, --ink,
+   --rule), so a real dark theme is a token swap, not a second design:
+   warm charcoal paper, the same vermilion pigment, the same rules.
+   The experience layer (scroll progress, back-to-top, connection
+   pill, shortcut sheet) is painted by shell.mjs on every page.
+   ========================================================================== */
+
+html[data-theme="dark"] {
+  --paper: #171310;
+  --paper-2: #1f1a15;
+  --card: #221d17;
+  --card-2: #2a231b;
+
+  --ink: #f3ecdf;
+  --ink-2: #d8cfbe;
+  --ink-3: #a89a83;
+  --ink-4: #77694f;
+
+  --rule: rgba(243, 236, 223, 0.16);
+  --rule-2: rgba(243, 236, 223, 0.3);
+  --hair: rgba(243, 236, 223, 0.09);
+  --hair-2: rgba(243, 236, 223, 0.18);
+
+  --blue: #f0763a;
+  --blue-2: #ff8a4d;
+  --blue-ink: #ffa06e;
+  --blue-soft: rgba(240, 118, 58, 0.16);
+  --blue-soft-2: rgba(240, 118, 58, 0.28);
+  --cyan: #2dd4bf;
+  --ok: #34d399;
+  --ok-soft: rgba(52, 211, 153, 0.12);
+  --amber: #fbbf24;
+  --danger: #fb7185;
+
+  --grid-minor: rgba(243, 236, 223, 0.04);
+  --grid-major: rgba(243, 236, 223, 0.06);
+
+  --edge: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  --lift-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px -6px rgba(0, 0, 0, 0.4);
+  --lift-2: 0 2px 6px rgba(0, 0, 0, 0.35), 0 18px 40px -18px rgba(0, 0, 0, 0.55);
+  --lift-3: 0 4px 10px rgba(0, 0, 0, 0.4), 0 34px 70px -28px rgba(0, 0, 0, 0.65);
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] body::before {
+  background-image:
+    radial-gradient(56rem 34rem at 12% -8%, rgba(228, 87, 46, 0.13), transparent 62%),
+    radial-gradient(48rem 30rem at 88% -12%, rgba(14, 124, 134, 0.12), transparent 60%),
+    radial-gradient(60rem 40rem at 55% 116%, rgba(217, 38, 50, 0.08), transparent 62%);
+}
+
+html[data-theme="dark"] img.brand-img,
+html[data-theme="dark"] .splash-mark {
+  filter: brightness(1.15);
+}
+
+/* Smooth the swap; nothing should strobe when the theme flips. */
+body, .card, .side, .topbar, .notif-panel, .notif-btn, input, select, textarea {
+  transition: background-color 0.25s var(--ease), color 0.25s var(--ease), border-color 0.25s var(--ease);
+}
+
+.theme-btn { font-size: 1rem; line-height: 1; }
+
+/* Scroll progress: a vermilion hairline riding the top of the frame. */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 400;
+  background: var(--aurora);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+.to-top {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 300;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 1.05rem;
+  cursor: pointer;
+  box-shadow: var(--lift-2);
+}
+
+.to-top:hover { border-color: var(--blue); color: var(--blue-ink); }
+
+/* Connection pill: bottom-centre, speaks only when the net moves. */
+.net-pill {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 320;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: #0d1a2b;
+  color: #eef3f9;
+  font-size: 0.76rem;
+  font-weight: 600;
+  box-shadow: var(--lift-2);
+}
+
+/* Shortcut sheet (? key). */
+.keys-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 8, 6, 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.keys-card {
+  width: min(560px, 92vw);
+  max-height: 84vh;
+  overflow: auto;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: var(--lift-3);
+}
+
+.keys-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1.4rem;
+  margin-top: 0.9rem;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+
+.keys-grid kbd {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  padding: 0.12rem 0.38rem;
+  border: 1px solid var(--rule-2);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--card-2);
+  color: var(--ink);
+}
+
+.install-btn { margin-top: 0.5rem; width: 100%; justify-content: center; }
+
+@media (max-width: 640px) {
+  .keys-grid { grid-template-columns: 1fr; }
+}
+
+/* Home: live & today strip (home.js paints the cards). */
+.home-live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body, .card, .side, .topbar { transition: none; }
+}

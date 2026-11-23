@@ -335,3 +335,27 @@ if (video && wrap && actions && !document.getElementById("audioBtn")) {
     audioBtn.textContent = on ? "Show video" : "Audio only";
   });
 }
+
+/* =========================================================================
+   Frame step + fine speed — the editor's keys.
+   -------------------------------------------------------------------------
+   When paused, , and . step one frame (1/30s) either way — the way to
+   land exactly on the formula the teacher just wrote. When playing,
+   < and > nudge speed by a quarter step. The core player keeps its
+   own keys; these only add.
+   ========================================================================= */
+
+if (video) {
+  document.addEventListener("keydown", (e) => {
+    const tag = (e.target?.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || e.target?.isContentEditable) return;
+    if (e.key === "," || e.key === ".") {
+      if (!video.paused) return;
+      e.preventDefault();
+      video.currentTime = Math.max(0, (video.currentTime || 0) + (e.key === "." ? 1 / 30 : -1 / 30));
+    } else if (e.key === "<" || e.key === ">") {
+      const next = Math.min(4, Math.max(0.25, (Number(video.playbackRate) || 1) + (e.key === ">" ? 0.25 : -0.25)));
+      video.playbackRate = Math.round(next * 100) / 100;
+    }
+  });
+}

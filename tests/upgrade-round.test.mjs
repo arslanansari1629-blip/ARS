@@ -70,3 +70,29 @@ test("player: audio-only screen-off mode ships in player-plus", () => {
   assert.match(css, /\.player-wrap\.audio-only video/);
   assert.match(css, /\.notif-panel/);
 });
+
+test("advanced round: dark theme tokens and toggle ship", () => {
+  const css = read("public/assets/arsvibe.css");
+  assert.match(css, /html\[data-theme="dark"\]/);
+  assert.match(css, /color-scheme: dark/);
+  const shell = read("public/assets/shell.mjs");
+  assert.match(shell, /buildThemeToggle/);
+  assert.match(shell, /setPref\("theme"/);
+});
+
+test("advanced round: shortcuts sheet, scroll progress, net pill, install door", () => {
+  const shell = read("public/assets/shell.mjs");
+  assert.match(shell, /keysSheet/);
+  assert.match(shell, /scrollProgress/);
+  assert.match(shell, /netPill/);
+  assert.match(shell, /beforeinstallprompt/);
+});
+
+test("advanced round: home live strip and player frame-step ship", () => {
+  const home = read("public/assets/home.js");
+  assert.match(home, /homeLive/);
+  assert.match(home, /today=1/);
+  assert.match(read("public/index.html"), /homeLiveSection/);
+  const plus = read("public/assets/player-plus.js");
+  assert.match(plus, /1 \/ 30/);
+});

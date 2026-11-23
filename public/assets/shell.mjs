@@ -338,6 +338,7 @@ function buildTopbar() {
   if (actions) actions.parentNode.insertBefore(searchBtn, actions);
   else inner.appendChild(searchBtn);
   buildNotifications(actions || inner);
+  buildThemeToggle(actions || inner);
 
   header.classList.add("topbar");
   return header;
@@ -402,7 +403,160 @@ function playSplash() {
 
 /* --------------------------------- assembly ------------------------------- */
 
+/* --------------------------- experience layer ----------------------------
+   The advanced-chrome round: dark theme, keyboard shortcuts, scroll
+   progress, connection state and the PWA install door. Every piece is
+   a progressive enhancement layered on the frame — remove the whole
+   block and the site is exactly what it was, only lighter-coloured. */
+
+/** Apply the saved theme (or the OS one) before anything paints. */
+function applyTheme() {
+  const saved = getPrefs().theme;
+  const dark = saved ? saved === "dark" : window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  return dark;
+}
+
+function buildThemeToggle(actions) {
+  if (!actions || document.getElementById("themeBtn")) return;
+  const btn = document.createElement("button");
+  btn.className = "notif-btn theme-btn";
+  btn.id = "themeBtn";
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Toggle dark theme");
+  const paint = () => {
+    const dark = document.documentElement.dataset.theme === "dark";
+    btn.textContent = dark ? "☀️" : "🌙";
+    btn.title = dark ? "Switch to light theme" : "Switch to dark theme";
+  };
+  btn.addEventListener("click", () => {
+    const dark = document.documentElement.dataset.theme !== "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    setPref("theme", dark ? "dark" : "light");
+    paint();
+  });
+  paint();
+  actions.parentNode.insertBefore(btn, actions);
+}
+
+function buildExperience() {
+  /* Scroll progress hairline + back-to-top. */
+  const bar = document.createElement("div");
+  bar.className = "scroll-progress";
+  bar.id = "scrollProgress";
+  document.body.appendChild(bar);
+  const top = document.createElement("button");
+  top.className = "to-top";
+  top.id = "toTop";
+  top.type = "button";
+  top.textContent = "↑";
+  top.title = "Back to top";
+  top.hidden = true;
+  top.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  document.body.appendChild(top);
+  let ticking = false;
+  const onScroll = () => {
+    if (ticking) return;
+    ticking = true;
+    (window.requestAnimationFrame || ((fn) => fn()))(() => {
+      ticking = false;
+      const h = document.documentElement;
+      const max = h.scrollHeight - h.clientHeight;
+      bar.style.transform = `scaleX(${max > 0 ? Math.min(1, h.scrollTop / max) : 0})`;
+      top.hidden = h.scrollTop < 600;
+    });
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  /* Connection state: a quiet pill that only speaks when it must. */
+  const net = document.createElement("div");
+  net.className = "net-pill";
+  net.id = "netPill";
+  net.hidden = true;
+  document.body.appendChild(net);
+  const paintNet = () => {
+    const off = navigator.onLine === false;
+    net.hidden = !off;
+    net.textContent = off ? "📴 Offline — saved notes and downloads still open" : "";
+    if (!off && net.dataset.wasOff) {
+      net.hidden = false;
+      net.textContent = "✅ Back online";
+      setTimeout(() => { net.hidden = true; }, 2600);
+    }
+    net.dataset.wasOff = off ? "1" : "";
+  };
+  window.addEventListener("online", paintNet);
+  window.addEventListener("offline", paintNet);
+  paintNet();
+
+  /* Keyboard: ? opens the shortcut sheet; g then a letter travels. */
+  const sheet = document.createElement("div");
+  sheet.className = "keys-sheet";
+  sheet.id = "keysSheet";
+  sheet.hidden = true;
+  sheet.innerHTML = `
+    <div class="keys-card" role="dialog" aria-label="Keyboard shortcuts">
+      <div class="row between"><strong>Keyboard shortcuts</strong>
+      <button class="notif-read" id="keysClose" type="button">Close ✕</button></div>
+      <div class="keys-grid">
+        <span><kbd>⌘K</kbd> Search batches</span>
+        <span><kbd>?</kbd> This sheet</span>
+        <span><kbd>g</kbd> then <kbd>h</kbd> Home</span>
+        <span><kbd>g</kbd> then <kbd>b</kbd> Batches</span>
+        <span><kbd>g</kbd> then <kbd>l</kbd> Live classes</span>
+        <span><kbd>g</kbd> then <kbd>d</kbd> DPP tests</span>
+        <span><kbd>g</kbd> then <kbd>p</kbd> Dashboard</span>
+        <span><kbd>t</kbd> Dark / light theme</span>
+        <span><kbd>Space</kbd>/<kbd>k</kbd> Play · pause (player)</span>
+        <span><kbd>←</kbd><kbd>→</kbd> Seek 10s (player)</span>
+        <span><kbd>,</kbd> <kbd>.</kbd> Frame step (player, paused)</span>
+        <span><kbd>f</kbd> Fullscreen (player)</span>
+      </div>
+    </div>`;
+  document.body.appendChild(sheet);
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
+  sheet.querySelector("#keysClose").addEventListener("click", () => { sheet.hidden = true; });
+
+  const GO = { h: "/", b: "/batches.html", l: "/live.html", d: "/dpp.html", p: "/dashboard.html" };
+  let gAt = 0;
+  document.addEventListener("keydown", (e) => {
+    const tag = (e.target?.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || e.target?.isContentEditable) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "?") { sheet.hidden = !sheet.hidden; return; }
+    if (e.key === "Escape") { sheet.hidden = true; return; }
+    if (e.key.toLowerCase() === "t" && !document.getElementById("video")) {
+      document.getElementById("themeBtn")?.click();
+      return;
+    }
+    if (e.key.toLowerCase() === "g") { gAt = Date.now(); return; }
+    if (gAt && Date.now() - gAt < 900 && GO[e.key.toLowerCase()]) {
+      gAt = 0;
+      window.location.assign(GO[e.key.toLowerCase()]);
+    }
+  });
+
+  /* Install door: appears only when the browser offers it. */
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    if (document.getElementById("installBtn")) return;
+    const btn = document.createElement("button");
+    btn.className = "btn btn-ghost btn-sm install-btn";
+    btn.id = "installBtn";
+    btn.type = "button";
+    btn.textContent = "⬇ Install app";
+    btn.title = "Install ArsVibe as an app";
+    btn.addEventListener("click", async () => {
+      btn.remove();
+      try { await e.prompt(); } catch { /* the browser declined */ }
+    });
+    document.querySelector(".side-foot")?.appendChild(btn);
+  });
+}
+
 function mount() {
+  applyTheme();
   if (document.getElementById("side")) return;
 
   // The sign-in screen and the bare error page get the atmosphere, not the app
@@ -415,6 +569,7 @@ function mount() {
 
   playSplash();
 
+  buildExperience();
   const aside = buildSidebar();
   document.body.insertBefore(aside, document.body.firstChild);
   document.body.classList.add("has-shell");

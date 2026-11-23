@@ -115,6 +115,60 @@ if (goalGrid) {
 /* The study hub: streak, XP and in-progress count for a returning student.
    All of it already exists in progress.js/library — the front door just
    never showed it. First-time visitors see nothing here (no fake zeros). */
+/* Live & today on the front door: the same per-batch today read the
+   live page uses, gathered for the batches this student actually
+   opens. Quiet when there is nothing to say — no batches opened yet,
+   or no classes today, means no strip and no empty hole. */
+(async function homeLive() {
+  const section = document.getElementById("homeLiveSection");
+  const grid = document.getElementById("homeLiveGrid");
+  if (!section || !grid) return;
+  const batches = recentBatches().slice(0, 3);
+  if (!batches.length) return;
+  const results = await Promise.allSettled(
+    batches.map(async (b) => {
+      const res = await fetch(`/api/batch?today=1&id=${encodeURIComponent(b.id)}`, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(20000),
+      });
+      const data = await res.json().catch(() => null);
+      const rows = Array.isArray(data?.today?.classes) ? data.today.classes : [];
+      return rows.map((c) => ({ ...c, batch: b.id, batchName: b.name || "" }));
+    })
+  );
+  const classes = results
+    .flatMap((r) => (r.status === "fulfilled" ? r.value : []))
+    .sort((a, b) => String(a.start || "").localeCompare(String(b.start || "")));
+  if (!classes.length) return;
+  const watch = (c) =>
+    `/watch.html?batch=${encodeURIComponent(c.batch)}&subject=${encodeURIComponent(c.subjectSlug || "")}&id=${encodeURIComponent(c.id || "")}&title=${encodeURIComponent(c.title || "")}`;
+  grid.innerHTML = classes
+    .slice(0, 6)
+    .map((c) => {
+      const live = c.status === "live";
+      const badge = c.cancelled
+        ? `<span class="pill">Called off</span>`
+        : live
+          ? `<span class="pill live-pill"><span class="live-dot"></span> LIVE</span>`
+          : c.status === "upcoming"
+            ? `<span class="pill pill-brand">${esc(c.startClock || "Today")}</span>`
+            : `<span class="pill">Ended ${esc(c.endClock || "")}</span>`;
+      const cta = c.cancelled
+        ? ""
+        : live || c.hasStream
+          ? `<a class="btn ${live ? "btn-primary" : "btn-ghost"} btn-sm" href="${watch(c)}">${live ? "▶ Join live" : "Watch recording"}</a>`
+          : `<span class="tiny dim">Stream appears when the class starts</span>`;
+      return `<article class="card live-card">
+        <div class="row between">${badge}<span class="tiny dim">${esc(c.startClock || "")} IST</span></div>
+        <h3 class="live-title">${esc(c.title || "Class")}</h3>
+        <p class="tiny muted">${esc(c.subject || "")}${c.batchName ? ` · ${esc(c.batchName)}` : ""}</p>
+        <div class="live-cta">${cta}</div>
+      </article>`;
+    })
+    .join("");
+  section.hidden = false;
+})();
+
 (function studyHub() {
   const section = document.getElementById("hubSection");
   if (!section) return;
