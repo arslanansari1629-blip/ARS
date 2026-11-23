@@ -10,7 +10,7 @@
  * the analysis.
  */
 
-import { mountChrome, esc, qs, toast, setPageMeta } from "./app.js";
+import { mountChrome, esc, qs, toast, setPageMeta, recentBatches } from "./app.js";
 import { recordPaper, progress, levelInfo } from "./progress.js";
 
 mountChrome("batches");
@@ -29,7 +29,7 @@ const attemptKey = quizId ? `quiz:${quizId}` : paperUrl;
 const batchId = qs("batch") || qs("batchId");
 const subjectSlug = qs("subject");
 const chapterId = qs("chapter");
-const chapterName = qs("name");
+const chapterName = qs("chapterName") || qs("name");
 
 const intro = document.getElementById("intro");
 const introTitle = document.getElementById("dppIntroTitle");
@@ -76,12 +76,38 @@ const STORE = `arsvibe.dpp.${attemptKey || "none"}`;
 /* ------------------------------------------------------------------ boot */
 
 if (!paperUrl && !quizId) {
-  introTitle.textContent = "Pick a DPP paper first";
-  introNote.innerHTML =
-    "Open a chapter, choose the <strong>DPPs</strong> tab and press <strong>Practice</strong> " +
-    "on a paper. Every paper is a real Physics Wallah DPP, marked against its own key.";
+  /* The DPP hub. Arriving here without a paper used to be a paragraph
+     telling you to go somewhere else; now it is the way in: the batches
+     you actually open, the papers you have already attempted on this
+     device, and the one-tap path to a chapter's DPP tab. */
+  introTitle.textContent = "DPP tests — pick up and practice";
   loading.hidden = true;
   intro.classList.add("is-empty");
+  const recent = recentBatches();
+  let attempted = [];
+  try {
+    attempted = Object.keys(localStorage)
+      .filter((k) => k.startsWith("arsvibe.dpp.result."))
+      .map((k) => {
+        try { return { key: k, ...JSON.parse(localStorage.getItem(k) || "null") }; } catch { return null; }
+      })
+      .filter((r) => r && (r.percent !== undefined || r.correct !== undefined))
+      .slice(0, 6);
+  } catch { /* storage unavailable */ }
+  introNote.innerHTML = `
+    Every paper below is a real Physics Wallah DPP, marked against its own key the moment you submit.
+    ${recent.length ? `<div class="dpp-hub-block"><strong class="dpp-hub-h">Your batches — open one, choose the DPPs tab</strong>
+    <div class="dpp-hub-grid">${recent.map((b) => `
+      <a class="card dpp-hub-card" href="/batch.html?id=${encodeURIComponent(b.id)}">
+        ${b.image ? `<img src="${esc(b.image)}" alt="" loading="lazy" onerror="this.remove()" />` : ""}
+        <strong>${esc(b.name || "Batch")}</strong><span class="tiny dim">Subjects · chapters · DPP papers →</span>
+      </a>`).join("")}</div></div>` : ""}
+    ${attempted.length ? `<div class="dpp-hub-block"><strong class="dpp-hub-h">Recently attempted on this device</strong>
+    <div class="dpp-hub-grid">${attempted.map((r) => `
+      <div class="card dpp-hub-card"><strong>${esc(r.title || "DPP paper")}</strong>
+      <span class="tiny dim">${r.percent !== undefined ? `${r.percent}%` : ""}${r.correct !== undefined ? ` · ${r.correct} correct` : ""}</span></div>`).join("")}</div></div>` : ""}
+    <div class="dpp-hub-block"><a class="btn btn-primary" href="/batches.html">Browse all batches</a>
+    <a class="btn btn-ghost" href="/dashboard.html">Your dashboard</a></div>`;
 } else {
   if (paperName) introTitle.textContent = paperName;
   document.title = `${paperName || "DPP practice"} — ArsVibe PW`;
@@ -92,14 +118,24 @@ if (!paperUrl && !quizId) {
   loadPaper();
 }
 
-async function loadPaper() {
+async function loadPaper(attempt = 0) {
+  /* A paper fetch with no deadline is how a test "loads forever": one
+     slow upstream and the spinner outlives the student's patience.
+     Twenty-five seconds is beyond a healthy read; past it, one silent
+     retry, then the failure is said out loud with the way back. */
+  const slowNote = window.setTimeout(() => {
+    if (!loading.hidden) {
+      loading.innerHTML = `<span class="spinner" aria-hidden="true"></span> Still reading — big papers and slow networks take a moment. Hang on…`;
+    }
+  }, 6000);
   try {
     const res = await fetch(
       quizId
         ? `/api/pdf?quiz=${encodeURIComponent(quizId)}&name=${encodeURIComponent(paperName || "")}` +
           `&batch=${encodeURIComponent(batchId || "")}&subject=${encodeURIComponent(subjectSlug || "")}` +
           `&chapter=${encodeURIComponent(chapterId || "")}`
-        : `/api/pdf?dpp=${encodeURIComponent(paperUrl)}`
+        : `/api/pdf?dpp=${encodeURIComponent(paperUrl)}`,
+      { signal: AbortSignal.timeout(25000) }
     );
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
@@ -126,7 +162,18 @@ async function loadPaper() {
     }
     startTest(data);
   } catch (err) {
-    fail(err?.message || "The paper could not be read.");
+    if (attempt < 1) {
+      loading.innerHTML = `<span class="spinner" aria-hidden="true"></span> That read did not land — reading it again…`;
+      window.clearTimeout(slowNote);
+      return loadPaper(attempt + 1);
+    }
+    fail(
+      err?.name === "TimeoutError"
+        ? "The paper took too long to read — the source is slow right now, not broken. Try again in a moment."
+        : err?.message || "The paper could not be read."
+    );
+  } finally {
+    window.clearTimeout(slowNote);
   }
 }
 
@@ -145,12 +192,18 @@ function fail(message) {
   loading.hidden = true;
   introTitle.textContent = "This paper could not be read";
   introNote.innerHTML = `${esc(message)} <br /><br />
+    <button class="btn btn-primary btn-sm" type="button" id="dppRetry">Read the paper again</button>
     <a class="btn btn-ghost btn-sm" href="${esc(backHref())}">Back to the chapter</a>${
       paperUrl
         ? `
     <a class="btn btn-ghost btn-sm" href="${esc(pdfHref())}" target="_blank" rel="noopener">Open the PDF instead</a>`
         : ""
     }`;
+  document.getElementById("dppRetry")?.addEventListener("click", () => {
+    introNote.innerHTML = "Reading the paper again…";
+    loading.hidden = false;
+    loadPaper();
+  });
   testEl.hidden = true;
 }
 

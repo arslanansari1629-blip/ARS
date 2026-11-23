@@ -411,6 +411,7 @@ async function loadBatch() {
   const headerPromise = loadHeader();
   try {
     const out = await fetchBatchData(batchId);
+    loadBatch._healAttempt = 0;
     batch = out.batch;
     batch.subjects = out.subjects || [];
     renderDetail();
@@ -443,6 +444,27 @@ async function loadBatch() {
     document.getElementById("detailGrid").classList.add("fade-up");
     await headerPromise;
   } catch (err) {
+    /* Batch self-healing: a rate-limited upstream is a weather event,
+       not a dead batch. The page retries itself three times with a
+       visible countdown before it asks the student to do anything —
+       and the manual button stays for anyone in a hurry. */
+    const attempt = (loadBatch._healAttempt = (loadBatch._healAttempt || 0) + 1);
+    if (attempt <= 3) {
+      const wait = attempt * 4;
+      detailGrid.innerHTML = emptyState(
+        "The batch index hiccuped",
+        `Retrying on its own in ${wait}s (attempt ${attempt} of 3) — the batch itself is fine.`,
+        `<button class="btn btn-primary" id="retryBatchBtn">Retry now</button>`
+      );
+      tabBody.innerHTML = "";
+      document.getElementById("retryBatchBtn")?.addEventListener("click", () => {
+        window.clearTimeout(loadBatch._healTimer);
+        loadBatch();
+      });
+      loadBatch._healTimer = window.setTimeout(() => loadBatch(), wait * 1000);
+      return;
+    }
+    loadBatch._healAttempt = 0;
     detailGrid.innerHTML = emptyState("Batch unavailable", err.message, `<a class="btn btn-primary" href="/batches.html">Back to batches</a>`);
     tabBody.innerHTML = "";
     toast(err.message, "error");

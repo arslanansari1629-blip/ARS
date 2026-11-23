@@ -168,3 +168,19 @@ test("study hall: chat page, room wiring and sidebar door ship", () => {
   const shell = read("public/assets/shell.mjs");
   assert.match(shell, /href: "\/chat\.html", label: "Study Hall chat"/);
 });
+
+test("major round: floating sidebar tokens, DPP deadline + hub, batch self-heal", () => {
+  const css = read("public/assets/arsvibe.css");
+  assert.match(css, /--side-w: 288px/);
+  assert.match(css, /border-radius: 20px/);
+  assert.match(css, /overflow-x: clip/);
+  const dpp = read("public/assets/dpp.js");
+  assert.match(dpp, /AbortSignal\.timeout\(25000\)/);
+  assert.match(dpp, /DPP tests — pick up and practice/);
+  assert.match(dpp, /id="dppRetry"/);
+  const batch = read("public/assets/batch.js");
+  assert.match(batch, /_healAttempt/);
+  assert.match(batch, /Retrying on its own/);
+  const shell = read("public/assets/shell.mjs");
+  assert.match(shell, /pointerdown/);
+});

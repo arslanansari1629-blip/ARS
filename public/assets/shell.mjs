@@ -539,6 +539,27 @@ function buildExperience() {
     }
   });
 
+  /* Instant navigation: the moment a finger or cursor commits to a
+     same-origin link (pointerdown beats click by ~100ms), fetch the
+     page into the HTTP cache so the click lands on warm bytes. Hover
+     prefetch already exists in ui.js; this covers touch, where there
+     is no hover. One prefetch per URL per page, documents only. */
+  const prefetched = new Set();
+  document.addEventListener("pointerdown", (e) => {
+    const a = e.target?.closest?.("a[href]");
+    if (!a) return;
+    const url = new URL(a.getAttribute("href"), window.location.href);
+    if (url.origin !== window.location.origin) return;
+    if (!/\.html$|^\/$/.test(url.pathname)) return;
+    const key = url.pathname + url.search;
+    if (prefetched.has(key)) return;
+    prefetched.add(key);
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.href = key;
+    document.head.appendChild(link);
+  }, { passive: true });
+
   /* Resume chip: the last lecture you left mid-way, one tap back in,
      on every page except the player itself. Reads the same library +
      position keys the home rail reads; dismisses for the session. */

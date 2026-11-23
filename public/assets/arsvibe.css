@@ -11586,3 +11586,104 @@ body, .card, .side, .topbar, .notif-panel, .notif-btn, input, select, textarea {
   .chat-name { width: 100%; }
   .chat-row { max-width: 95%; }
 }
+
+/* DPP hub (the /dpp.html front door). */
+.dpp-hub-block { margin-top: 1.1rem; display: grid; gap: 0.6rem; }
+.dpp-hub-h { font-size: 0.85rem; }
+.dpp-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.7rem;
+}
+.dpp-hub-card {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.7rem;
+  color: var(--ink);
+  text-decoration: none;
+  align-content: start;
+}
+.dpp-hub-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--r-sm); }
+.dpp-hub-card:hover { border-color: var(--blue); }
+
+/* ==========================================================================
+   31 — Floating sidebar, perfect-fit layout, response speed
+   --------------------------------------------------------------------------
+   The frame gets a new body: the sidebar floats as a rounded glass
+   panel over the paper (12px in from every edge), 272px wide with
+   its own shadow — and --side-w finally has the default value the
+   frame always assumed (272 + the 16px float gap). The rail keeps
+   its 68px panel inside the same float. Below 1080px the drawer
+   takes the whole edge again, square and full-height.
+   ========================================================================== */
+
+:root {
+  --side-w: 288px;
+  --side-rail-w: 68px;
+}
+
+body.side-rail {
+  --side-w: 84px;
+}
+
+.side {
+  top: 12px;
+  left: 12px;
+  bottom: 12px;
+  height: auto;
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  backdrop-filter: blur(14px) saturate(130%);
+  box-shadow: var(--lift-2);
+  overflow: hidden;
+}
+
+.side-head { border-bottom: 1px solid var(--hair); padding-inline: 0.8rem; }
+
+.side-link { border-radius: 10px; margin-inline: 0.35rem; }
+.side-link.active { border-radius: 10px; }
+
+.side-foot { border-top: 1px solid var(--hair); padding: 0.6rem; }
+
+@media (max-width: 1080px) {
+  :root { --side-w: 264px; }
+  body.side-rail { --side-w: 264px; }
+  .side {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-top: 0;
+    border-bottom: 0;
+  }
+}
+
+/* Perfect fit: no page may scroll sideways, on any screen. */
+html, body { overflow-x: clip; }
+img, video, iframe, svg { max-width: 100%; }
+pre { max-width: 100%; overflow-x: auto; }
+
+body.has-shell .shell {
+  width: min(1360px, 100% - clamp(1rem, 4vw, 3rem));
+}
+
+/* Grids breathe with the screen instead of snapping at breakpoints. */
+.grid-batches, .goal-grid, .feature-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(245px, 100%), 1fr));
+}
+
+/* Media should never arrive larger than the column that holds it. */
+.card img, .live-card img, .resume-card img { height: auto; }
+
+/* Long words in titles are a layout bug waiting for a narrow phone. */
+.live-title, .card h3, .resume-chip-text strong {
+  overflow-wrap: anywhere;
+}
+
+/* Response speed: the browser paints text first and swaps media in
+   without moving the layout — aspect boxes are reserved by the
+   markup's width/height, and this keeps late images inside them. */
+img[loading="lazy"] { background: var(--card-2); }
