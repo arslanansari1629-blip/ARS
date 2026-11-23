@@ -11395,3 +11395,85 @@ body, .card, .side, .topbar, .notif-panel, .notif-btn, input, select, textarea {
 @media (prefers-reduced-motion: reduce) {
   body, .card, .side, .topbar { transition: none; }
 }
+
+/* ==========================================================================
+   29 — Pro player + resume chip + rendering performance
+   ========================================================================== */
+
+#autopipBtn.active {
+  background: var(--blue-soft);
+  color: var(--blue-ink);
+  border-color: var(--blue-soft-2);
+}
+
+/* Resume chip: bottom-left, above content, below the player stage. */
+.resume-chip {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 310;
+  display: flex;
+  align-items: stretch;
+  max-width: min(340px, calc(100vw - 90px));
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  background: var(--card);
+  box-shadow: var(--lift-2);
+  overflow: hidden;
+}
+
+.resume-chip-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  color: var(--ink);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.resume-chip-main:hover { background: var(--card-2); }
+
+.resume-chip-play {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--aurora);
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.resume-chip-text { display: grid; min-width: 0; }
+.resume-chip-text strong {
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.resume-chip-text em { font-size: 0.66rem; color: var(--ink-3); font-style: normal; }
+
+.resume-chip-x {
+  border: 0;
+  border-left: 1px solid var(--hair);
+  background: none;
+  color: var(--ink-4);
+  padding: 0 0.55rem;
+  cursor: pointer;
+}
+
+.resume-chip-x:hover { color: var(--ink); }
+
+/* Rendering performance: below-fold grids paint when approached.
+   content-visibility skips offscreen layout/paint entirely; the
+   intrinsic-size keeps the scrollbar honest while they are skipped. */
+.grid-batches > *, .feature-grid > *, .goal-grid > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+@media (max-width: 720px) {
+  .resume-chip { left: 12px; bottom: 76px; }
+}

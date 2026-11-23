@@ -256,6 +256,8 @@ if (video && wrap && actions && !document.getElementById("statsBtn")) {
       ["Speed", `${Number(video.playbackRate) || 1}×`],
       [live ? "Behind live" : "Buffered ahead", fmt(live ? latency : ahead, "s")],
       ["Dropped frames", q ? `${q.droppedVideoFrames} / ${q.totalVideoFrames}` : "—"],
+      ["Buffer health", Number.isFinite(ahead) ? `${Math.min(100, Math.round((ahead / 30) * 100))}%` : "—"],
+      ["Network", navigator.connection ? `${navigator.connection.effectiveType || "?"}${navigator.connection.downlink ? ` · ~${navigator.connection.downlink} Mbps` : ""}` : "—"],
       ["State", video.paused ? "paused" : live ? "live" : "playing"],
     ]
       .map(([k, v]) => `<div class="ps-row"><span>${k}</span><strong>${v}</strong></div>`)
@@ -356,6 +358,92 @@ if (video) {
     } else if (e.key === "<" || e.key === ">") {
       const next = Math.min(4, Math.max(0.25, (Number(video.playbackRate) || 1) + (e.key === ">" ? 0.25 : -0.25)));
       video.playbackRate = Math.round(next * 100) / 100;
+    }
+  });
+}
+
+/* =========================================================================
+   Pro controls — Media Session, Auto-PiP, percent seek.
+   -------------------------------------------------------------------------
+   The engineering layer a "most advanced" player is judged by:
+     · Media Session: the OS, the lock screen and the headphone buttons
+       drive the lecture — title, artwork, play/pause/seek — instead of
+       the browser treating the tab as an anonymous noise source.
+     · Auto-PiP: opt-in; when the tab is hidden mid-lecture the class
+       follows the student into a floating window. Browsers may refuse
+       without engagement; refusals are swallowed, never surfaced.
+     · Percent seek: 0–9 jump to that tenth of the lecture, the way
+       every serious player behaves.
+   All guarded, all removable without touching playback.
+   ========================================================================= */
+
+if (video && "mediaSession" in navigator) {
+  const paintMeta = () => {
+    const title = document.getElementById("lectureTitle")?.textContent?.trim();
+    if (!title || /loading/i.test(title)) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title,
+        artist: "ArsVibe · Physics Wallah",
+        album: document.querySelector(".crumbs")?.textContent?.replace(/\s+/g, " ").trim() || "Lecture",
+        artwork: [{ src: "/assets/icon-512.png", sizes: "512x512", type: "image/png" }],
+      });
+    } catch { /* metadata is garnish */ }
+  };
+  paintMeta();
+  setTimeout(paintMeta, 2500);
+  const seekBy = (d) => { video.currentTime = Math.max(0, (video.currentTime || 0) + d); };
+  try {
+    navigator.mediaSession.setActionHandler("play", () => video.play?.().catch(() => {}));
+    navigator.mediaSession.setActionHandler("pause", () => video.pause());
+    navigator.mediaSession.setActionHandler("seekbackward", (e) => seekBy(-(e.seekOffset || 10)));
+    navigator.mediaSession.setActionHandler("seekforward", (e) => seekBy(e.seekOffset || 10));
+    navigator.mediaSession.setActionHandler("seekto", (e) => {
+      if (Number.isFinite(e.seekTime)) video.currentTime = e.seekTime;
+    });
+  } catch { /* older engines */ }
+  const syncState = () => {
+    try { navigator.mediaSession.playbackState = video.paused ? "paused" : "playing"; } catch { /* noop */ }
+  };
+  video.addEventListener("play", syncState);
+  video.addEventListener("pause", syncState);
+}
+
+if (video && actions && document.pictureInPictureEnabled && !document.getElementById("autopipBtn")) {
+  const pipBtn = document.createElement("button");
+  pipBtn.className = "btn btn-ghost btn-sm";
+  pipBtn.id = "autopipBtn";
+  pipBtn.type = "button";
+  const KEY = "arsvibe.autopip";
+  const paint = () => {
+    const on = localStorage.getItem(KEY) === "1";
+    pipBtn.textContent = on ? "Auto-PiP on" : "Auto-PiP";
+    pipBtn.classList.toggle("active", on);
+    pipBtn.title = on
+      ? "The lecture follows you into a floating window when you switch tabs"
+      : "Let the lecture follow you into a floating window when you switch tabs";
+  };
+  pipBtn.addEventListener("click", () => {
+    localStorage.setItem(KEY, localStorage.getItem(KEY) === "1" ? "0" : "1");
+    paint();
+  });
+  paint();
+  actions.appendChild(pipBtn);
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState !== "hidden") return;
+    if (localStorage.getItem(KEY) !== "1") return;
+    if (video.paused || video.ended || document.pictureInPictureElement) return;
+    try { await video.requestPictureInPicture(); } catch { /* the browser declined */ }
+  });
+}
+
+if (video) {
+  document.addEventListener("keydown", (e) => {
+    const tag = (e.target?.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || e.target?.isContentEditable) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (/^[0-9]$/.test(e.key) && Number.isFinite(video.duration) && video.duration > 0) {
+      video.currentTime = (Number(e.key) / 10) * video.duration;
     }
   });
 }

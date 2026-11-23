@@ -537,6 +537,38 @@ function buildExperience() {
     }
   });
 
+  /* Resume chip: the last lecture you left mid-way, one tap back in,
+     on every page except the player itself. Reads the same library +
+     position keys the home rail reads; dismisses for the session. */
+  try {
+    if (!document.getElementById("video") && sessionStorage.getItem("arsvibe.resume.hide") !== "1") {
+      const lib = JSON.parse(localStorage.getItem("arsvibe.library") || "{}");
+      const lectures = Array.isArray(lib.lectures) ? lib.lectures : [];
+      const last = lectures
+        .map((l) => ({ ...l, pos: Number(localStorage.getItem(`pos:${l.id}`) || 0) }))
+        .filter((l) => l.pos > 12 && l.id && l.batch)
+        .sort((a, b) => b.pos - a.pos)[0];
+      if (last) {
+        const chip = document.createElement("div");
+        chip.className = "resume-chip";
+        chip.id = "resumeChip";
+        const href = `/watch.html?batch=${encodeURIComponent(last.batch)}&subject=${encodeURIComponent(last.subject || "")}&id=${encodeURIComponent(last.id)}&title=${encodeURIComponent(last.title || "Lecture")}`;
+        chip.innerHTML = `
+          <a class="resume-chip-main" href="${href}">
+            <span class="resume-chip-play">▶</span>
+            <span class="resume-chip-text"><strong>${esc(last.title || "Lecture")}</strong>
+            <em>Resume at ${Math.floor(last.pos / 60)}:${String(last.pos % 60).padStart(2, "0")}</em></span>
+          </a>
+          <button class="resume-chip-x" type="button" aria-label="Dismiss">✕</button>`;
+        chip.querySelector(".resume-chip-x").addEventListener("click", () => {
+          sessionStorage.setItem("arsvibe.resume.hide", "1");
+          chip.remove();
+        });
+        document.body.appendChild(chip);
+      }
+    }
+  } catch { /* storage unavailable: no chip, no noise */ }
+
   /* Install door: appears only when the browser offers it. */
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();

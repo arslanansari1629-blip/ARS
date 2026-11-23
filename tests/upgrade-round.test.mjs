@@ -96,3 +96,23 @@ test("advanced round: home live strip and player frame-step ship", () => {
   const plus = read("public/assets/player-plus.js");
   assert.match(plus, /1 \/ 30/);
 });
+
+test("pro player: media session, auto-pip, percent seek, stats v2 ship", () => {
+  const plus = read("public/assets/player-plus.js");
+  assert.match(plus, /mediaSession/);
+  assert.match(plus, /MediaMetadata/);
+  assert.match(plus, /setActionHandler\("seekto"/);
+  assert.match(plus, /id = "autopipBtn"/);
+  assert.match(plus, /requestPictureInPicture/);
+  assert.match(plus, /navigator\.connection/);
+  assert.match(plus, /Buffer health/);
+});
+
+test("site engineering: resume chip ships in the shell", () => {
+  const shell = read("public/assets/shell.mjs");
+  assert.match(shell, /resumeChip/);
+  assert.match(shell, /arsvibe\.library/);
+  const css = read("public/assets/arsvibe.css");
+  assert.match(css, /\.resume-chip/);
+  assert.match(css, /content-visibility: auto/);
+});
