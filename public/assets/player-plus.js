@@ -302,3 +302,36 @@ if (video && actions && !document.getElementById("snapBtn")) {
     }
   });
 }
+
+/* =========================================================================
+   Audio Only — the aryavidya player's screen-off mode.
+   -------------------------------------------------------------------------
+   Blanks the film (a CSS class; the lecture keeps playing and the
+   phone can rest face-down) and tells the student so on the stage.
+   Playback itself is untouched: remove this block and nothing changes
+   except one fewer button.
+   ========================================================================= */
+
+if (video && wrap && actions && !document.getElementById("audioBtn")) {
+  const audioBtn = document.createElement("button");
+  audioBtn.className = "btn btn-ghost btn-sm";
+  audioBtn.id = "audioBtn";
+  audioBtn.type = "button";
+  audioBtn.textContent = "Audio only";
+  audioBtn.title = "Screen-off listening — blank the picture, keep the lecture";
+  actions.appendChild(audioBtn);
+
+  const chip = document.createElement("div");
+  chip.className = "audio-only-chip";
+  chip.id = "audioChip";
+  chip.hidden = true;
+  chip.innerHTML = `<strong>🎧 Audio only</strong><span>Screen is off — the lecture keeps playing. Tap Audio only again to bring the picture back.</span>`;
+  (stageEl || wrap).appendChild(chip);
+
+  audioBtn.addEventListener("click", () => {
+    const on = wrap.classList.toggle("audio-only");
+    chip.hidden = !on;
+    audioBtn.classList.toggle("active", on);
+    audioBtn.textContent = on ? "Show video" : "Audio only";
+  });
+}

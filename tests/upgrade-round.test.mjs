@@ -53,3 +53,20 @@ test("admin: student-side health strip polls /api/token", () => {
   assert.match(js, /paintPublicHealth/);
   assert.match(js, /lectureSigning/);
 });
+
+test("notifications: bell, badge and mark-all-read ship in the shell", () => {
+  const shell = read("public/assets/shell.mjs");
+  assert.match(shell, /buildNotifications/);
+  assert.match(shell, /id="notifBtn"/);
+  assert.match(shell, /Mark all read/);
+  assert.match(shell, /announcements=1/);
+});
+
+test("player: audio-only screen-off mode ships in player-plus", () => {
+  const plus = read("public/assets/player-plus.js");
+  assert.match(plus, /id = "audioBtn"/);
+  assert.match(plus, /audio-only/);
+  const css = read("public/assets/arsvibe.css");
+  assert.match(css, /\.player-wrap\.audio-only video/);
+  assert.match(css, /\.notif-panel/);
+});

@@ -79,6 +79,7 @@ const ICONS = {
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   list: '<path d="M4 6h16M4 12h16M4 18h10"/>',
   heart: '<path d="M12 20.3 4.9 13.4a4.2 4.2 0 0 1 0-6 4.3 4.3 0 0 1 6 0l1.1 1.1 1.1-1.1a4.3 4.3 0 0 1 6 0 4.2 4.2 0 0 1 0 6Z"/>',
+  bell: '<path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/>',
   target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
   live: '<circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M6 18a9 9 0 0 1 0-12M18 6a9 9 0 0 1 0 12"/>',
   collapse: '<path d="M9 6l-6 6 6 6"/><path d="M21 6v12"/>',
@@ -207,6 +208,107 @@ function buildSidebar() {
  * and account on the right. The old nav links move to the sidebar, so they are
  * removed here rather than duplicated.
  */
+/* ------------------------- notifications centre ---------------------------
+   The aryavidya hub puts a bell in the top bar: announcements from the
+   batches the student actually opens, newest first, with an unread
+   badge and mark-all-read. The data already exists per batch
+   (/api/lecture?announcements=1) — this only gathers it. Read state is
+   one timestamp in prefs; anything newer is unread. Cosmetic layer:
+   if every fetch fails the bell simply stays quiet. */
+
+const NOTIF_SEEN_KEY = "notifSeenAt";
+
+function buildNotifications(actions) {
+  if (!actions || document.getElementById("notifBtn")) return;
+  const wrap = document.createElement("div");
+  wrap.className = "notif-wrap";
+  wrap.innerHTML = `
+    <button class="notif-btn" id="notifBtn" type="button" aria-label="Notifications" aria-expanded="false">
+      ${icon("bell")}<span class="notif-badge" id="notifBadge" hidden>0</span>
+    </button>
+    <div class="notif-panel" id="notifPanel" hidden role="dialog" aria-label="Notifications">
+      <div class="notif-head">
+        <strong>Notifications</strong>
+        <button class="notif-read" id="notifRead" type="button">Mark all read</button>
+      </div>
+      <div class="notif-list" id="notifList"><p class="tiny dim notif-empty">Loading updates from your batches…</p></div>
+    </div>`;
+  actions.parentNode.insertBefore(wrap, actions);
+
+  const btn = wrap.querySelector("#notifBtn");
+  const panel = wrap.querySelector("#notifPanel");
+  const list = wrap.querySelector("#notifList");
+  const badge = wrap.querySelector("#notifBadge");
+  let items = [];
+  let loaded = false;
+
+  const seenAt = () => Date.parse(getPrefs()[NOTIF_SEEN_KEY] || "") || 0;
+  const paintBadge = () => {
+    const unread = items.filter((i) => Date.parse(i.createdAt || "") > seenAt()).length;
+    badge.hidden = unread === 0;
+    badge.textContent = unread > 9 ? "9+" : String(unread);
+  };
+  const paintList = () => {
+    if (!items.length) {
+      list.innerHTML = `<p class="tiny dim notif-empty">No updates yet — open a batch and its announcements will land here.</p>`;
+      return;
+    }
+    const seen = seenAt();
+    list.innerHTML = items
+      .slice(0, 20)
+      .map((i) => {
+        const fresh = Date.parse(i.createdAt || "") > seen ? " is-new" : "";
+        const when = i.createdAt ? new Date(i.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "";
+        return `<a class="notif-item${fresh}" href="/batch.html?id=${encodeURIComponent(i.batchId)}">
+          <strong>${esc(i.heading || "Update")}</strong>
+          <span>${esc(String(i.message || "").slice(0, 110))}</span>
+          <em>${esc(i.batchName || "")}${when ? ` · ${when}` : ""}</em>
+        </a>`;
+      })
+      .join("");
+  };
+  const load = async () => {
+    if (loaded) return;
+    loaded = true;
+    const batches = recentBatches().slice(0, 3);
+    if (!batches.length) { paintList(); return; }
+    const results = await Promise.allSettled(
+      batches.map(async (b) => {
+        const res = await fetch(`/api/lecture?batch=${encodeURIComponent(b.id)}&announcements=1`, {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(15000),
+        });
+        const data = await res.json();
+        return (data.items || []).map((i) => ({ ...i, batchId: b.id, batchName: b.name || "" }));
+      })
+    );
+    items = results
+      .flatMap((r) => (r.status === "fulfilled" ? r.value : []))
+      .sort((a, b) => Date.parse(b.createdAt || "") - Date.parse(a.createdAt || ""));
+    paintBadge();
+    paintList();
+  };
+
+  btn.addEventListener("click", () => {
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    if (open) load();
+  });
+  document.addEventListener("click", (e) => {
+    if (!panel.hidden && !wrap.contains(e.target)) {
+      panel.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    }
+  });
+  wrap.querySelector("#notifRead").addEventListener("click", () => {
+    setPref(NOTIF_SEEN_KEY, new Date().toISOString());
+    paintBadge();
+    paintList();
+  });
+  load();
+}
+
 function buildTopbar() {
   const header = document.getElementById("nav");
   if (!header) return null;
@@ -235,6 +337,7 @@ function buildTopbar() {
 
   if (actions) actions.parentNode.insertBefore(searchBtn, actions);
   else inner.appendChild(searchBtn);
+  buildNotifications(actions || inner);
 
   header.classList.add("topbar");
   return header;
