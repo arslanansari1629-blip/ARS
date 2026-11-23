@@ -580,13 +580,38 @@ export class ProPlayer {
     // arrive several times faster and ABR restores quality on its own.
     hls.on(Hls.Events.FRAG_BUFFERED, () => {
       if (!zb || this.destroyed) return;
+      // Rate-aware: at 2x the playhead eats the buffer twice as fast, so
+      // the starvation line and the refill cooldown both scale with the
+      // rate. Ten seconds of media ahead is ten seconds at 1x but five
+      // at 2x — waiting for the 1x line at 2x is how a fast lecture
+      // stalls on a healthy network.
+      const rate = Math.max(1, Number(this.video?.playbackRate) || 1);
       const now = Date.now();
-      if (now - (this._lastRefill || 0) < 8000) return;
+      if (now - (this._lastRefill || 0) < Math.max(2000, 8000 / rate)) return;
       const ahead = this._bufferedEnd() - (this.video ? this.video.currentTime : 0);
-      if (ahead > 0 && ahead < 10 && hls.currentLevel > 0 && hls.autoLevelEnabled) {
+      if (ahead > 0 && ahead < 10 * rate && hls.currentLevel > 0 && hls.autoLevelEnabled) {
         this._lastRefill = now;
         try {
           hls.nextLoadLevel = hls.currentLevel - 1;
+        } catch {
+          /* ignore */
+        }
+      }
+    });
+
+    // Speeding up is a buffer event, not just a rate event: the moment
+    // the student asks for 1.5x or more, check the read-ahead once and,
+    // if it cannot cover the new appetite, start refilling one level
+    // down immediately instead of discovering it at the stall.
+    this.video.addEventListener("ratechange", () => {
+      if (!zb || this.destroyed) return;
+      const rate = Number(this.video.playbackRate) || 1;
+      if (rate < 1.5 || !hls.autoLevelEnabled || hls.currentLevel <= 0) return;
+      const ahead = this._bufferedEnd() - (this.video.currentTime || 0);
+      if (ahead > 0 && ahead < 30 * rate) {
+        try {
+          hls.nextLoadLevel = hls.currentLevel - 1;
+          hls.startLoad();
         } catch {
           /* ignore */
         }
@@ -653,6 +678,23 @@ export class ProPlayer {
         qualityLevels: list.map((b, i) => ({ height: b.height || 0, bitrate: b.bitrate || 0, index: i })),
       });
       if (autoplay) this.play();
+    });
+    // DASH at 2x drains the buffer at twice the rate as well: retarget
+    // the stable buffer whenever the rate crosses into fast territory.
+    this.video.addEventListener("ratechange", () => {
+      const rate = Math.max(1, Number(this.video.playbackRate) || 1);
+      try {
+        player.updateSettings({
+          streaming: {
+            buffer: {
+              stableBufferTime: Math.min(180, (this.prefs.get().zeroBuffer !== false ? 60 : 30) * rate),
+              bufferTimeAtTopQuality: Math.min(240, 90 * rate),
+            },
+          },
+        });
+      } catch {
+        /* settings are advisory */
+      }
     });
     player.initialize(this.video, plan.url, false);
     this.state({ engine: "dash" });

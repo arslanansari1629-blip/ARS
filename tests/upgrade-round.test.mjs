@@ -116,3 +116,24 @@ test("site engineering: resume chip ships in the shell", () => {
   assert.match(css, /\.resume-chip/);
   assert.match(css, /content-visibility: auto/);
 });
+
+test("never-buffer: refill threshold and cooldown scale with playback rate", () => {
+  const player = read("public/assets/player.js");
+  assert.match(player, /ahead < 10 \* rate/);
+  assert.match(player, /8000 \/ rate/);
+  assert.match(player, /rate < 1\.5/);
+  assert.match(player, /stableBufferTime: Math\.min\(180/);
+});
+
+test("download page: dedicated page, ladder, auto-retry, new-tab entry", () => {
+  const page = read("public/assets/download-page.js");
+  assert.match(page, /QUALITY_LADDER/);
+  assert.match(page, /mode=list/);
+  assert.match(page, /downloadLecture/);
+  assert.match(page, /dlSaveFile/);
+  const html = read("public/download.html");
+  assert.match(html, /dlBar/);
+  const lecture = read("public/assets/lecture.js");
+  assert.match(lecture, /window\.open\(url, "_blank"/);
+  assert.match(lecture, /\/download\.html\?batch=/);
+});

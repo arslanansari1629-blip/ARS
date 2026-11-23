@@ -11477,3 +11477,33 @@ body, .card, .side, .topbar, .notif-panel, .notif-btn, input, select, textarea {
 @media (max-width: 720px) {
   .resume-chip { left: 12px; bottom: 76px; }
 }
+
+/* Download page: one lecture, one progress story. */
+.dl-card { padding: 1.1rem 1.2rem; margin-bottom: 1rem; display: grid; gap: 0.7rem; }
+
+.dl-bar {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--card-2);
+  border: 1px solid var(--hair);
+  overflow: hidden;
+}
+
+.dl-bar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--aurora);
+  border-radius: 999px;
+  transition: width 0.4s var(--ease);
+}
+
+.dl-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+.dl-stats strong { color: var(--ink); font-family: var(--mono); }
