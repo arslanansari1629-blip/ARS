@@ -83,9 +83,196 @@ export class ProPlayer {
         declaration. */
     this._heartbeat = null;
 
+    /* --- SelfHeal v2 ------------------------------------------------------
+       One healer, one ladder, one memory. The older defences (stall guard,
+       heartbeat, network listener) each kept their own counter and their
+       own idea of "too much"; a stream could be nudged forever by one and
+       abandoned by another. This state belongs to a single escalation
+       ladder: rungs climb until the playhead moves, the rung that cured
+       is remembered, and a five-minute budget stops a heal storm. */
+    /** Heals performed in the trailing window: {at, rung, source}. */
+    this._heals = [];
+    /** The rung that last cured a freeze; the next incident starts there. */
+    this._healMemory = 0;
+    /** Current incident's next rung (resets when playback is healthy). */
+    this._healRung = 0;
+    /** Wall clock before which another heal would be a loop, not a cure. */
+    this._healCooldownUntil = 0;
+    /** The rung awaiting proof (playhead movement) that it worked. */
+    this._healPendingRung = 0;
+    this._healVerifyAt = 0;
+    this._healTimer = null;
+    this._hwLastTime = 0;
+    this._hwAhead = -1;
+    this._hwStuck = 0;
+    this._hwLastPreempt = 0;
+
     this._bindElement();
     this._bindNetwork();
     this._bindHealth();
+    this._startHealWatchdog();
+  }
+
+  /* --------------------------- SelfHeal v2 ------------------------------- */
+
+  /** Health as one number the UI can show: 100 is a stream that never blinks. */
+  _healthScore() {
+    const now = Date.now();
+    const recent = this._heals.filter((h) => now - h.at < 300000).length;
+    let score = 100 - recent * 9 - (this._hwStuck > 0 ? Math.min(25, this._hwStuck * 4) : 0);
+    return Math.max(5, Math.min(100, score));
+  }
+
+  /** Publish the healer's state alongside the player's. */
+  _healState(action = "") {
+    this.state({
+      healing: {
+        action,
+        rung: this._healRung,
+        heals: this._heals.length,
+        memory: this._healMemory,
+        health: this._healthScore(),
+      },
+    });
+  }
+
+  /**
+   * The one-second conscience. The heartbeat proves a freeze in a minute;
+   * this proves it in four seconds — and sees the stall *coming*: a buffer
+   * draining faster than it fills is healed before it is a freeze.
+   */
+  _startHealWatchdog() {
+    if (typeof setInterval !== "function" || this._healTimer) return;
+    this._hwLastTime = this.video ? this.video.currentTime : 0;
+    this._healTimer = setInterval(() => {
+      const v = this.video;
+      if (this.destroyed || !v) return;
+      if (v.paused || v.ended || v.seeking || !this.plan) {
+        this._hwStuck = 0;
+        this._hwLastTime = v.currentTime;
+        this._hwAhead = -1;
+        return;
+      }
+      const now = Date.now();
+      const moved = v.currentTime - this._hwLastTime > 0.03;
+      const ahead = Math.max(0, this._bufferedEnd() - v.currentTime);
+
+      // A pending rung earns its memory only when the playhead proves it.
+      if (moved && this._healPendingRung) {
+        this._healMemory = this._healPendingRung;
+        this._healPendingRung = 0;
+        this._healRung = Math.max(0, this._healMemory - 1);
+        this._healState("recovered");
+      }
+
+      if (moved) {
+        this._hwStuck = 0;
+        if (this._healRung > this._healMemory) this._healRung = this._healMemory;
+      } else if (v.readyState < 3) {
+        this._hwStuck += 1;
+      }
+      this._hwLastTime = v.currentTime;
+
+      // Prediction: buffer velocity negative and the cushion thinner than
+      // twelve seconds at the current rate — refill one level down now,
+      // while a refill is still a choice instead of a rescue.
+      const rate = Math.max(1, Number(v.playbackRate) || 1);
+      if (this._hwAhead >= 0 && ahead < 12 * rate && this._hwAhead - ahead > rate * 0.75) {
+        if (now - this._hwLastPreempt > 12000 && this.hls && this.hls.autoLevelEnabled && this.hls.currentLevel > 0) {
+          this._hwLastPreempt = now;
+          try {
+            this.hls.nextLoadLevel = this.hls.currentLevel - 1;
+            this.hls.startLoad();
+            this._healState("preemptive refill");
+          } catch { /* advisory */ }
+        }
+      }
+      this._hwAhead = ahead;
+
+      if (this._hwStuck >= 4) {
+        this._hwStuck = 0;
+        this._healNow("freeze");
+      }
+    }, 1000);
+    if (this._healTimer && typeof this._healTimer.unref === "function") this._healTimer.unref();
+  }
+
+  /**
+   * One heal, at the rung the incident has reached. Rungs:
+   *   1 nudge the decoder · 2 refill one level down · 3 recover the media
+   *   4 restart the engine · 5 re-resolve the plan · 6 fail over to the
+   *   native element. A heal never fires inside the cooldown, and six
+   *   heals in five minutes ends the ladder at the honest retry.
+   */
+  _healNow(source = "watchdog") {
+    if (this.destroyed || !this.video) return false;
+    const now = Date.now();
+    this._heals = this._heals.filter((h) => now - h.at < 300000);
+    if (now < this._healCooldownUntil) return false;
+    if (this._heals.length >= 6) {
+      this._healState("budget spent");
+      this.retry({ reason: "The stream kept freezing." });
+      return false;
+    }
+    const rung = Math.min(6, Math.max(this._healRung, this._healMemory) + (this._healPendingRung ? 1 : 0)) || 1;
+    this._healRung = Math.min(6, rung + 0);
+    this._healPendingRung = rung;
+    this._healVerifyAt = now + 3500;
+    this._healCooldownUntil = now + Math.min(20000, 2500 * rung);
+    this._heals.push({ at: now, rung, source });
+    this.recovery += 1;
+    const v = this.video;
+    const actions = {
+      1: "nudging the decoder",
+      2: "refilling at a lower rendition",
+      3: "recovering the media pipeline",
+      4: "restarting the stream engine",
+      5: "re-resolving the stream",
+      6: "failing over to the native player",
+    };
+    this.state({ buffering: true, note: `Self-healing: ${actions[rung]}…` });
+    this._healState(actions[rung]);
+    try {
+      if (rung === 1) {
+        if (Number.isFinite(v.duration) && v.currentTime < v.duration - 1) v.currentTime += 0.3;
+        else v.currentTime = Math.max(0, v.currentTime - 0.2);
+      } else if (rung === 2) {
+        if (this.hls && this.hls.currentLevel > 0) this.hls.nextLoadLevel = this.hls.currentLevel - 1;
+        if (this.hls) this.hls.startLoad();
+        else if (Number.isFinite(v.duration)) v.currentTime += 0.5;
+      } else if (rung === 3) {
+        if (this.hls) this.hls.recoverMediaError();
+        else { const t = v.currentTime; v.load(); v.currentTime = t; }
+      } else if (rung === 4) {
+        if (this.hls) {
+          this.hls.stopLoad();
+          setTimeout(() => { try { this.hls && this.hls.startLoad(); } catch { /* torn down */ } }, 300);
+        } else if (this.dash) {
+          const t = v.currentTime; this.dash.reset(); v.currentTime = t;
+        } else {
+          const t = v.currentTime; v.load(); v.currentTime = t;
+        }
+      } else if (rung === 5) {
+        this._healPendingRung = 0;
+        this.retry({ reason: "The stream froze." });
+      } else {
+        // Last resort: the element itself, on the same URL. A plan that
+        // hls.js cannot hold is sometimes a plan Safari/Android play
+        // natively without blinking; the position is restored on canplay.
+        const t = v.currentTime;
+        const url = this.plan && this.plan.url;
+        if (!url) { this.retry({ reason: "The stream froze." }); return true; }
+        this._teardownPlayers();
+        const restore = () => { try { v.currentTime = t; } catch { /* too early */ } v.removeEventListener("canplay", restore); };
+        v.addEventListener("canplay", restore);
+        this._attachNative(this.plan, true);
+      }
+    } catch {
+      // A rung that throws has still spent itself; the ladder climbs on
+      // the next watchdog pass instead of dying with the exception.
+      this._healPendingRung = rung;
+    }
+    return true;
   }
 
   /**
@@ -1240,6 +1427,10 @@ export class ProPlayer {
   }
 
   destroy() {
+    if (this._healTimer) {
+      clearInterval(this._healTimer);
+      this._healTimer = null;
+    }
     this.destroyed = true;
     clearTimeout(this._stalledFor);
     this._stopHeartbeat();

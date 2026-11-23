@@ -258,6 +258,11 @@ if (video && wrap && actions && !document.getElementById("statsBtn")) {
       ["Dropped frames", q ? `${q.droppedVideoFrames} / ${q.totalVideoFrames}` : "—"],
       ["Buffer health", Number.isFinite(ahead) ? `${Math.min(100, Math.round((ahead / 30) * 100))}%` : "—"],
       ["Network", navigator.connection ? `${navigator.connection.effectiveType || "?"}${navigator.connection.downlink ? ` · ~${navigator.connection.downlink} Mbps` : ""}` : "—"],
+      ["Self-heal", (() => {
+        const h = window.__player?._state?.healing;
+        if (!h) return "armed";
+        return `${h.health}/100${h.heals ? ` · ${h.heals} heal${h.heals === 1 ? "" : "s"}` : ""}${h.action ? ` · ${h.action}` : ""}`;
+      })()],
       ["State", video.paused ? "paused" : live ? "live" : "playing"],
     ]
       .map(([k, v]) => `<div class="ps-row"><span>${k}</span><strong>${v}</strong></div>`)

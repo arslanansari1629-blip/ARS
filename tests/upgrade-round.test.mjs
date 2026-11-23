@@ -137,3 +137,16 @@ test("download page: dedicated page, ladder, auto-retry, new-tab entry", () => {
   assert.match(lecture, /window\.open\(url, "_blank"/);
   assert.match(lecture, /\/download\.html\?batch=/);
 });
+
+test("self-heal v2: one ladder, memory, budget, prediction, failover", () => {
+  const player = read("public/assets/player.js");
+  assert.match(player, /_startHealWatchdog/);
+  assert.match(player, /_healNow/);
+  assert.match(player, /_healMemory/);
+  assert.match(player, /_healthScore/);
+  assert.match(player, /failing over to the native player/);
+  assert.match(player, /preemptive refill/);
+  assert.match(player, /Self-healing:/);
+  const plus = read("public/assets/player-plus.js");
+  assert.match(plus, /Self-heal/);
+});

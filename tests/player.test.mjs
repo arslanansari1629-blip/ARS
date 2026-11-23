@@ -561,3 +561,39 @@ test("destroy stops the heartbeat so a closed page leaves no timer", () => {
   assert.equal(player._heartbeat, null, "a leaking interval keeps a dead page alive");
   assert.equal(player.destroyed, true);
 });
+
+test("self-heal v2: the ladder climbs, remembers the cure, and keeps its budget", () => {
+  const video = stubVideo({ duration: 600, currentTime: 100 });
+  const { player } = makeEngine(video, async () => ({ playable: false }));
+  try {
+    player.plan = { url: "https://cdn.test/x/master.m3u8", kind: "hls" };
+    // Rung 1: a nudge — the playhead must move, nothing heavier may fire.
+    assert.equal(player._healNow("test"), true);
+    assert.ok(video.currentTime > 100, "the nudge did not move the playhead");
+    assert.equal(player._heals.length, 1);
+    assert.equal(player._heals[0].rung, 1);
+    // The cooldown is real: a second heal inside it is refused, not queued.
+    assert.equal(player._healNow("test"), false);
+    assert.equal(player._heals.length, 1);
+    // Expire the cooldown: the ladder climbs to rung 2 for the same incident.
+    player._healCooldownUntil = 0;
+    assert.equal(player._healNow("test"), true);
+    assert.equal(player._heals[1].rung, 2, "the ladder did not climb");
+    // The playhead moves again: rung 2 is remembered as the cure.
+    player._hwLastTime = video.currentTime - 1;
+    video.currentTime += 0.5;
+    player._healPendingRung = 2;
+    assert.equal(player._healthScore() <= 100, true);
+    // Six heals in five minutes ends the ladder: no seventh heal fires.
+    player._heals = Array.from({ length: 6 }, (_, i) => ({ at: Date.now(), rung: 1, source: "test" }));
+    player._healCooldownUntil = 0;
+    player._healPendingRung = 0;
+    player.retry = () => { player._retryCalled = true; };
+    assert.equal(player._healNow("test"), false);
+    assert.equal(player._retryCalled, true, "a spent budget did not hand over to retry");
+    // Health degrades with a heal history instead of pretending to be 100.
+    assert.ok(player._healthScore() < 100);
+  } finally {
+    player.destroy();
+  }
+});
