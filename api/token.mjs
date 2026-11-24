@@ -346,6 +346,19 @@ export default async function handler(req, res) {
   const { route } = query(req);
   if (route === "board") return leaderboardRoute(req, res);
   if (route === "comments") return commentsRoute(req, res);
+  // Telegram webhook: Telegram POSTs every update for a hosted bot here
+  // (the URL deployBot registered). It answers 200 always — a non-200
+  // makes Telegram retry the update and the bot would answer twice.
+  if (route === "tg") {
+    if (req.method !== "POST") return json(res, 200, { ok: true, hint: "POST updates here" });
+    const payload = await readJson(req).catch(() => null);
+    const botId = String(query(req).bot || "");
+    if (botId && payload) {
+      const { handleBotUpdate } = await import("../lib/bot-host.mjs");
+      await handleBotUpdate(botId, payload).catch(() => null);
+    }
+    return json(res, 200, { ok: true });
+  }
 
   if (req.method !== "GET") {
     return json(res, 405, { success: false, error: "Method not allowed" });

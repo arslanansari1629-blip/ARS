@@ -2131,3 +2131,202 @@ if (token) {
 } else {
   showGate();
 }
+
+/* ------------------------------------------------------------ bot hosting
+   Telegram bots run from this panel: the form writes a bot record
+   (action=bot-save), Deploy points Telegram's webhook at this site,
+   and lib/bot-host.mjs answers the updates. The token is write-only —
+   the API masks it in every list, so this file never holds it after
+   the form is sent. */
+
+const botToken = () => sessionStorage.getItem(TOKEN_KEY) || "";
+const botApi = async (action, payload) => {
+  const res = await fetch(`/api/admin?action=${action}`, {
+    method: payload ? "POST" : "GET",
+    headers: { "x-admin-token": botToken(), ...(payload ? { "Content-Type": "application/json" } : {}) },
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.success) throw new Error(data?.error || `Request failed (${res.status})`);
+  return data;
+};
+
+const BOT_EXT_LANG = { py: "python", js: "javascript", mjs: "javascript", cjs: "javascript", ts: "typescript", go: "go", rs: "rust", java: "java", cs: "csharp", php: "php", rb: "ruby", kt: "kotlin", swift: "swift", dart: "dart", scala: "scala", pl: "perl", r: "r", lua: "lua", hs: "haskell", ex: "elixir", exs: "elixir", clj: "clojure", cpp: "cpp", cc: "cpp", c: "c", h: "c", sh: "shell", bash: "shell", jl: "julia", zig: "zig" };
+let botLanguages = [];
+
+const lines = (text, kind) =>
+  String(text || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.includes("="))
+    .map((l) => {
+      const i = l.indexOf("=");
+      return kind === "cmd"
+        ? { cmd: l.slice(0, i).trim(), reply: l.slice(i + 1).trim() }
+        : { match: l.slice(0, i).trim(), reply: l.slice(i + 1).trim() };
+    })
+    .filter((r) => (r.cmd || r.match) && r.reply);
+
+function paintBots(bots) {
+  const host = document.getElementById("botList");
+  if (!host) return;
+  if (!bots.length) {
+    host.innerHTML = `<p class="tiny dim">No bots yet — fill the form, Save, then Deploy.</p>`;
+    return;
+  }
+  host.innerHTML = bots
+    .map((b) => `
+    <div class="bot-row">
+      <div class="bot-row-head">
+        <strong>${esc(b.name)}</strong>
+        <span class="bot-status ${b.status === "live" ? "live" : "stopped"}">${b.status === "live" ? "● LIVE" : "○ stopped"}</span>
+        <span class="bot-lang-chip">${esc(b.language)}</span>
+        ${b.username ? `<span class="tiny dim">@${esc(b.username)}</span>` : ""}
+      </div>
+      <span class="tiny dim">${b.fileName ? `${esc(b.fileName)} · ` : ""}${b.stats?.messages || 0} messages answered · token ${esc(b.tokenMasked || "not set")}</span>
+      ${b.webhookUrl ? `<span class="tiny dim" style="overflow-wrap:anywhere">↳ ${esc(b.webhookUrl)}</span>` : ""}
+      <div class="row">
+        <button class="btn btn-primary btn-sm" data-bot-deploy="${esc(b.id)}" type="button">${b.status === "live" ? "Re-deploy" : "Deploy"}</button>
+        ${b.status === "live" ? `<button class="btn btn-ghost btn-sm" data-bot-stop="${esc(b.id)}" type="button">Stop</button>` : ""}
+        <button class="btn btn-ghost btn-sm" data-bot-edit="${esc(b.id)}" type="button">Edit</button>
+        <button class="btn btn-ghost btn-sm" data-bot-delete="${esc(b.id)}" type="button">Delete</button>
+      </div>
+    </div>`)
+    .join("");
+  host.querySelectorAll("[data-bot-deploy]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Deploying…";
+      try {
+        const out = await botApi("bot-deploy", { id: btn.dataset.botDeploy });
+        document.getElementById("botFormNote").textContent = `@${out.bot.username || "bot"} is live — message it on Telegram.`;
+        loadBots();
+      } catch (err) {
+        document.getElementById("botFormNote").textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = "Deploy";
+      }
+    })
+  );
+  host.querySelectorAll("[data-bot-stop]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      await botApi("bot-stop", { id: btn.dataset.botStop }).catch(() => {});
+      loadBots();
+    })
+  );
+  host.querySelectorAll("[data-bot-delete]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      if (!window.confirm("Delete this bot and stop its webhook?")) return;
+      await botApi("bot-delete", { id: btn.dataset.botDelete }).catch(() => {});
+      loadBots();
+    })
+  );
+  host.querySelectorAll("[data-bot-edit]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const b = bots.find((x) => x.id === btn.dataset.botEdit);
+      if (!b) return;
+      document.getElementById("botId").value = b.id;
+      document.getElementById("botName").value = b.name || "";
+      document.getElementById("botToken").value = "";
+      document.getElementById("botToken").placeholder = `unchanged (${b.tokenMasked || "not set"})`;
+      document.getElementById("botLang").value = b.language || "javascript";
+      document.getElementById("botWelcome").value = b.welcome || "";
+      document.getElementById("botCommands").value = (b.commands || []).map((c) => `${c.cmd} = ${c.reply}`).join("\n");
+      document.getElementById("botKeywords").value = (b.keywords || []).map((k) => `${k.match} = ${k.reply}`).join("\n");
+      document.getElementById("botFallback").value = b.fallback || "";
+      document.getElementById("botFormNote").textContent = "Editing — the token stays as it was unless you type a new one.";
+      document.getElementById("botsBlock")?.scrollIntoView({ block: "start" });
+    })
+  );
+}
+
+async function loadBots() {
+  if (!document.getElementById("botList") || !botToken()) return;
+  try {
+    const data = await botApi("bots");
+    botLanguages = data.languages || [];
+    const sel = document.getElementById("botLang");
+    if (sel && !sel.options.length) {
+      sel.innerHTML = botLanguages.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("");
+      sel.value = "python";
+    }
+    document.getElementById("botLangs").innerHTML =
+      `<span class="tiny dim" style="width:100%">24 languages:</span>` +
+      botLanguages.map((l) => `<span class="bot-lang-chip" title="run: ${esc(l.run)}">${esc(l.name)}</span>`).join("");
+    document.getElementById("botStore").textContent =
+      data.store && data.store !== "memory" ? "shared store" : "this server's memory (set KV for permanent bots)";
+    paintBots(data.bots || []);
+  } catch {
+    /* signed out or offline: the section simply waits */
+  }
+}
+
+document.getElementById("botRefresh")?.addEventListener("click", loadBots);
+document.getElementById("botNew")?.addEventListener("click", () => {
+  for (const id of ["botId", "botName", "botToken", "botCode", "botWelcome", "botCommands", "botKeywords", "botFallback"]) {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  }
+  document.getElementById("botFileName").textContent = ".py .js .ts .go .rs .java .php .rb …";
+  document.getElementById("botFormNote").textContent = "";
+});
+
+document.getElementById("botSave")?.addEventListener("click", async () => {
+  const note = document.getElementById("botFormNote");
+  try {
+    const out = await botApi("bot-save", {
+      id: document.getElementById("botId").value || undefined,
+      name: document.getElementById("botName").value,
+      token: document.getElementById("botToken").value,
+      language: document.getElementById("botLang").value,
+      fileName: document.getElementById("botFileName").dataset.name || "",
+      code: document.getElementById("botCode").value,
+      welcome: document.getElementById("botWelcome").value,
+      commands: lines(document.getElementById("botCommands").value, "cmd"),
+      keywords: lines(document.getElementById("botKeywords").value, "kw"),
+      fallback: document.getElementById("botFallback").value,
+    });
+    document.getElementById("botId").value = out.bot.id;
+    note.textContent = "Saved. Press Deploy on the right to take it live.";
+    loadBots();
+  } catch (err) {
+    note.textContent = err.message;
+  }
+});
+
+/* File in: click or drop — the source lands in the editor, the language
+   names itself from the extension. */
+const botDrop = document.getElementById("botDrop");
+const botFile = document.getElementById("botFile");
+botDrop?.addEventListener("click", () => botFile?.click());
+botDrop?.addEventListener("dragover", (e) => { e.preventDefault(); botDrop.classList.add("over"); });
+botDrop?.addEventListener("dragleave", () => botDrop.classList.remove("over"));
+botDrop?.addEventListener("drop", (e) => {
+  e.preventDefault();
+  botDrop.classList.remove("over");
+  const f = e.dataTransfer?.files?.[0];
+  if (f) readBotFile(f);
+});
+botFile?.addEventListener("change", () => {
+  const f = botFile.files?.[0];
+  if (f) readBotFile(f);
+});
+async function readBotFile(f) {
+  if (f.size > 60000) {
+    document.getElementById("botFormNote").textContent = "That file is over 60 KB — host the full project from the source, or trim it.";
+    return;
+  }
+  const text = await f.text();
+  document.getElementById("botCode").value = text;
+  const nameEl = document.getElementById("botFileName");
+  nameEl.textContent = `${f.name} · ${(f.size / 1024).toFixed(1)} KB`;
+  nameEl.dataset.name = f.name;
+  const ext = f.name.split(".").pop()?.toLowerCase() || "";
+  const lang = BOT_EXT_LANG[ext];
+  if (lang) document.getElementById("botLang").value = lang;
+  document.getElementById("botFormNote").textContent = `Loaded ${f.name}${lang ? ` — ${lang} detected` : ""}. Save, then Deploy.`;
+}
+
+loadBots();
+const botPoll = setInterval(() => { if (!document.hidden && botToken()) loadBots(); }, 60000);
+botPoll?.unref?.();

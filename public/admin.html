@@ -112,6 +112,69 @@
       <p class="tiny dim" id="maintMeta" style="margin-top:8px">—</p>
     </section>
 
+    <!-- telegram bot hosting: drop a file, press deploy, the bot is live -->
+    <section class="card pad-md admin-block admin-bots" id="botsBlock" style="margin-bottom:14px">
+      <div class="row between mb-2">
+        <h3>🤖 Telegram Bot Hosting</h3>
+        <span class="tiny dim" id="botStore">—</span>
+      </div>
+      <p class="tiny muted" style="margin-bottom:10px">
+        Host a Telegram bot from here: name it, paste the token from
+        <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>,
+        drop your bot file (24 languages supported — the panel detects it), set the
+        answers, and press <strong>Deploy</strong>. Telegram delivers every message to this
+        site's webhook and the bot answers here — no other server to keep awake.
+      </p>
+
+      <div class="bot-grid">
+        <div class="bot-form">
+          <input type="hidden" id="botId" />
+          <label class="tiny dim">Bot name
+            <input id="botName" type="text" maxlength="60" placeholder="e.g. ArsVibe Doubt Bot" style="width:100%" />
+          </label>
+          <label class="tiny dim">Bot token (from @BotFather) — never shown again
+            <input id="botToken" type="password" maxlength="120" placeholder="123456:ABC-DEF…" autocomplete="off" style="width:100%" />
+          </label>
+          <label class="tiny dim">Language
+            <select id="botLang" style="width:100%"></select>
+          </label>
+          <div class="bot-drop" id="botDrop">
+            <strong>Drop your bot file here</strong> or click to choose
+            <span class="tiny dim" id="botFileName">.py .js .ts .go .rs .java .php .rb …</span>
+            <input id="botFile" type="file" hidden />
+          </div>
+          <label class="tiny dim">Source (stored with the bot; editable)
+            <textarea id="botCode" rows="7" spellcheck="false" placeholder="// your bot source — kept as the project's source of truth" style="width:100%; font-family:var(--mono); font-size:.72rem"></textarea>
+          </label>
+          <label class="tiny dim">Welcome message (/start)
+            <textarea id="botWelcome" rows="2" maxlength="1000" style="width:100%"></textarea>
+          </label>
+          <label class="tiny dim">Commands — one per line: <code>/cmd = reply</code>
+            <textarea id="botCommands" rows="3" spellcheck="false" style="width:100%; font-family:var(--mono); font-size:.72rem" placeholder="/notes = 📚 Notes: open your batch → Notes tab"></textarea>
+          </label>
+          <label class="tiny dim">Keyword replies — one per line: <code>word = reply</code>
+            <textarea id="botKeywords" rows="2" spellcheck="false" style="width:100%; font-family:var(--mono); font-size:.72rem" placeholder="fees = Fee details are on the batch page."></textarea>
+          </label>
+          <label class="tiny dim">Fallback reply (anything else; empty = stay silent)
+            <input id="botFallback" type="text" maxlength="500" style="width:100%" placeholder="Samajh nahi aaya — /help bhejo 👍" />
+          </label>
+          <div class="row">
+            <button class="btn btn-primary btn-sm" id="botSave" type="button">Save bot</button>
+            <button class="btn btn-ghost btn-sm" id="botNew" type="button">New bot</button>
+            <span class="tiny dim" id="botFormNote"></span>
+          </div>
+        </div>
+
+        <div class="bot-list-wrap">
+          <div class="row between"><strong class="tiny">Your bots</strong>
+            <button class="btn btn-ghost btn-sm" id="botRefresh" type="button">↻ Refresh</button>
+          </div>
+          <div id="botList" class="bot-list"><p class="tiny dim">Sign in, then your bots will list here.</p></div>
+          <div class="bot-langs" id="botLangs"></div>
+        </div>
+      </div>
+    </section>
+
     <div class="admin-grid">
       <!-- health -->
       <section class="card pad-md admin-block">

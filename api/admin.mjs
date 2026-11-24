@@ -34,6 +34,7 @@ import {
   hydrateClientFaults,
 } from "../lib/client-errors.mjs";
 import { scanPass, scannerReport, clearFinding } from "../lib/scanner.mjs";
+import { listBots, saveBot, deleteBot, deployBot, stopBot } from "../lib/bot-host.mjs";
 import {
   maintenanceGate,
   refreshMaintenance,
@@ -268,6 +269,38 @@ export default async function handler(req, res) {
   // signed-in operator sees findings and an anonymous reader does not.
   if (action === "site") return scanRoute(req, res, { ...params, __session: true }, finish);
   if (action === "rescan") return rescanAction(req, res, finish, params);
+
+  /* ---------------------------------------------------- bot hosting */
+  if (action === "bots" && req.method === "GET") {
+    return finish(200, await listBots());
+  }
+  if (action === "bot-save" && req.method === "POST") {
+    const payload = await body(req);
+    const out = await saveBot(payload || {});
+    noteLog({ level: "info", route: "admin", message: `bot saved: ${out.bot?.name || payload?.name || ""}` });
+    return finish(200, out);
+  }
+  if (action === "bot-deploy" && req.method === "POST") {
+    const payload = await body(req);
+    try {
+      const out = await deployBot(String(payload?.id || ""), selfBase(req));
+      noteLog({ level: "info", route: "admin", message: `bot deployed: ${out.bot?.username || payload?.id || ""}` });
+      return finish(out.success ? 200 : 400, out);
+    } catch (err) {
+      return finish(400, { success: false, error: err?.message || "Deploy failed." });
+    }
+  }
+  if (action === "bot-stop" && req.method === "POST") {
+    const payload = await body(req);
+    const out = await stopBot(String(payload?.id || ""));
+    return finish(out.success ? 200 : 400, out);
+  }
+  if (action === "bot-delete" && req.method === "POST") {
+    const payload = await body(req);
+    await deleteBot(String(payload?.id || ""));
+    noteLog({ level: "warn", route: "admin", message: `bot deleted: ${payload?.id || ""}` });
+    return finish(200, { success: true });
+  }
 
   /* --------------------------------------------------------------- dpp */
   if (action === "dpp") return dppAction(req, res, finish, params);

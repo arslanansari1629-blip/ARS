@@ -11687,3 +11687,58 @@ body.has-shell .shell {
    without moving the layout — aspect boxes are reserved by the
    markup's width/height, and this keeps late images inside them. */
 img[loading="lazy"] { background: var(--card-2); }
+
+/* Telegram Bot Hosting (admin). */
+.bot-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 5fr) minmax(260px, 4fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) { .bot-grid { grid-template-columns: 1fr; } }
+
+.bot-form { display: grid; gap: 0.55rem; }
+.bot-form label { display: grid; gap: 0.25rem; }
+
+.bot-drop {
+  border: 1.5px dashed var(--rule-2);
+  border-radius: var(--r);
+  padding: 0.9rem;
+  text-align: center;
+  cursor: pointer;
+  display: grid;
+  gap: 0.2rem;
+  color: var(--ink-2);
+}
+
+.bot-drop:hover, .bot-drop.over { border-color: var(--blue); background: var(--blue-soft); }
+
+.bot-list { display: grid; gap: 0.6rem; margin-top: 0.5rem; }
+
+.bot-row {
+  border: 1px solid var(--hair);
+  border-radius: var(--r);
+  padding: 0.65rem 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+  background: var(--card-2);
+}
+
+.bot-row-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.bot-row-head strong { font-size: 0.85rem; }
+
+.bot-status { font-size: 0.62rem; font-weight: 700; padding: 0.14rem 0.45rem; border-radius: 999px; }
+.bot-status.live { background: rgba(22,163,74,.12); color: #15803d; border: 1px solid rgba(22,163,74,.4); }
+.bot-status.stopped { background: var(--card); color: var(--ink-3); border: 1px solid var(--rule); }
+
+.bot-langs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.9rem; }
+.bot-lang-chip {
+  font-size: 0.64rem;
+  font-family: var(--mono);
+  padding: 0.16rem 0.45rem;
+  border: 1px solid var(--hair);
+  border-radius: 999px;
+  color: var(--ink-3);
+  background: var(--card);
+}
