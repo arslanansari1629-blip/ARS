@@ -567,7 +567,10 @@ async function dppListRoute(req, res, params) {
         subject: asked,
         maxChapters: 6,
         fetchChapters,
-        fetchChapterContents,
+        // One page per chapter: the walk only needs to know a paper
+        // exists, and six pages of pagination per chapter is what was
+        // spending the budget before any paper could be named.
+        fetchChapterContents: (b, s2, t, type) => fetchChapterContents(b, s2, t, type, 1),
       }).catch(() => null);
       if ((collected?.papers || []).some((p) => p.url)) break;
     }
