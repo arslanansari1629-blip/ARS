@@ -121,8 +121,11 @@
       <p class="tiny muted" style="margin-bottom:10px">
         Host a Telegram bot from here: name it, paste the token from
         <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>,
-        drop your bot file (24 languages supported — the panel detects it), set the
-        answers, and press <strong>Deploy</strong>. Telegram delivers every message to this
+        drop your bot file (24 languages supported — the panel detects it) and press
+        <strong>Deploy</strong>. The bot answers <strong>from the script you uploaded</strong>:
+        Python (telebot / python-telegram-bot / aiogram) and JavaScript (Telegraf) handlers —
+        <code>/start</code>, commands, keywords — are read from the file itself, and the answers
+        below fill whatever the script does not cover. Telegram delivers every message to this
         site's webhook and the bot answers here — no other server to keep awake.
         Bots are stored permanently (Cloudflare KV) and a watchdog re-checks every live
         bot's webhook every 5 minutes, re-registering it if it ever drifts — <strong>24×7, no down</strong>.

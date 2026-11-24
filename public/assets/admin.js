@@ -2185,6 +2185,7 @@ function paintBots(bots) {
       </div>
       <span class="tiny dim">${b.fileName ? `${esc(b.fileName)} · ` : ""}${b.stats?.messages || 0} messages answered · token ${esc(b.tokenMasked || "not set")}</span>
       ${b.status === "live" ? `<span class="tiny dim">24×7 watchdog: ${b.stats?.health ? `${b.stats.health.ok ? "✓ webhook healthy" : "⚠ " + esc(b.stats.health.error || "check failed")}${b.stats.health.healed ? " · auto-healed" : ""} · checked ${esc(String(b.stats.health.lastCheck || "").slice(0, 16).replace("T", " "))}` : "first check within 5 minutes"}</span>` : ""}
+      ${b.script && (b.script.commands?.length || b.script.keywords?.length) ? `<span class="tiny dim">📜 Script replies: ${b.script.commands.length} commands · ${b.script.keywords.length} keywords — bot answers from the file</span>` : ""}
       ${b.webhookUrl ? `<span class="tiny dim" style="overflow-wrap:anywhere">↳ ${esc(b.webhookUrl)}</span>` : ""}
       <div class="row">
         <button class="btn btn-primary btn-sm" data-bot-deploy="${esc(b.id)}" type="button">${b.status === "live" ? "Re-deploy" : "Deploy"}</button>
@@ -2292,7 +2293,11 @@ document.getElementById("botSave")?.addEventListener("click", async () => {
       fallback: document.getElementById("botFallback").value,
     });
     document.getElementById("botId").value = out.bot.id;
-    note.textContent = "Saved. Press Deploy on the right to take it live.";
+    const sc = out.bot.script;
+    note.textContent =
+      sc && (sc.commands?.length || sc.keywords?.length)
+        ? `Saved — script se ${sc.commands.length} commands aur ${sc.keywords.length} keyword replies mile. Bot inhi ke hisaab se jawab dega. Deploy dabao.`
+        : "Saved. Press Deploy on the right to take it live.";
     loadBots();
   } catch (err) {
     note.textContent = err.message;
