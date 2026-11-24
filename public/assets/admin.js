@@ -2186,10 +2186,13 @@ function paintBots(bots) {
       <span class="tiny dim">${b.fileName ? `${esc(b.fileName)} · ` : ""}${b.stats?.messages || 0} messages answered · token ${esc(b.tokenMasked || "not set")}</span>
       ${b.status === "live" ? `<span class="tiny dim">24×7 watchdog: ${b.stats?.health ? `${b.stats.health.ok ? "✓ webhook healthy" : "⚠ " + esc(b.stats.health.error || "check failed")}${b.stats.health.healed ? " · auto-healed" : ""} · checked ${esc(String(b.stats.health.lastCheck || "").slice(0, 16).replace("T", " "))}` : "first check within 5 minutes"}</span>` : ""}
       ${b.script && (b.script.commands?.length || b.script.keywords?.length) ? `<span class="tiny dim">📜 Script replies: ${b.script.commands.length} commands · ${b.script.keywords.length} keywords — bot answers from the file</span>` : ""}
+      ${b.deps?.total ? `<span class="tiny dim">📦 Never-fail kit: requirements ready — ${b.deps.total} packages (${b.deps.detected?.length || 0} script ke imports + 50+ core pack)</span>` : ""}
+      ${(b.checks || []).map((c) => `<span class="tiny" style="color:${c.level === "warn" ? "#b45309" : "var(--ink-3)"}">${c.level === "warn" ? "⚠️" : "ℹ️"} ${esc(c.text)}</span>`).join("")}
       ${b.webhookUrl ? `<span class="tiny dim" style="overflow-wrap:anywhere">↳ ${esc(b.webhookUrl)}</span>` : ""}
       <div class="row">
         <button class="btn btn-primary btn-sm" data-bot-deploy="${esc(b.id)}" type="button">${b.status === "live" ? "Re-deploy" : "Deploy"}</button>
         ${b.status === "live" ? `<button class="btn btn-ghost btn-sm" data-bot-stop="${esc(b.id)}" type="button">Stop</button>` : ""}
+        ${b.deps?.text ? `<button class="btn btn-ghost btn-sm" data-bot-req="${esc(b.id)}" type="button">⬇ requirements.txt</button>` : ""}
         <button class="btn btn-ghost btn-sm" data-bot-edit="${esc(b.id)}" type="button">Edit</button>
         <button class="btn btn-ghost btn-sm" data-bot-delete="${esc(b.id)}" type="button">Delete</button>
       </div>
@@ -2221,6 +2224,18 @@ function paintBots(bots) {
       if (!window.confirm("Delete this bot and stop its webhook?")) return;
       await botApi("bot-delete", { id: btn.dataset.botDelete }).catch(() => {});
       loadBots();
+    })
+  );
+  host.querySelectorAll("[data-bot-req]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const b = bots.find((x) => x.id === btn.dataset.botReq);
+      if (!b?.deps?.text) return;
+      const blob = new Blob([b.deps.text], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `requirements-${(b.name || "bot").replace(/[^\w-]+/g, "-").toLowerCase()}.txt`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     })
   );
   host.querySelectorAll("[data-bot-edit]").forEach((btn) =>
@@ -2294,10 +2309,12 @@ document.getElementById("botSave")?.addEventListener("click", async () => {
     });
     document.getElementById("botId").value = out.bot.id;
     const sc = out.bot.script;
+    const firstWarn = (out.bot.checks || []).find((c) => c.level === "warn");
     note.textContent =
-      sc && (sc.commands?.length || sc.keywords?.length)
+      (sc && (sc.commands?.length || sc.keywords?.length)
         ? `Saved — script se ${sc.commands.length} commands aur ${sc.keywords.length} keyword replies mile. Bot inhi ke hisaab se jawab dega. Deploy dabao.`
-        : "Saved. Press Deploy on the right to take it live.";
+        : "Saved. Press Deploy on the right to take it live.") +
+      (firstWarn ? ` ⚠️ ${firstWarn.text}` : "");
     loadBots();
   } catch (err) {
     note.textContent = err.message;
