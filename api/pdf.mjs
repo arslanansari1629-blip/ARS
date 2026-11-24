@@ -564,6 +564,24 @@ async function dppListRoute(req, res, params) {
       fetchChapterContents,
     }).catch(() => null);
     const papers = (collected?.papers || []).filter((p) => p.url);
+    if (!papers.length) {
+      return json(res, 200, {
+        success: false,
+        batch,
+        batchSubjectId,
+        items: [],
+        total: 0,
+        page: 1,
+        pages: 1,
+        error: list.error || "",
+        fallback: {
+          chapters: collected?.chapters ?? null,
+          papers: papers.length,
+          notes: (collected?.notes || []).slice(0, 4),
+          error: collected?.error || "",
+        },
+      });
+    }
     if (papers.length) {
       return json(res, 200, {
         success: true,
