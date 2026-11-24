@@ -593,22 +593,53 @@ function render(items) {
     // same DPPs, but sat as a timed quiz and marked on the spot.
     const quizzes = type === "DppNotes" ? `<div id="dppQuizzes"></div>` : "";
     body.innerHTML = `${quizzes}${gap}<div class="list">${items.map(docItemRow).join("")}</div>`;
-    if (type === "DppNotes") loadDppQuizzes();
+    if (type === "DppNotes") loadDppQuizzes(items);
   }
 }
 
 /** The subject's interactive DPP tests, listed above the PDF papers. */
 let dppQuizzesLoaded = false;
-async function loadDppQuizzes() {
+async function loadDppQuizzes(chapterItems = []) {
   const host = document.getElementById("dppQuizzes");
   if (!host || dppQuizzesLoaded) return;
   dppQuizzesLoaded = true;
+
+  /* Client-side heal: when the native index cannot answer (guest wall,
+     or a server walk that spent its budget), this chapter's papers are
+     already on the page — list them as the tests. A paper test is the
+     same DPP sat a different way, and it always opens. */
+  const paperRows = () => {
+    const docs = [];
+    for (const item of chapterItems || []) {
+      for (const doc of item.docs || []) {
+        if (doc.url) docs.push(doc);
+      }
+    }
+    if (!docs.length) return;
+    host.innerHTML = `
+      <h3 class="h4" style="margin:4px 0 10px">DPP tests — attempt &amp; get marked</h3>
+      <div class="list" style="margin-bottom:18px">${docs
+        .map((doc, i) => `
+      <a class="list-row fade-up" href="${esc(practiceUrl(doc))}">
+        <span class="index">${String(i + 1).padStart(2, "0")}</span>
+        <span class="grow">
+          <span class="title">${esc(doc.topic || doc.name || "DPP paper")}</span>
+          <span class="meta"><span>Paper test · marked on submit</span></span>
+        </span>
+        <span class="btn btn-primary btn-sm">Start test</span>
+      </a>`)
+        .join("")}</div>`;
+  };
+
   try {
     const res = await fetch(
       `/api/pdf?dppList=1&batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(subjectSlug)}`
     );
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success || !data.items?.length) return;
+    if (!res.ok || !data.success || !data.items?.length) {
+      paperRows();
+      return;
+    }
     host.innerHTML = `
       <h3 class="h4" style="margin:4px 0 10px">DPP tests — attempt &amp; get marked</h3>
       <div class="list" style="margin-bottom:18px">${data.items
@@ -641,7 +672,7 @@ async function loadDppQuizzes() {
         })
         .join("")}</div>`;
   } catch {
-    /* the PDF papers below still work; the quiz list is an addition */
+    paperRows();
   }
 }
 
