@@ -13,7 +13,15 @@ binding = "ASSETS"
 run_worker_first = ["/api/*"]
 
 [triggers]
-crons = ["0 3 * * *"]
+# Daily: full-site scanner. Every 5 minutes: the Telegram bot watchdog
+# (each live bot's webhook verified with Telegram, healed if drifted).
+crons = ["0 3 * * *", "*/5 * * * *"]
+
+# Durable documents (bot records, comments, the repair ledger) in
+# Cloudflare KV. No id on purpose: Wrangler provisions the namespace on
+# deploy, so state survives cold starts with nothing left to attach.
+[[kv_namespaces]]
+binding = "ARS_KV"
 
 # The catalogue gzip is imported by lib/catalog.mjs where no filesystem
 # exists (Workers); on Node the same file is read from disk as before.

@@ -11,6 +11,8 @@
  */
 
 import { dispatch } from "../functions/api/[[route]].js";
+import { watchdogBots } from "../lib/bot-host.mjs";
+import { setKvBinding } from "../lib/store.mjs";
 
 const CACHEABLE = new Set([
   "/api/sign",
@@ -274,15 +276,35 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  /** Daily scanner pass — the `x-vercel-cron` proof the admin route expects from a platform cron. */
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(
-      dispatch(
-        new Request("https://arsvibe.internal/api/admin?action=scan&cron=1", {
-          headers: { "x-vercel-cron": "1" },
-        }),
-        env
-      )
-    );
+  /**
+   * Two clocks share this handler. The daily one re-runs the site
+   * scanner (`0 3 * * *`, the `x-vercel-cron` proof the admin route
+   * expects from a platform cron). The five-minute one is the bot
+   * watchdog: every live Telegram bot's webhook is checked against
+   * Telegram's record and re-registered if it drifted — that, plus KV
+   * holding the bot records, is what makes hosting 24×7 rather than
+   * "until the isolate recycles".
+   */
+  async scheduled(event, env, ctx) {
+    if (event?.cron === "0 3 * * *") {
+      ctx.waitUntil(
+        dispatch(
+          new Request("https://arsvibe.internal/api/admin?action=scan&cron=1", {
+            headers: { "x-vercel-cron": "1" },
+          }),
+          env
+        )
+      );
+      return;
+    }
+    try {
+      if (env) {
+        for (const [k, v] of Object.entries(env)) {
+          if (typeof v === "string" && process.env[k] === undefined) process.env[k] = v;
+        }
+        if (env.ARS_KV) setKvBinding(env.ARS_KV);
+      }
+    } catch { /* bindings are best-effort here; memory still answers */ }
+    ctx.waitUntil(watchdogBots().catch(() => null));
   },
 };

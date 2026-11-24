@@ -142,6 +142,13 @@ export async function dispatch(request, env) {
       for (const [k, v] of Object.entries(env)) {
         if (typeof v === "string" && process.env[k] === undefined) process.env[k] = v;
       }
+      // A KV namespace is an object, not a string: hand it to the store
+      // directly so documents (bots, comments, the repair ledger) are
+      // durable across cold starts with nothing left to attach.
+      if (env.ARS_KV) {
+        const { setKvBinding } = await import("../../lib/store.mjs");
+        setKvBinding(env.ARS_KV);
+      }
     } catch { /* process may be read-only in some runtimes */ }
   }
 

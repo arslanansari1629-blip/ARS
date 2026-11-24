@@ -124,6 +124,8 @@
         drop your bot file (24 languages supported — the panel detects it), set the
         answers, and press <strong>Deploy</strong>. Telegram delivers every message to this
         site's webhook and the bot answers here — no other server to keep awake.
+        Bots are stored permanently (Cloudflare KV) and a watchdog re-checks every live
+        bot's webhook every 5 minutes, re-registering it if it ever drifts — <strong>24×7, no down</strong>.
       </p>
 
       <div class="bot-grid">

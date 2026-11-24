@@ -33,8 +33,17 @@ test("the cron pings the scanner with platform proof", async () => {
   let pinged = "";
   const env = { ASSETS: { fetch: async () => new Response("") } };
   const waits = [];
-  await worker.scheduled({}, env, { waitUntil: (p) => waits.push(p) });
+  await worker.scheduled({ cron: "0 3 * * *" }, env, { waitUntil: (p) => waits.push(p) });
   assert.equal(waits.length, 1);
   // The ping itself must not throw the cron handler over.
+  await waits[0];
+});
+
+test("the five-minute cron runs the bot watchdog, not the scanner", async () => {
+  const env = { ASSETS: { fetch: async () => new Response("") } };
+  const waits = [];
+  await worker.scheduled({ cron: "*/5 * * * *" }, env, { waitUntil: (p) => waits.push(p) });
+  assert.equal(waits.length, 1);
+  // No bots in the test store: the watchdog must simply finish.
   await waits[0];
 });

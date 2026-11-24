@@ -2184,6 +2184,7 @@ function paintBots(bots) {
         ${b.username ? `<span class="tiny dim">@${esc(b.username)}</span>` : ""}
       </div>
       <span class="tiny dim">${b.fileName ? `${esc(b.fileName)} · ` : ""}${b.stats?.messages || 0} messages answered · token ${esc(b.tokenMasked || "not set")}</span>
+      ${b.status === "live" ? `<span class="tiny dim">24×7 watchdog: ${b.stats?.health ? `${b.stats.health.ok ? "✓ webhook healthy" : "⚠ " + esc(b.stats.health.error || "check failed")}${b.stats.health.healed ? " · auto-healed" : ""} · checked ${esc(String(b.stats.health.lastCheck || "").slice(0, 16).replace("T", " "))}` : "first check within 5 minutes"}</span>` : ""}
       ${b.webhookUrl ? `<span class="tiny dim" style="overflow-wrap:anywhere">↳ ${esc(b.webhookUrl)}</span>` : ""}
       <div class="row">
         <button class="btn btn-primary btn-sm" data-bot-deploy="${esc(b.id)}" type="button">${b.status === "live" ? "Re-deploy" : "Deploy"}</button>
@@ -2254,7 +2255,11 @@ async function loadBots() {
       `<span class="tiny dim" style="width:100%">24 languages:</span>` +
       botLanguages.map((l) => `<span class="bot-lang-chip" title="run: ${esc(l.run)}">${esc(l.name)}</span>`).join("");
     document.getElementById("botStore").textContent =
-      data.store && data.store !== "memory" ? "shared store" : "this server's memory (set KV for permanent bots)";
+      data.store === "cloudflare-kv"
+        ? "permanent · Cloudflare KV · 24×7 watchdog on"
+        : data.store && data.store !== "memory"
+          ? "shared store · 24×7 watchdog on"
+          : "this server's memory (bots reset on restart until KV attaches)";
     paintBots(data.bots || []);
   } catch {
     /* signed out or offline: the section simply waits */
