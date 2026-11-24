@@ -552,66 +552,50 @@ async function dppListRoute(req, res, params) {
 
   /* The guest wall must not empty the shelf. When the native index
      refuses (it needs a paid session), the same tests exist in the
-     chapters as guest-readable papers — walk them and list those, so
-     "DPP tests" opens tests either way. The client renders paperUrl
-     rows as paper tests and id rows as native quizzes. */
+     chapters as guest-readable papers. The walk is deliberately
+     sequential with an early exit: a parallel twelve-chapter walk
+     spends the whole subrequest budget host-hunting before it can
+     name a single paper, while one chapter read at a time — the
+     chapter page's own pattern — lands. First chapter with papers
+     answers; the rest are the chapter page's job. */
   if (!list.ok) {
-    /* Two passes, six chapters each: a twelve-chapter walk spends the
-       whole subrequest budget host-hunting and reports a guest refusal
-       that a single chapter read (the chapter page's own call) does not
-       hit. The second pass rides the first pass's warm caches. */
-    let collected = null;
-    for (let pass = 0; pass < 2; pass++) {
-      collected = await collectDppPapers({
-        batch,
-        subject: asked,
-        maxChapters: 6,
-        fetchChapters,
-        // One page per chapter: the walk only needs to know a paper
-        // exists, and six pages of pagination per chapter is what was
-        // spending the budget before any paper could be named.
-        fetchChapterContents: (b, s2, t, type) => fetchChapterContents(b, s2, t, type, 1),
-      }).catch(() => null);
-      if ((collected?.papers || []).some((p) => p.url)) break;
+    const chaptersOut = await fetchChapters(batch, asked).catch(() => null);
+    const chapters = (chaptersOut?.chapters || []).slice(0, 6);
+    for (const chapter of chapters) {
+      const out = await fetchChapterContents(batch, asked, chapter.id, "DppNotes", 1).catch(() => null);
+      if (!out?.ok) continue;
+      const papers = [];
+      for (const item of out.items || []) {
+        for (const doc of item.docs || []) {
+          if (doc.url) papers.push({ url: doc.url, title: (doc.topic || item.title || doc.name || "DPP").trim(), chapter: chapter.name || "" });
+        }
+      }
+      if (papers.length) {
+        return json(res, 200, {
+          success: true,
+          source: "papers",
+          batch,
+          batchSubjectId,
+          items: papers.map((p) => ({ id: "", name: p.title, paperUrl: p.url, chapter: p.chapter })),
+          total: papers.length,
+          page: 1,
+          pages: 1,
+          error: "",
+          note: "Native test index needs a paid session; these are the same DPPs as papers.",
+        });
+      }
     }
-    const papers = (collected?.papers || []).filter((p) => p.url);
-    if (!papers.length) {
-      return json(res, 200, {
-        success: false,
-        batch,
-        batchSubjectId,
-        items: [],
-        total: 0,
-        page: 1,
-        pages: 1,
-        error: list.error || "",
-        fallback: {
-          chapters: collected?.chapters ?? null,
-          papers: papers.length,
-          notes: (collected?.notes || []).slice(0, 4),
-          error: collected?.error || "",
-        },
-      });
-    }
-    if (papers.length) {
-      return json(res, 200, {
-        success: true,
-        source: "papers",
-        batch,
-        batchSubjectId,
-        items: papers.map((p) => ({
-          id: "",
-          name: p.title || "DPP paper",
-          paperUrl: p.url,
-          chapter: p.chapter || "",
-        })),
-        total: papers.length,
-        page: 1,
-        pages: 1,
-        error: "",
-        note: "Native test index needs a paid session; these are the same DPPs as papers.",
-      });
-    }
+    return json(res, 200, {
+      success: false,
+      batch,
+      batchSubjectId,
+      items: [],
+      total: 0,
+      page: 1,
+      pages: 1,
+      error: list.error || "",
+      fallback: { chapters: chapters.length, papers: 0 },
+    });
   }
 
   return json(res, 200, {
