@@ -549,6 +549,42 @@ async function dppListRoute(req, res, params) {
     batchSubjectId,
     page: Math.max(1, Math.min(50, Number(params.page) || 1)),
   });
+
+  /* The guest wall must not empty the shelf. When the native index
+     refuses (it needs a paid session), the same tests exist in the
+     chapters as guest-readable papers — walk them and list those, so
+     "DPP tests" opens tests either way. The client renders paperUrl
+     rows as paper tests and id rows as native quizzes. */
+  if (!list.ok) {
+    const collected = await collectDppPapers({
+      batch,
+      subject: asked,
+      maxChapters: 12,
+      fetchChapters,
+      fetchChapterContents,
+    }).catch(() => null);
+    const papers = (collected?.papers || []).filter((p) => p.url);
+    if (papers.length) {
+      return json(res, 200, {
+        success: true,
+        source: "papers",
+        batch,
+        batchSubjectId,
+        items: papers.map((p) => ({
+          id: "",
+          name: p.title || "DPP paper",
+          paperUrl: p.url,
+          chapter: p.chapter || "",
+        })),
+        total: papers.length,
+        page: 1,
+        pages: 1,
+        error: "",
+        note: "Native test index needs a paid session; these are the same DPPs as papers.",
+      });
+    }
+  }
+
   return json(res, 200, {
     success: list.ok,
     batch,

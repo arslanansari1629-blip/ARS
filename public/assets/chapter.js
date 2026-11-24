@@ -614,8 +614,11 @@ async function loadDppQuizzes() {
       <div class="list" style="margin-bottom:18px">${data.items
         .map((it, i) => {
           const last = quizLastScore(it.id);
-          const href =
-            `/dpp.html?id=${encodeURIComponent(it.id)}` +
+          const href = it.paperUrl
+            ? `/dpp.html?paper=${encodeURIComponent(it.paperUrl)}&name=${encodeURIComponent(it.name || "DPP")}` +
+              `&batch=${encodeURIComponent(batchId)}&subject=${encodeURIComponent(subjectSlug)}` +
+              `&chapter=${encodeURIComponent(chapterId)}&chapterName=${encodeURIComponent(chapterName || "")}`
+            : `/dpp.html?id=${encodeURIComponent(it.id)}` +
             `&batch=${encodeURIComponent(batchId)}` +
             `&subject=${encodeURIComponent(subjectSlug)}` +
             `&chapter=${encodeURIComponent(chapterId)}` +

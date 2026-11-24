@@ -184,3 +184,19 @@ test("major round: floating sidebar tokens, DPP deadline + hub, batch self-heal"
   const shell = read("public/assets/shell.mjs");
   assert.match(shell, /pointerdown/);
 });
+
+test("khazana heal: shape ladder, credential-shaped 400, UI re-read, DPP paper fallback", () => {
+  const prog = read("lib/khazana-program.mjs");
+  assert.match(prog, /v2\/programs/);
+  assert.match(prog, /v1\/batches/);
+  assert.match(prog, /via = shape\(id\)/);
+  const proxy = read("lib/pw-proxy.mjs");
+  assert.match(proxy, /looksAuth/);
+  const kh = read("public/assets/khazana.js");
+  assert.match(kh, /khHeal/);
+  assert.match(kh, /Re-reading the archive on its own/);
+  const pdf = read("api/pdf.mjs");
+  assert.match(pdf, /source: "papers"/);
+  const chapter = read("public/assets/chapter.js");
+  assert.match(chapter, /it\.paperUrl/);
+});

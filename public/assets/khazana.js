@@ -258,6 +258,21 @@ export async function mountKhazana(host, { programId = "", library = [], fetchIm
       library,
     };
     host.innerHTML = khazanaMarkup(answer);
+    /* Archive self-healing: a refusal is often a bad minute — a token
+       mid-mint, a host mid-restart — not a verdict on the archive. The
+       tab re-reads itself once after a few seconds before it lets the
+       notice stand, and says it is doing so on the notice itself. */
+    if ((state === "invalid" || state === "error") && host.dataset.khHeal !== "1") {
+      host.dataset.khHeal = "1";
+      const note = document.createElement("p");
+      note.className = "tiny dim khazana-heal-note";
+      note.textContent = "Re-reading the archive on its own in a few seconds…";
+      host.appendChild(note);
+      window.setTimeout(() => {
+        delete host.dataset.khHeal;
+        mountKhazana(host, { programId, library, fetchImpl });
+      }, 6000);
+    }
     return { ...answer, state };
   } catch (err) {
     const failed = { state: "error", programId };
