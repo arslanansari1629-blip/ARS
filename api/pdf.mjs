@@ -556,13 +556,21 @@ async function dppListRoute(req, res, params) {
      "DPP tests" opens tests either way. The client renders paperUrl
      rows as paper tests and id rows as native quizzes. */
   if (!list.ok) {
-    const collected = await collectDppPapers({
-      batch,
-      subject: asked,
-      maxChapters: 12,
-      fetchChapters,
-      fetchChapterContents,
-    }).catch(() => null);
+    /* Two passes, six chapters each: a twelve-chapter walk spends the
+       whole subrequest budget host-hunting and reports a guest refusal
+       that a single chapter read (the chapter page's own call) does not
+       hit. The second pass rides the first pass's warm caches. */
+    let collected = null;
+    for (let pass = 0; pass < 2; pass++) {
+      collected = await collectDppPapers({
+        batch,
+        subject: asked,
+        maxChapters: 6,
+        fetchChapters,
+        fetchChapterContents,
+      }).catch(() => null);
+      if ((collected?.papers || []).some((p) => p.url)) break;
+    }
     const papers = (collected?.papers || []).filter((p) => p.url);
     if (!papers.length) {
       return json(res, 200, {
