@@ -96,47 +96,58 @@ async function run() {
     return;
   }
 
-  /* 1 · resolve the stream; a sleeping signer gets time, not an error. */
+  /* 1 · resolve the stream; a sleeping signer gets time, not an error.
+   * This loop used to stop after six attempts and hand the student a
+   * Resume button — which reads as "download failed" even though the
+   * lecture was fine and only the signing relays were down. A download
+   * page's whole job is patience: it now waits indefinitely (backoff
+   * capped at a minute), because a signer lane coming back at minute
+   * nine should finish the download, not meet a page that gave up at
+   * minute three. Cancel is always there for a human who disagrees. */
   setPhase("Resolving the stream…");
   let folder = "";
   let plan = null;
-  for (let attempt = 0; attempt < 6 && !folder; attempt++) {
+  for (let attempt = 0; !folder; attempt++) {
     if (cancelled) return;
     try {
       const out = await resolveFolder(attempt);
       folder = out.folder; plan = out.plan;
     } catch { /* counted below as another sleep cycle */ }
     if (!folder) {
-      const wait = 8 + attempt * 4;
-      note(`The signing service is waking up — retrying on its own in ${wait}s (attempt ${attempt + 1} of 6). Nothing for you to do.`);
+      if (plan && plan.playable === false && plan.reason && !plan.signerDown && attempt >= 2) {
+        // A permanent answer (not published / not a video) is not a
+        // sleeping signer; waiting would never change it.
+        setPhase("The stream could not be resolved");
+        note(plan.reason);
+        $("dlRetry").hidden = false;
+        $("dlCancel").hidden = true;
+        return;
+      }
+      const wait = Math.min(60, 8 + attempt * 4);
+      note(`The signing relays are not answering right now — your lecture is safe. Retrying on its own in ${wait}s (attempt ${attempt + 1}). Keep this tab open; nothing for you to do.`);
       await new Promise((r) => setTimeout(r, wait * 1000));
     }
   }
-  if (!folder) {
-    setPhase("The stream could not be resolved");
-    note(plan?.reason || "The signing relays are not answering right now. Your lecture is fine — resume in a little while and it will pick up.");
-    $("dlRetry").hidden = false;
-    $("dlCancel").hidden = true;
-    return;
-  }
 
-  /* 2 · walk the quality ladder until one can be listed. */
+  /* 2 · walk the quality ladder until one can be listed — patiently,
+   * for the same reason: a listing refused during a signer outage is
+   * weather, not a verdict on the lecture. */
   setPhase("Preparing the download…");
   let info = null;
   const preferred = [String((plan.renditions && plan.renditions[0]) || plan.quality || "720"), ...QUALITY_LADDER];
-  for (const q of [...new Set(preferred)]) {
-    if (cancelled) return;
-    try {
-      const data = await getJson(`/api/download?mode=list&folder=${encodeURIComponent(folder)}&quality=${encodeURIComponent(q)}`, 2);
-      if (data?.playable) { info = data; break; }
-    } catch { /* next rung */ }
-  }
-  if (!info) {
-    setPhase("This lecture cannot be prepared right now");
-    note("Every quality refused the listing. This usually clears within a minute — resume to try again.");
-    $("dlRetry").hidden = false;
-    $("dlCancel").hidden = true;
-    return;
+  for (let round = 0; !info; round++) {
+    for (const q of [...new Set(preferred)]) {
+      if (cancelled) return;
+      try {
+        const data = await getJson(`/api/download?mode=list&folder=${encodeURIComponent(folder)}&quality=${encodeURIComponent(q)}`, 2);
+        if (data?.playable) { info = data; break; }
+      } catch { /* next rung */ }
+    }
+    if (!info) {
+      const wait = Math.min(60, 10 + round * 5);
+      note(`Every quality refused the listing — the signing relays are still waking up. Retrying on its own in ${wait}s. Keep this tab open.`);
+      await new Promise((r) => setTimeout(r, wait * 1000));
+    }
   }
   qualityEl.hidden = false;
   qualityEl.textContent = `${info.quality || ""}p`.replace(/^p$/, "Auto");
