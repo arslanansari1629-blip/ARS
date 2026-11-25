@@ -71,6 +71,16 @@ test("a Nexthope-shaped Allen card normalises to code/exam/class", () => {
   assert.equal(normalizeAllenBatch({ name: "No code here" }), null, "a batch without a code is unopenable and must drop");
 });
 
+test("PW catalogue rows can never pass as Allen batches", () => {
+  // Nexthope's shared API answers its PW catalogue under /Allen/api/*
+  // too (live: 17,302 PW rows). A 24-hex PW ObjectId is not an Allen
+  // code, and dressing PW batches in Allen badges is the one failure
+  // this section must never ship.
+  assert.equal(normalizeAllenBatch({ name: "Lakshya JEE 2025", batch_id: "65d862392b1da90018ad8f3b" }), null);
+  assert.equal(normalizeAllenBatch({ name: "Yakeen NEET", _id: "628b4fab75ab0500184da8d9" }), null);
+  assert.notEqual(normalizeAllenBatch({ name: "Leader", code: "D6TL-36-DILC21" }), null);
+});
+
 test("Allen subject and lecture rows normalise from upstream variants", () => {
   assert.equal(normalizeAllenSubject({ title: "Physics", videos: 42 }).name, "Physics");
   assert.equal(normalizeAllenSubject({ title: "Physics", videos: 42 }).lectures, 42);
