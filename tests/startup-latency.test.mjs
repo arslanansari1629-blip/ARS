@@ -285,7 +285,11 @@ test("a sleepy mirror does not set the latency of the lecture", async () => {
     if (/generate_token/.test(url)) {
       return new Response(JSON.stringify({ token: MINTED }), { status: 200 });
     }
-    if (url.startsWith(healthy)) return new Response(MASTER, { status: 200 });
+    // Our own Vercel lane leads the ladder now; it is a healthy host in
+    // this world too (it walks upstreams and answers at once).
+    if (url.startsWith(healthy) || url.includes("arsvibe-pw-sepia.vercel.app")) {
+      return new Response(MASTER, { status: 200 });
+    }
     // Everything else: a mirror that is up but wedged. It must not be waited on.
     await new Promise((r) => setTimeout(r, 3000));
     return new Response(MASTER, { status: 200 });
