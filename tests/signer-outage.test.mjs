@@ -67,6 +67,28 @@ test("with a minted token, the same refusal stays a per-lecture answer", async (
   assert.match(plan.reason, /refuses to mint|cannot sign/i);
 });
 
+test("empty 200s from every signer are a signing failure, never 'not published'", async () => {
+  // The November 2026 Vercel-lane regression: signer hosts answered 200
+  // with empty bodies, so every tally (refused/answered/unreachable/
+  // notFound) came back zero — and the plan fell through to "PW has not
+  // published", a false claim about a recording whose folder the
+  // schedule itself handed us. Zero tallies must still classify as a
+  // signing-side failure with a diag attached.
+  const { resolveStream } = await import("../lib/api-data.mjs");
+  const { resetToken } = await import("../lib/pw-auth.mjs");
+  resetToken();
+
+  const plan = await withFetch(
+    async () => new Response("", { status: 200, headers: { "content-type": "text/plain" } }),
+    () => resolveStream({ rawUrl: mpd("33333333-9999-4999-8999-999999999999") })
+  );
+
+  assert.equal(plan.playable, false);
+  assert.doesNotMatch(plan.reason, /has not published/i, "a published folder must never be reported as unpublished");
+  assert.ok(plan.diag, "a signing failure must carry its diag");
+  assert.equal(plan.diag.refused + plan.diag.answered + plan.diag.unreachable + plan.diag.notFound, 0);
+});
+
 test("the watch page retries an outage on its own", async () => {
   const lecture = await readFile(new URL("../public/assets/lecture.js", import.meta.url), "utf8");
   assert.match(lecture, /plan\.signerDown/);

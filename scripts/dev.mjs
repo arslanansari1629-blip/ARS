@@ -92,18 +92,21 @@ const server = http.createServer(async (req, res) => {
     pathname === "/api/repair" ||
     pathname === "/api/download" ||
     pathname === "/api/scan" ||
-    pathname === "/api/client-error"
+    pathname === "/api/client-error" ||
+    pathname === "/api/allen"
   ) {
     // `/api/sign` and `/api/repair` are mounted on the admin function; `/api/hls`
     // rides on stream, which is how all of them keep their own URL inside a
-    // 12-function budget.
+    // 12-function budget. `/api/allen` rides on batches for the same reason.
     const action = pathname.slice(5);
     const target =
       action === "hls" || action === "download"
         ? "/api/stream"
         : action === "key"
           ? "/api/check"
-          : "/api/admin";
+          : action === "allen"
+            ? "/api/batches"
+            : "/api/admin";
     url.searchParams.set("action", action);
     pathname = target;
     req.url = `${target}?${url.searchParams.toString()}`;

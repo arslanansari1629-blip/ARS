@@ -39,6 +39,8 @@ const ALIASES = {
   repair: ["admin", "repair"],
   scan: ["admin", "scan"],
   "client-error": ["admin", "client-error"],
+  // The Allen platform's API rides on the batches function.
+  allen: ["batches", "allen"],
 };
 
 function resolveRoute(url) {

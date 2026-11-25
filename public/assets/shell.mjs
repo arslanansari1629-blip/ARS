@@ -23,6 +23,7 @@ const NAV = [
     items: [
       { id: "home", href: "/", label: "Home", icon: "home" },
       { id: "batches", href: "/batches.html", label: "All batches", icon: "grid" },
+      { id: "allen", href: "/allen.html", label: "Allen", icon: "grid" },
       { id: "live", href: "/live.html", label: "Live classes", icon: "live" },
       { id: "search", href: "#search", label: "Search", icon: "search", kbd: "⌘K" },
     ],

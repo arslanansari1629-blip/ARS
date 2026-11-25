@@ -10,6 +10,7 @@ import {
   catalogPriceCounts,
   CATALOG_SOURCE,
 } from "../lib/catalog.mjs";
+import { allenApi } from "../lib/allen.mjs";
 
 /**
  * GET /api/batches?page=1&pageSize=20   → the complete catalogue
@@ -61,7 +62,13 @@ export default async function handler(req, res) {
     /* a scheduler fault must not cost a catalogue page */
   }
 
-  const { page, search, q, pageSize, lang, price, sort, facets } = query(req);
+  const allParams = query(req);
+  // The Allen platform (`/allen`) rides on this function as
+  // action=allen (see the route tables): a second platform must not
+  // cost a thirteenth serverless function on the Hobby plan.
+  if (allParams.action === "allen") return allenApi(req, res, allParams);
+
+  const { page, search, q, pageSize, lang, price, sort, facets } = allParams;
 
   // `?q=` is the short form bookmarks, the search box and the reference site all
   // use. It used to be ignored, which silently answered `/api/batches?q=Lakshya`

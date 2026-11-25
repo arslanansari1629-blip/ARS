@@ -238,6 +238,10 @@
     {
       "source": "/api/download",
       "destination": "/api/stream?action=download"
+    },
+    {
+      "source": "/api/allen",
+      "destination": "/api/batches?action=allen"
     }
   ],
   "crons": [
