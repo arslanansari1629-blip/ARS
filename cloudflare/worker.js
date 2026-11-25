@@ -11,7 +11,7 @@
  */
 
 import { dispatch } from "../functions/api/[[route]].js";
-import { watchdogBots } from "../lib/bot-host.mjs";
+import { brainHeartbeat } from "../lib/brain.mjs";
 import { setKvBinding } from "../lib/store.mjs";
 
 const CACHEABLE = new Set([
@@ -305,6 +305,9 @@ export default {
         if (env.ARS_KV) setKvBinding(env.ARS_KV);
       }
     } catch { /* bindings are best-effort here; memory still answers */ }
-    ctx.waitUntil(watchdogBots().catch(() => null));
+    // The Brain's heartbeat: bots checked and healed, mood recomputed,
+    // diary written. (The full travel is the daily scan's job and the
+    // panel's "Brain ko ghumao" button.)
+    ctx.waitUntil(brainHeartbeat().catch(() => null));
   },
 };

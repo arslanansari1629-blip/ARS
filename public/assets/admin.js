@@ -2357,3 +2357,64 @@ async function readBotFile(f) {
 loadBots();
 const botPoll = setInterval(() => { if (!document.hidden && botToken()) loadBots(); }, 60000);
 botPoll?.unref?.();
+
+/* ------------------------------------------------------------ site brain
+   The overseer section: one report over scanner + healer + browser
+   faults + bots, a travel button, and the automation switch. The
+   Brain's diary is the audit trail of everything it fixed itself. */
+
+async function loadBrain() {
+  if (!document.getElementById("brainBlock") || !botToken()) return;
+  try {
+    const d = await botApi("brain");
+    const moodEmoji = { happy: "😊", fixing: "🛠️", worried: "😟", sleeping: "😴" }[d.mood] || "🧠";
+    document.getElementById("brainAvatar").textContent = moodEmoji === "🧠" ? "🧠" : moodEmoji;
+    document.getElementById("brainMood").textContent = `Brain is ${d.mood}`;
+    document.getElementById("brainLine").textContent = d.line || "";
+    document.getElementById("brainMeta").textContent =
+      `Last check ${d.lastTick ? String(d.lastTick).slice(0, 16).replace("T", " ") : "—"} · last full travel ${d.lastTravel ? String(d.lastTravel).slice(0, 16).replace("T", " ") : "abhi nahi"} · kul fixes ${d.fixedTotal || 0}`;
+    document.getElementById("brainStore").textContent =
+      d.store === "cloudflare-kv" ? "permanent · Cloudflare KV" : d.store || "";
+    document.getElementById("brainAuto").checked = d.automation !== false;
+    document.getElementById("brainMapCounts").textContent =
+      `${d.site.pages} pages · ${d.site.apis} APIs · ${d.bots.length} bots`;
+    document.getElementById("brainSkills").innerHTML = (d.site.skills || [])
+      .map((s) => `<span class="bot-lang-chip">${esc(s)}</span>`)
+      .join("");
+
+    const rows = (list, empty) =>
+      list && list.length
+        ? list.map((l) => `<div class="brain-log-row"><span>${esc(l.text || l.what || l.summary || "")}</span><span class="at">${esc(String(l.at || l.atIso || "").slice(0, 16).replace("T", " "))} ${esc(l.kind || "")}</span></div>`).join("")
+        : `<p class="tiny dim">${empty}</p>`;
+    document.getElementById("brainLog").innerHTML = rows(d.log, "Diary khaali hai — pehla travel chalao.");
+    const errors = [
+      ...(d.browserErrors?.verdict?.level !== "ok" ? [{ text: d.browserErrors.verdict.summary, kind: "browser", at: "" }] : []),
+      ...(d.scanner?.open || []).map((f) => ({ text: f.what || f.detail || "scanner finding", kind: "scanner", at: f.atIso || "" })),
+      ...(d.browserErrors?.recent || []).map((f) => ({ text: `${f.message || f.kind} — ${f.page || ""} (${f.count}×)`, kind: "browser", at: f.lastAt || "" })),
+    ];
+    document.getElementById("brainErrors").innerHTML = rows(errors.slice(0, 12), "Kuch khula nahi hai — sab theek 💚");
+  } catch {
+    /* signed out or offline: the section waits */
+  }
+}
+
+document.getElementById("brainRun")?.addEventListener("click", async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  btn.textContent = "🧠 Site ghum raha hai… (1 min tak lag sakta hai)";
+  try {
+    await botApi("brain-run", {});
+  } catch { /* the diary will say what happened */ }
+  btn.disabled = false;
+  btn.textContent = "🧠 Brain ko site ghumao";
+  loadBrain();
+});
+
+document.getElementById("brainAuto")?.addEventListener("change", async (e) => {
+  await botApi("brain-auto", { on: e.target.checked }).catch(() => {});
+  loadBrain();
+});
+
+loadBrain();
+const brainPoll = setInterval(() => { if (!document.hidden && botToken()) loadBrain(); }, 60000);
+brainPoll?.unref?.();

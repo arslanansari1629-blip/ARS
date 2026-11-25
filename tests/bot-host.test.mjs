@@ -158,7 +158,7 @@ test("admin panel and routes carry the hosting surface", async () => {
   assert.match(toml, /binding = "ARS_KV"/);
   assert.match(toml, /\*\/5 \* \* \* \*/);
   const worker = read("cloudflare/worker.js");
-  assert.match(worker, /watchdogBots/);
+  assert.match(worker, /brainHeartbeat/, "the cron heartbeat left the worker");
   assert.match(worker, /ARS_KV/);
   const store = read("lib/store.mjs");
   assert.match(store, /cloudflare-kv/);

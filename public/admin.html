@@ -180,6 +180,42 @@
       </div>
     </section>
 
+    <!-- site brain: the cute overseer — travels the site, fixes, reports -->
+    <section class="card pad-md admin-block admin-brain" id="brainBlock" style="margin-bottom:14px">
+      <div class="row between mb-2">
+        <h3>🧠 Site Brain</h3>
+        <span class="tiny dim" id="brainStore">—</span>
+      </div>
+      <div class="brain-head">
+        <div class="brain-avatar" id="brainAvatar">🧠</div>
+        <div class="brain-say">
+          <strong id="brainMood">…</strong>
+          <p class="tiny muted" id="brainLine">Brain jaag raha hai…</p>
+          <span class="tiny dim" id="brainMeta"></span>
+        </div>
+        <div class="brain-actions">
+          <button class="btn btn-primary btn-sm" id="brainRun" type="button">🧠 Brain ko site ghumao</button>
+          <label class="tiny dim brain-auto">
+            <input type="checkbox" id="brainAuto" checked /> Automation (error aate hi khud fix)
+          </label>
+        </div>
+      </div>
+      <div class="brain-cols">
+        <div>
+          <strong class="tiny">Brain ki diary (kya dekha, kya fix kiya)</strong>
+          <div id="brainLog" class="brain-log"><p class="tiny dim">—</p></div>
+        </div>
+        <div>
+          <strong class="tiny">Abhi khula hai (errors jo dhyaan mangte hain)</strong>
+          <div id="brainErrors" class="brain-log"><p class="tiny dim">—</p></div>
+        </div>
+      </div>
+      <div class="brain-skills">
+        <span class="tiny dim">Brain ko poori site ka source/map diya hai — <span id="brainMapCounts"></span> · Skills:</span>
+        <div class="bot-langs" id="brainSkills"></div>
+      </div>
+    </section>
+
     <div class="admin-grid">
       <!-- health -->
       <section class="card pad-md admin-block">

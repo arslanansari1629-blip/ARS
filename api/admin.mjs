@@ -35,6 +35,7 @@ import {
 } from "../lib/client-errors.mjs";
 import { scanPass, scannerReport, clearFinding } from "../lib/scanner.mjs";
 import { listBots, saveBot, deleteBot, deployBot, stopBot } from "../lib/bot-host.mjs";
+import { brainReport, brainTravel, setBrainAutomation, SITE_MAP } from "../lib/brain.mjs";
 import {
   maintenanceGate,
   refreshMaintenance,
@@ -300,6 +301,27 @@ export default async function handler(req, res) {
     await deleteBot(String(payload?.id || ""));
     noteLog({ level: "warn", route: "admin", message: `bot deleted: ${payload?.id || ""}` });
     return finish(200, { success: true });
+  }
+
+  /* ------------------------------------------------------------ brain */
+  /* The Site Brain: one report over every organ (scanner, healer,
+     browser faults, bots), a full travel on demand, and the automation
+     switch. Session-gated like everything else in this block. */
+  if (action === "brain" && req.method === "GET") {
+    return finish(200, await brainReport());
+  }
+  if (action === "brain-run" && req.method === "POST") {
+    noteLog({ level: "info", route: "admin", message: "brain travel started by operator" });
+    return finish(200, await brainTravel(selfBase(req)));
+  }
+  if (action === "brain-auto" && req.method === "POST") {
+    const payload = await body(req);
+    const out = await setBrainAutomation(payload?.on !== false);
+    noteLog({ level: "info", route: "admin", message: `brain automation ${out.automation ? "on" : "off"}` });
+    return finish(200, out);
+  }
+  if (action === "brain-map" && req.method === "GET") {
+    return finish(200, { success: true, site: SITE_MAP });
   }
 
   /* --------------------------------------------------------------- dpp */

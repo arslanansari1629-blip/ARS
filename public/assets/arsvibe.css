@@ -11824,3 +11824,108 @@ html[data-device="phone"] table { display: block; overflow-x: auto; max-width: 1
   padding-bottom: calc(0.55rem + env(safe-area-inset-bottom));
 }
 #playerRoot:fullscreen .scrubber { flex: 0 0 auto; }
+
+/* ==========================================================================
+   Site Brain widget — the little overseer riding on every page.
+   Mood is a class from the server: happy bounces gently, fixing
+   wiggles (it is working), worried trembles amber, sleeping dims.
+   ========================================================================== */
+
+.brain-widget {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.brain-face {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid #ec4899;
+  background: #fff5f9;
+  box-shadow: var(--lift-2);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  position: relative;
+  animation: brain-bob 3.2s ease-in-out infinite;
+}
+
+.brain-face:hover { transform: scale(1.06); }
+
+.brain-zzz { position: absolute; top: -6px; right: -4px; font-size: 15px; }
+
+@keyframes brain-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.brain-widget.mood-fixing .brain-face {
+  border-color: var(--amber);
+  animation: brain-wiggle 0.5s ease-in-out infinite;
+}
+
+@keyframes brain-wiggle {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+
+.brain-widget.mood-worried .brain-face {
+  border-color: var(--danger);
+  background: #fff1f2;
+  animation: brain-bob 1.6s ease-in-out infinite;
+}
+
+.brain-widget.mood-sleeping .brain-face {
+  border-color: var(--rule-2);
+  background: var(--card-2);
+  opacity: 0.75;
+  animation: brain-bob 5s ease-in-out infinite;
+}
+
+.brain-bubble {
+  max-width: min(300px, calc(100vw - 32px));
+  background: var(--card);
+  border: 1.5px solid #f9a8d4;
+  border-radius: 16px;
+  border-bottom-right-radius: 4px;
+  padding: 12px 14px;
+  box-shadow: var(--lift-3);
+}
+
+.brain-bubble strong { font-size: 0.85rem; }
+.brain-bubble .brain-line { font-size: 0.8rem; margin: 4px 0; color: var(--ink-2); }
+.brain-bubble .brain-meta { display: block; }
+
+html[data-device="phone"] .brain-widget { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); }
+html[data-device="phone"] .brain-face { width: 50px; height: 50px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .brain-face { animation: none; }
+}
+
+/* Site Brain (admin). */
+.brain-head { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.brain-avatar {
+  font-size: 2.4rem; line-height: 1;
+  width: 64px; height: 64px; display: grid; place-items: center;
+  background: #fff5f9; border: 2px solid #f9a8d4; border-radius: 50%;
+  animation: brain-bob 3.2s ease-in-out infinite; flex: 0 0 auto;
+}
+.brain-say { flex: 1 1 240px; }
+.brain-actions { display: grid; gap: 8px; justify-items: end; }
+.brain-auto { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.brain-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-top: 12px; }
+@media (max-width: 900px) { .brain-cols { grid-template-columns: 1fr; } .brain-actions { justify-items: start; } }
+.brain-log { display: grid; gap: 5px; margin-top: 6px; max-height: 260px; overflow: auto; }
+.brain-log-row {
+  font-size: 0.74rem; padding: 6px 8px; border: 1px solid var(--hair);
+  border-radius: var(--r-sm); background: var(--card-2); display: grid; gap: 1px;
+}
+.brain-log-row .at { color: var(--ink-4); font-family: var(--mono); font-size: 0.64rem; }
+.brain-skills { margin-top: 12px; }

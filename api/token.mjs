@@ -349,6 +349,14 @@ export default async function handler(req, res) {
   // Telegram webhook: Telegram POSTs every update for a hosted bot here
   // (the URL deployBot registered). It answers 200 always — a non-200
   // makes Telegram retry the update and the bot would answer twice.
+  // The little on-page Brain's hello: mood and one line, nothing else.
+  // Public on purpose — it is the same sentence the widget shows a
+  // student, and it carries no operator detail.
+  if (route === "brain") {
+    const { brainPublic } = await import("../lib/brain.mjs");
+    return json(res, 200, await brainPublic().catch(() => ({ success: false, mood: "happy", line: "" })));
+  }
+
   if (route === "tg") {
     if (req.method !== "POST") return json(res, 200, { ok: true, hint: "POST updates here" });
     const payload = await readJson(req).catch(() => null);
