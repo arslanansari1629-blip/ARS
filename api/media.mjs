@@ -17,6 +17,8 @@ const ALLOWED = [
   "penpencil",
   "static.pw.live",
   "d2bps9p1kiy4ka.cloudfront.net",
+  // The Allen section's upstream (catalogue/assets relay for /allen).
+  "nexthope.sbs",
 ];
 
 const UA =
