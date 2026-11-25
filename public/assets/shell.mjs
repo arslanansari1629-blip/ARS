@@ -10,6 +10,7 @@
    ========================================================================= */
 
 import "./device.js"; // Auto-Fit: <html data-device> fits the layout to this screen
+import "./brain-widget.js"; // the Site Brain's face rides along
 import { getSession, recentBatches, getPrefs, setPref, esc } from "./app.js";
 import { favouriteCount } from "./favourites.js";
 
@@ -730,65 +731,3 @@ function mount() {
 }
 
 mount();
-
-/* ------------------------------------------------------------ Site Brain
-   The little brain that rides along on every page. It watches the
-   whole site from the server side (scanner, healer, bot watchdog);
-   this is only its face: a mood, a one-line hello, and the counts.
-   It polls the public brain endpoint, never the admin one. */
-function mountBrain() {
-  if (!document.body || document.getElementById("brainWidget")) return;
-  const el = document.createElement("div");
-  el.id = "brainWidget";
-  el.className = "brain-widget mood-happy";
-  el.innerHTML = `
-    <div class="brain-bubble" hidden>
-      <strong>🧠 Site Brain</strong>
-      <p class="brain-line">Main poori site par nazar rakhe hoon…</p>
-      <span class="brain-meta tiny dim"></span>
-    </div>
-    <button class="brain-face" type="button" aria-label="Site Brain — site ki health">
-      <svg viewBox="0 0 64 64" width="40" height="40" aria-hidden="true">
-        <path d="M32 6a14 14 0 0 1 13 8 12 12 0 0 1 4 12 13 13 0 0 1-6 15 14 14 0 0 1-22 0 13 13 0 0 1-6-15 12 12 0 0 1 4-12A14 14 0 0 1 32 6z" fill="#ffd9e8" stroke="#ec4899" stroke-width="2.5"/>
-        <path d="M22 22c3-3 7-3 10 0M32 22c3-3 7-3 10 0M24 36c2 2 5 2 8 0M34 44c3 1 6 0 8-2" stroke="#ec4899" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <circle class="brain-eye" cx="24" cy="30" r="2.6" fill="#7c2d12"/>
-        <circle class="brain-eye" cx="40" cy="30" r="2.6" fill="#7c2d12"/>
-        <path class="brain-mouth" d="M27 41q5 4 10 0" stroke="#7c2d12" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-      </svg>
-      <span class="brain-zzz" hidden>💤</span>
-    </button>`;
-  document.body.appendChild(el);
-
-  const bubble = el.querySelector(".brain-bubble");
-  const line = el.querySelector(".brain-line");
-  const meta = el.querySelector(".brain-meta");
-  el.querySelector(".brain-face").addEventListener("click", () => {
-    bubble.hidden = !bubble.hidden;
-  });
-  document.addEventListener("click", (e) => {
-    if (!el.contains(e.target)) bubble.hidden = true;
-  });
-
-  const paint = (d) => {
-    if (!d || !d.mood) return;
-    el.className = `brain-widget mood-${d.mood}`;
-    line.textContent = d.line || "";
-    meta.textContent = `${d.pages || 22} pages par nazar · ${d.fixed || 0} fixes ab tak${d.lastTick ? ` · check ${String(d.lastTick).slice(11, 16)}` : ""}`;
-    el.querySelector(".brain-zzz").hidden = d.mood !== "sleeping";
-  };
-  const tick = async () => {
-    try {
-      const res = await fetch("/api/token?route=brain");
-      paint(await res.json());
-    } catch { /* offline: the brain keeps its last mood */ }
-  };
-  tick();
-  const brainPoll = setInterval(() => { if (!document.hidden) tick(); }, 90000);
-  brainPoll?.unref?.();
-}
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", mountBrain);
-} else {
-  mountBrain();
-}

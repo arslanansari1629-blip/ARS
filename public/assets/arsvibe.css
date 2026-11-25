@@ -11834,8 +11834,10 @@ html[data-device="phone"] table { display: block; overflow-x: auto; max-width: 1
 .brain-widget {
   position: fixed;
   right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom));
-  z-index: 900;
+  /* Above the back-to-top button (right:18px, bottom:18px, 44px tall):
+     sharing its corner hid the Brain behind it. */
+  bottom: calc(74px + env(safe-area-inset-bottom));
+  z-index: 1200;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -11843,8 +11845,8 @@ html[data-device="phone"] table { display: block; overflow-x: auto; max-width: 1
 }
 
 .brain-face {
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   border: 2px solid #ec4899;
   background: #fff5f9;
@@ -11902,8 +11904,8 @@ html[data-device="phone"] table { display: block; overflow-x: auto; max-width: 1
 .brain-bubble .brain-line { font-size: 0.8rem; margin: 4px 0; color: var(--ink-2); }
 .brain-bubble .brain-meta { display: block; }
 
-html[data-device="phone"] .brain-widget { right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); }
-html[data-device="phone"] .brain-face { width: 50px; height: 50px; }
+html[data-device="phone"] .brain-widget { right: 12px; bottom: calc(70px + env(safe-area-inset-bottom)); }
+html[data-device="phone"] .brain-face { width: 54px; height: 54px; }
 
 @media (prefers-reduced-motion: reduce) {
   .brain-face { animation: none; }
@@ -11929,3 +11931,66 @@ html[data-device="phone"] .brain-face { width: 50px; height: 50px; }
 }
 .brain-log-row .at { color: var(--ink-4); font-family: var(--mono); font-size: 0.64rem; }
 .brain-skills { margin-top: 12px; }
+
+/* Brain upgrade: a name tag (a lone pink circle was too easy to miss),
+   a status dot, blinking eyes, and a detail table in the bubble. */
+.brain-tag {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #9d174d;
+  background: #fdf2f8;
+  border: 1.5px solid #f9a8d4;
+  padding: 0.14rem 0.5rem;
+  border-radius: 999px;
+  margin-top: -4px;
+  box-shadow: var(--lift-1);
+  pointer-events: none;
+}
+
+.brain-dot {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ok);
+  border: 2px solid #fff;
+}
+.brain-widget.mood-fixing .brain-dot { background: var(--amber); }
+.brain-widget.mood-worried .brain-dot { background: var(--danger); }
+.brain-widget.mood-sleeping .brain-dot { background: var(--ink-4); }
+
+.brain-widget.mood-fixing .brain-face::after,
+.brain-widget.mood-worried .brain-face::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0.35;
+  animation: brain-ring 1.4s ease-out infinite;
+}
+.brain-widget.mood-fixing .brain-face { color: var(--amber); }
+.brain-widget.mood-worried .brain-face { color: var(--danger); }
+
+@keyframes brain-ring {
+  0% { transform: scale(0.85); opacity: 0.5; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+.brain-eye { transform-origin: center; transform-box: fill-box; animation: brain-blink 4.6s infinite; }
+@keyframes brain-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+.brain-widget.mood-sleeping .brain-eye { animation: none; transform: scaleY(0.15); }
+
+.brain-rows { display: grid; gap: 3px; margin: 6px 0; }
+.brain-rows span {
+  display: flex; justify-content: space-between; gap: 12px;
+  font-size: 0.74rem; color: var(--ink-2);
+  border-bottom: 1px dashed var(--hair); padding-bottom: 2px;
+}
+.brain-rows b { font-family: var(--mono); font-size: 0.72rem; color: var(--ink); }

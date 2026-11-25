@@ -60,7 +60,7 @@ test("the report aggregates every organ and the diary persists", async () => {
   assert.ok(after.log.some((l) => /Automation on/.test(l.text)), "the diary forgot the switch");
 });
 
-test("every surface is wired: admin section, widget, endpoints, cron", () => {
+test("every surface is wired: admin section, widget, endpoints, cron", async () => {
   const html = read("public/admin.html");
   assert.match(html, /id="brainBlock"/);
   assert.match(html, /id="brainRun"/);
@@ -72,8 +72,16 @@ test("every surface is wired: admin section, widget, endpoints, cron", () => {
   const token = read("api/token.mjs");
   assert.match(token, /route === "brain"/);
   const shell = read("public/assets/shell.mjs");
-  assert.match(shell, /brainWidget/);
-  assert.match(shell, /route=brain/);
+  assert.match(shell, /brain-widget\.js/, "the shell no longer carries the Brain's face");
+  const widget = read("public/assets/brain-widget.js");
+  assert.match(widget, /brainWidget/);
+  assert.match(widget, /route=brain/);
+  assert.match(widget, /brain-tag/, "the Brain lost its name tag");
+  for (const page of ["public/admin.html", "public/login.html", "public/open.html"]) {
+    assert.match(read(page), /brain-widget\.js/, `${page} has no Brain`);
+  }
+  const pub = await brainPublic();
+  assert.ok(pub.bots && typeof pub.openErrors === "number", "the public hello lost its numbers");
   const worker = read("cloudflare/worker.js");
   assert.match(worker, /brainHeartbeat/);
   const css = read("public/assets/arsvibe.css");
