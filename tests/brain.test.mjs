@@ -38,6 +38,7 @@ test("the mood follows evidence, never vibes", () => {
   assert.equal(brainMood({ healer: { counts: { failed: 1 } } }), "worried");
   assert.equal(brainMood({ verdict: { level: "bad" } }), "worried");
   assert.equal(brainMood({ healer: { counts: { degraded: 1 } } }), "fixing");
+  assert.equal(brainMood({ canaryBad: true }), "worried", "lectures down but the Brain smiled");
   assert.equal(brainMood({}), "happy");
 });
 
