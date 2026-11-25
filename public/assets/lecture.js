@@ -107,6 +107,7 @@ const prevBtn = $("prevBtn");
 const nextBtn = $("nextBtn");
 const pipBtn = $("pipBtn");
 const fullscreenBtn = $("fullscreenBtn");
+const fitBtn = $("fitBtn");
 const skipBackBtn = $("skipBackBtn");
 const skipFwdBtn = $("skipFwdBtn");
 const restartBtn = $("restartBtn");
@@ -1565,7 +1566,11 @@ if (pipBtn && document.pictureInPictureEnabled && video.requestPictureInPicture)
 }
 
 async function toggleFullscreen() {
-  const target = stage || video;
+  // The whole player (stage + scrubber + every button), not the stage
+  // alone: fullscreen used to take just the picture, and the transport
+  // stayed behind on the page — "fit it to the screen and the buttons
+  // are gone" was literally true.
+  const target = root || stage || video;
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
     else if (target.requestFullscreen) await target.requestFullscreen();
@@ -1576,6 +1581,37 @@ async function toggleFullscreen() {
   }
 }
 fullscreenBtn?.addEventListener("click", toggleFullscreen);
+
+/**
+ * Fit to screen: how the picture meets the glass, in three shapes.
+ *   fit     — the whole lecture visible, bars where the screen disagrees
+ *   fill    — the screen full, edges cropped (phone held close, TV)
+ *   stretch — the screen full, picture pulled to its corners
+ * The mode lives on the stage (`data-fit`), so it holds in fullscreen
+ * too, and every control stays in the bar in every mode — the bar
+ * wraps instead of dropping buttons. The choice is remembered.
+ */
+const FIT_MODES = [
+  { id: "fit", label: "Fit — pura lecture dikhega" },
+  { id: "fill", label: "Fill — screen bharega, kinare crop" },
+  { id: "stretch", label: "Stretch — poori screen par" },
+];
+function applyFit(mode) {
+  if (stage) stage.dataset.fit = mode;
+  fitBtn?.classList.toggle("active", mode !== "fit");
+  try { localStorage.setItem("arsvibe.player.fit", mode); } catch { /* private mode */ }
+}
+function cycleFit() {
+  const cur = (stage && stage.dataset.fit) || "fit";
+  const next = FIT_MODES[(FIT_MODES.findIndex((m) => m.id === cur) + 1) % FIT_MODES.length];
+  applyFit(next.id);
+  flash(next.label);
+}
+fitBtn?.addEventListener("click", cycleFit);
+try {
+  const savedFit = localStorage.getItem("arsvibe.player.fit");
+  if (savedFit && FIT_MODES.some((m) => m.id === savedFit)) applyFit(savedFit);
+} catch { /* private mode */ }
 
 /**
  * Fullscreen: get out of the way.
@@ -1670,6 +1706,7 @@ document.addEventListener("keydown", (e) => {
       flash(video.muted ? "Muted" : "Unmuted");
     },
     f: () => toggleFullscreen(),
+    t: () => cycleFit(),
     o: () => pipBtn && pipBtn.click(),
     c: () => {
       const i = SPEEDS.indexOf(Number(video.playbackRate));

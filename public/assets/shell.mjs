@@ -9,6 +9,7 @@
    fails to load, each page falls back to the nav it shipped with.
    ========================================================================= */
 
+import "./device.js"; // Auto-Fit: <html data-device> fits the layout to this screen
 import { getSession, recentBatches, getPrefs, setPref, esc } from "./app.js";
 import { favouriteCount } from "./favourites.js";
 

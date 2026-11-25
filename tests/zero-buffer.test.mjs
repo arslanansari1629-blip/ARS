@@ -26,8 +26,8 @@ test("the sign relay pins the last good signer and retries media cheaply", async
 
 test("the player reads five minutes ahead in zero-buffer mode", async () => {
   const player = await read("public/assets/player.js");
-  assert.match(player, /maxBufferLength: zb \? 300 : 90/);
-  assert.match(player, /maxMaxBufferLength: zb \? 900 : 240/);
+  assert.match(player, /maxBufferLength: zb \? \(onPhone \? 240 : 600\) : 90/);
+  assert.match(player, /maxMaxBufferLength: zb \? \(onPhone \? 720 : 1800\) : 240/);
   assert.match(player, /abrEwmaDefaultEstimate: 1500000/);
 });
 

@@ -25,7 +25,7 @@ test("the first fragment is the smallest rendition", async () => {
   // ABR still climbs quickly once real bandwidth is measured.
   assert.match(player, /abrEwmaSlowVoD: 8/);
   // The deep read-ahead that makes stalls invisible is untouched.
-  assert.match(player, /maxBufferLength: zb \? 300 : 90/);
+  assert.match(player, /maxBufferLength: zb \? \(onPhone \? 240 : 600\) : 90/);
   assert.match(player, /startFragPrefetch: true/);
 });
 

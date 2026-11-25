@@ -669,12 +669,21 @@ export class ProPlayer {
     // A stall needs the network to fail for the whole buffer; at three
     // minutes that is an outage, not a wobble.
     const zb = this.prefs.get().zeroBuffer !== false;
+    // Buffer-Free sizing follows the screen (device.js has already
+    // classified it): a laptop on Wi-Fi holds ten minutes of lecture
+    // ahead of the playhead — a stall then needs a ten-minute outage,
+    // not a wobble. A phone holds less: the same protection, sized to
+    // a mobile data plan and a smaller memory.
+    let onPhone = false;
+    try {
+      onPhone = typeof document !== "undefined" && document.documentElement.dataset.device === "phone";
+    } catch { /* tests and odd embeddings: assume a big screen */ }
     const hls = new Hls({
       // A lecture is watched in long stretches: keep a real read-ahead buffer so
       // an ordinary network wobble never reaches the screen.
-      maxBufferLength: zb ? 300 : 90,
-      maxMaxBufferLength: zb ? 900 : 240,
-      maxBufferSize: (zb ? 150 : 90) * 1000 * 1000,
+      maxBufferLength: zb ? (onPhone ? 240 : 600) : 90,
+      maxMaxBufferLength: zb ? (onPhone ? 720 : 1800) : 240,
+      maxBufferSize: (zb ? (onPhone ? 120 : 250) : 90) * 1000 * 1000,
       backBufferLength: 90,
       // When the buffer is starving, do not wait for the ideal fragment:
       // switch down fast and keep the picture moving.

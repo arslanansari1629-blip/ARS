@@ -11742,3 +11742,85 @@ img[loading="lazy"] { background: var(--card-2); }
   color: var(--ink-3);
   background: var(--card);
 }
+
+/* ==========================================================================
+   Device Auto-Fit + Player Fit (2026)
+   --------------------------------------------------------------------------
+   device.js classifies the actual screen — phone, tablet, laptop,
+   desktop, plus orientation and pointer — onto <html data-device>.
+   Everything below keys off that: the same page is a thumb-reach
+   single column on a phone and a wide layout on a laptop, and it
+   re-fits itself when the screen changes (rotation, window drag).
+   `--app-height` is the measured visible viewport, kept current by
+   device.js, so "the screen" means this screen.
+   ========================================================================== */
+
+:root { --app-height: 100dvh; }
+
+/* The content column widens with the glass it is given. */
+html[data-device="laptop"] .shell,
+html[data-device="desktop"] .shell { width: min(1360px, 100% - 3rem); }
+html[data-device="desktop"] .shell { width: min(1480px, 100% - 4rem); }
+html[data-device="phone"] .shell,
+html[data-device="tablet"] .shell { width: calc(100% - 1.5rem); }
+
+html[data-device="phone"] .section { padding-block: 1.4rem; }
+html[data-device="phone"] h1 { font-size: clamp(1.45rem, 6.2vw, 1.9rem); line-height: 1.15; }
+html[data-device="phone"] h2 { font-size: clamp(1.2rem, 5vw, 1.55rem); }
+html[data-device="tablet"] h1 { font-size: clamp(1.7rem, 3.4vw, 2.2rem); }
+
+/* Touch screens get touch-sized targets, and inputs stop triggering
+   the mobile auto-zoom that throws the layout sideways. */
+html[data-touch="coarse"] .player-bar .icon-btn { width: 40px; height: 40px; }
+html[data-touch="coarse"] .nav-toggle { min-width: 42px; min-height: 42px; }
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px; }
+}
+
+/* Wide tables scroll inside their card on a phone instead of
+   stretching the page. */
+html[data-device="phone"] table { display: block; overflow-x: auto; max-width: 100%; }
+
+/* ------------------------- player fit modes ------------------------- */
+/* data-fit lives on the stage (lecture.js, Fit button / `t` key):
+   fit = whole lecture visible · fill = screen full, edges cropped ·
+   stretch = pulled to the corners. Holds in fullscreen too. */
+.player-stage video { object-fit: contain; }
+.player-stage[data-fit="fill"] video { object-fit: cover; }
+.player-stage[data-fit="stretch"] video { object-fit: fill; }
+
+/* All buttons, in every mode, on every screen: the transport wraps to
+   a second row instead of scrolling buttons off the edge or hiding
+   them — on phones, on tablets, and in fullscreen. */
+@media (max-width: 1100px) {
+  .player-bar { flex-wrap: wrap; overflow-x: visible; row-gap: 0.25rem; }
+  .player-bar .bar-spacer { flex-basis: 0; }
+}
+@media (max-width: 560px) {
+  .player-bar { padding: 0.35rem 0.4rem calc(0.5rem + env(safe-area-inset-bottom)); }
+  .player-bar .time-label { font-size: 0.72rem; }
+  .player-bar .volume-slider { width: 64px; }
+}
+
+/* Fullscreen takes the whole player — stage, scrubber and every
+   button — and the stage gives up its 16:9 box for the screen's own
+   shape, which is what "fit to this screen" means. */
+#playerRoot:fullscreen {
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  height: var(--app-height);
+}
+#playerRoot:fullscreen .player-stage {
+  flex: 1 1 auto;
+  aspect-ratio: auto;
+  min-height: 0;
+  border-radius: 0;
+}
+#playerRoot:fullscreen .player-bar {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  row-gap: 0.25rem;
+  padding-bottom: calc(0.55rem + env(safe-area-inset-bottom));
+}
+#playerRoot:fullscreen .scrubber { flex: 0 0 auto; }
