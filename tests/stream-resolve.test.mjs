@@ -838,6 +838,40 @@ test("the signer probe stays inside a Workers-style subrequest budget", async ()
   assert.match(probe.probeError || "", /subrequests/i);
 });
 
+test("a total signer refusal is remembered briefly, so retries stop burning subrequests", async () => {
+  const { probeRenditions, forgetSignerToken } = await import("../lib/api-data.mjs");
+  const { resetToken } = await import("../lib/pw-auth.mjs");
+  resetToken();
+  forgetSignerToken();
+  let asks = 0;
+  const previous = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("generate_token")) return new Response("", { status: 500 });
+    if (u.includes("get-hls-key")) {
+      asks += 1;
+      return new Response("refused", { status: 403 });
+    }
+    return new Response("", { status: 404 });
+  };
+  try {
+    const folder = "99998888-7777-6666-5555-444433332222";
+    const first = await probeRenditions({ folder, fresh: true });
+    assert.equal(first.renditions.length, 0);
+    const afterFirst = asks;
+    assert.ok(afterFirst > 0);
+    const second = await probeRenditions({ folder });
+    assert.equal(asks, afterFirst, "a remembered refusal was re-walked fetch by fetch");
+    assert.equal(second.renditions.length, 0);
+    assert.ok(second.refused, "the remembered answer must still read as a refusal");
+    const third = await probeRenditions({ folder, fresh: true });
+    assert.ok(asks > afterFirst, "a real retry (fresh) must re-ask the signers");
+    assert.equal(third.renditions.length, 0);
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
 test("a live awsVideo address resolves to a gateway live plan", async () => {
   const { resolveStream } = await import("../lib/api-data.mjs");
   const plan = await resolveStream({
