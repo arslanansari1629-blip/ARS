@@ -53,6 +53,7 @@ test("the report aggregates every organ and the diary persists", async () => {
   assert.equal(off.mood, "sleeping", "automation off but the public face is awake");
   assert.equal(off.automation, false);
 
+  await setBrainAutomation(true);
   // A fresh shared playback-failure doc must turn the public face
   // worried in ANY isolate (regression: lectures down, Brain "happy").
   const { writeDoc: writeStoreDoc } = await import("../lib/store.mjs");
@@ -63,7 +64,6 @@ test("the report aggregates every organ and the diary persists", async () => {
   assert.match(downPub.line, /play nahi ho rahe/);
   await writeStoreDoc("arsvibe:playback", { ok: true, at: new Date().toISOString(), detail: "" });
 
-  await setBrainAutomation(true);
   const hb = await brainHeartbeat();
   assert.equal(hb.success, true);
   const after = await brainReport();
