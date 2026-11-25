@@ -838,6 +838,46 @@ test("the signer probe stays inside a Workers-style subrequest budget", async ()
   assert.match(probe.probeError || "", /subrequests/i);
 });
 
+test("when every direct signer refuses, the probe still reaches the proxy lanes", async () => {
+  // Production shape, 2026-11-25: vidcloud 403s the anonymous wave five
+  // times (once per rendition), the budget dies, and the proxy lanes at
+  // the ladder's end are never asked. A host that refused once must not
+  // be re-asked per rendition, so the walk survives to the proxy lane
+  // that answers.
+  const { probeRenditions, forgetSignerToken } = await import("../lib/api-data.mjs");
+  const { resetToken } = await import("../lib/pw-auth.mjs");
+  resetToken();
+  forgetSignerToken();
+  const previous = globalThis.fetch;
+  const previousToken = process.env.PW_TOKEN;
+  process.env.PW_TOKEN = "";
+  let vidcloudAsks = 0;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("generate_token")) {
+      return new Response(JSON.stringify({ token: "minted-token-value-123" }), { status: 200 });
+    }
+    if (u.includes("allorigins")) {
+      return new Response("#EXTM3U\n#EXT-X-VERSION:3\n", { status: 200 });
+    }
+    if (u.includes("vidcloud")) vidcloudAsks += 1;
+    if (u.includes("get-hls-key")) return new Response("refused", { status: 403 });
+    return new Response("", { status: 404 });
+  };
+  try {
+    const probe = await probeRenditions({ folder: "12121212-3434-5656-7878-909090909090", fresh: true });
+    assert.ok(
+      probe.renditions.length > 0,
+      `the proxy lane was never reached: ${JSON.stringify(probe.counts)} ${probe.probeError || ""}`
+    );
+    assert.ok(vidcloudAsks <= 7, `vidcloud was re-asked ${vidcloudAsks} times for one refusal`);
+  } finally {
+    globalThis.fetch = previous;
+    if (previousToken === undefined) delete process.env.PW_TOKEN;
+    else process.env.PW_TOKEN = previousToken;
+  }
+});
+
 test("a total signer refusal is remembered briefly, so retries stop burning subrequests", async () => {
   const { probeRenditions, forgetSignerToken } = await import("../lib/api-data.mjs");
   const { resetToken } = await import("../lib/pw-auth.mjs");
