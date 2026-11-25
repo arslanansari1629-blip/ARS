@@ -47,7 +47,7 @@ test("serving a playlist warms the edge with its key and first segments", async 
 test("the relay honours Range and times out per asset type", async () => {
   const sign = await read("lib/sign.mjs");
   assert.match(sign, /upstream\.status === 206 \? 206 : 200/);
-  assert.match(sign, /AbortSignal\.timeout\(isMediaKey \? 6000 : 10000\)/);
+  assert.match(sign, /walksUpstreams \? \(isMediaKey \? 15000 : 25000\) : isMediaKey \? 6000 : 10000/);
   assert.match(sign, /range: isMedia \? String\(req\.headers\.range/);
   assert.match(sign, /Access-Control-Max-Age/);
 });
