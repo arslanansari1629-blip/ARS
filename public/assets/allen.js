@@ -525,6 +525,23 @@ async function watch(batch, subject, lec, isRetry = false) {
       testBandwidth: true,
     });
     let fatalRetries = 0;
+    let firstFrag = false;
+    let nativeTried = false;
+    const reportStage = (stage, detail) => {
+      try {
+        const payload = JSON.stringify({ where: "allen-player", stage, detail: String(detail || "").slice(0, 300), at: Date.now() });
+        if (navigator.sendBeacon) navigator.sendBeacon("/api/client-error", payload);
+      } catch {
+        /* telemetry is best-effort */
+      }
+    };
+    hls.on(window.Hls.Events.MANIFEST_LOADED, () => setNote("Playlist mil gayi — stream jod rahe hain…"));
+    hls.on(window.Hls.Events.FRAG_LOADED, () => {
+      if (!firstFrag) {
+        firstFrag = true;
+        setNote("");
+      }
+    });
     hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
       (hls.levels || []).forEach((lv, i) => {
         const label = lv.height ? `${lv.height}p` : `${Math.round((lv.bitrate || 0) / 1000)}k`;
@@ -540,23 +557,32 @@ async function watch(batch, subject, lec, isRetry = false) {
     });
     hls.on(window.Hls.Events.ERROR, (_e, data) => {
       if (!data?.fatal) return;
+      reportStage(data.type || "fatal", `${data.details || ""} ${data.response?.code || ""}`.trim());
       if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
         fatalRetries += 1;
         if (fatalRetries <= 4) {
-          setNote("Stream network error — khud retry ho raha hai…");
+          setNote(`Stream error (${data.details || "network"}) — retry ${fatalRetries}/4 ho raha hai…`);
           hls.startLoad();
         } else if (currentLecture?.retry && !watchRetriedOnce) {
           // Bounded: four in-place retries, then ONE fresh-token reload.
           watchRetriedOnce = true;
           setNote("Stream phir se jod rahe hain (fresh token)…");
           currentLecture.retry();
+        } else if (!nativeTried) {
+          // Last resort: hand the same proxy URL to the native engine
+          // (Safari-style HLS) before declaring the lecture dark.
+          nativeTried = true;
+          setNote("Native player se aakhri koshish…");
+          destroyHls();
+          v.src = src;
+          v.play().catch(() => setNote(`Lecture nahi chala (${data.details || "stream error"}) — ↻ dabao ya doosra lecture try karo.`));
         } else {
-          setNote("Playback atak gaya — ↻ dabao, token fresh milega.");
+          setNote(`Lecture nahi chala (${data.details || "stream error"}) — ↻ dabao ya doosra lecture try karo.`);
         }
       } else if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
         hls.recoverMediaError();
       } else {
-        setNote("Playback atak gaya — ↻ dabao, token fresh milega.");
+        setNote(`Playback atak gaya (${data.details || "media error"}) — ↻ dabao, token fresh milega.`);
       }
     });
     hls.loadSource(src);
@@ -564,7 +590,7 @@ async function watch(batch, subject, lec, isRetry = false) {
   } else {
     v.src = src;
   }
-  setNote("");
+  setNote("Playlist hamare proxy se load ho rahi hai…");
   paintPlayBtn();
   v.play().catch(() => paintPlayBtn());
 }
