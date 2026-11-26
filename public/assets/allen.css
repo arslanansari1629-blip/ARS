@@ -1,0 +1,216 @@
+/* ArsVibe Allen — the second platform gets its own skin:
+   deep Allen navy, electric blue and a warm amber accent, distinct
+   from the PW paper theme so the two never blur together. */
+body[data-page="allen"] {
+  --allen-navy: #071c3f;
+  --allen-blue: #0b63e5;
+  --allen-sky: #38bdf8;
+  --allen-amber: #ffb020;
+  --allen-ink: #0e1b2e;
+  --allen-soft: #eef4fd;
+}
+
+/* ---------- hero ---------- */
+.allen-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  padding: 34px 30px 26px;
+  margin: 18px 0 18px;
+  color: #eaf2ff;
+  background:
+    radial-gradient(700px 260px at 85% -40%, rgba(56, 189, 248, 0.45), transparent 60%),
+    radial-gradient(560px 240px at 8% 120%, rgba(255, 176, 32, 0.28), transparent 55%),
+    linear-gradient(120deg, #071c3f 0%, #0a2c63 55%, #0b63e5 130%);
+  box-shadow: 0 18px 42px rgba(7, 28, 63, 0.35);
+}
+.allen-hero h1 {
+  color: #fff;
+  font-size: clamp(26px, 4vw, 40px);
+  line-height: 1.08;
+  margin: 8px 0 8px;
+  letter-spacing: -0.02em;
+}
+.allen-hero h1 .grad {
+  background: linear-gradient(90deg, var(--allen-sky), var(--allen-amber));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.allen-hero p { color: #c7dbfa; max-width: 620px; margin: 0; }
+.allen-eyebrow {
+  display: inline-flex; gap: 8px; align-items: center;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #9ec2ff;
+}
+.allen-eyebrow .pulse {
+  width: 8px; height: 8px; border-radius: 50%; background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6); animation: allenPulse 1.8s infinite;
+}
+@keyframes allenPulse {
+  70% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+.allen-stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.allen-stat {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px; padding: 10px 14px; min-width: 108px;
+  backdrop-filter: blur(6px);
+}
+.allen-stat b { display: block; font-size: 20px; color: #fff; }
+.allen-stat span { font-size: 11.5px; color: #a9c6f5; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ---------- toolbar ---------- */
+.allen-toolbar {
+  position: sticky; top: 64px; z-index: 5;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  background: var(--allen-soft);
+  border: 1px solid #d7e5fa; border-radius: 16px;
+  padding: 12px; margin-bottom: 8px;
+}
+.allen-search {
+  flex: 1 1 240px; display: flex; align-items: center; gap: 8px;
+  background: #fff; border: 1.5px solid #c9dcfa; border-radius: 12px; padding: 0 12px;
+}
+.allen-search:focus-within { border-color: var(--allen-blue); box-shadow: 0 0 0 3px rgba(11, 99, 229, 0.15); }
+.allen-search input { border: 0 !important; box-shadow: none !important; background: transparent; flex: 1; padding: 10px 0; }
+.allen-chip {
+  border: 1.5px solid #c9dcfa; background: #fff; color: var(--allen-ink);
+  border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 13px; cursor: pointer;
+  transition: all 0.15s ease;
+}
+.allen-chip:hover { border-color: var(--allen-blue); transform: translateY(-1px); }
+.allen-chip.on {
+  background: linear-gradient(120deg, var(--allen-blue), #084fb8); color: #fff; border-color: transparent;
+  box-shadow: 0 6px 16px rgba(11, 99, 229, 0.35);
+}
+.allen-select {
+  border: 1.5px solid #c9dcfa; background: #fff; border-radius: 12px;
+  padding: 9px 10px; font-weight: 600; font-size: 13px; color: var(--allen-ink);
+}
+
+/* ---------- batch cards v2 ---------- */
+#allenGrid { gap: 16px; }
+.allen-card {
+  position: relative; overflow: hidden; border-radius: 18px; background: #fff;
+  border: 1px solid #dde8f8; transition: transform 0.18s ease, box-shadow 0.18s ease;
+  display: flex; flex-direction: column;
+}
+.allen-card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(7, 28, 63, 0.16); border-color: #b9d2f7; }
+.allen-card-top {
+  padding: 14px 16px 10px; color: #eaf2ff;
+  background: linear-gradient(120deg, var(--allen-navy), #0d3f8f);
+}
+.allen-card-top.exam-neet { background: linear-gradient(120deg, #06382e, #0a7a5c); }
+.allen-card-top.exam-main { background: linear-gradient(120deg, #2b1055, #6d28d9); }
+.allen-card-top.exam-foundation { background: linear-gradient(120deg, #4a2403, #b45309); }
+.allen-card-code { font-size: 11px; letter-spacing: 0.1em; color: #a9c6f5; font-weight: 700; word-break: break-all; }
+.exam-neet .allen-card-code { color: #a7e8d5; }
+.exam-main .allen-card-code { color: #d6c2ff; }
+.exam-foundation .allen-card-code { color: #ffd9a8; }
+.allen-card-name { font-size: 16.5px; font-weight: 800; line-height: 1.25; margin: 5px 0 8px; color: #fff; }
+.allen-tag {
+  display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em;
+  padding: 3px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); color: #fff;
+}
+.allen-tag.live { background: #dc2626; }
+.allen-card-body { padding: 13px 16px 15px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.allen-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12.5px; color: #5b6b82; }
+.allen-actions { margin-top: auto; display: flex; gap: 8px; }
+.allen-btn {
+  border: 0; cursor: pointer; border-radius: 11px; padding: 9px 15px; font-weight: 700; font-size: 13.5px;
+  background: linear-gradient(120deg, var(--allen-blue), #084fb8); color: #fff;
+  box-shadow: 0 6px 14px rgba(11, 99, 229, 0.3); transition: all 0.15s ease;
+}
+.allen-btn:hover { transform: translateY(-1px); box-shadow: 0 9px 20px rgba(11, 99, 229, 0.4); }
+.allen-btn.ghost { background: #eef4fd; color: var(--allen-blue); box-shadow: none; border: 1.5px solid #c9dcfa; }
+.allen-btn.ghost.saved { background: #fff7e6; color: #9a6206; border-color: #ffd88a; }
+
+/* skeleton loading */
+.allen-skel {
+  border-radius: 18px; height: 168px; border: 1px solid #dde8f8;
+  background: linear-gradient(100deg, #eef4fd 40%, #dde9fb 50%, #eef4fd 60%);
+  background-size: 200% 100%; animation: allenShimmer 1.2s infinite;
+}
+@keyframes allenShimmer { to { background-position: -200% 0; } }
+
+/* ---------- drill-down rows ---------- */
+.allen-subject-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.allen-subject {
+  border-radius: 16px; padding: 16px; background: #fff; border: 1px solid #dde8f8;
+  transition: all 0.15s ease;
+}
+.allen-subject:hover { border-color: var(--allen-blue); transform: translateY(-2px); box-shadow: 0 10px 22px rgba(7, 28, 63, 0.12); }
+.allen-subject h3 { margin: 0 0 4px; font-size: 17px; }
+.allen-row {
+  display: flex; gap: 12px; align-items: center; width: 100%; text-align: left;
+  background: #fff; border: 1px solid #dde8f8; border-radius: 14px;
+  padding: 12px 14px; margin-bottom: 9px; cursor: pointer; transition: all 0.14s ease; font: inherit;
+}
+.allen-row:hover { border-color: var(--allen-blue); background: var(--allen-soft); transform: translateX(3px); }
+.allen-row .num {
+  min-width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--allen-soft); color: var(--allen-blue); font-weight: 800; font-size: 13px;
+}
+.allen-row .ttl { flex: 1; font-weight: 650; color: var(--allen-ink); }
+.allen-row .done { font-size: 11px; font-weight: 800; color: #0a7a5c; background: #e2f5ec; padding: 3px 8px; border-radius: 999px; }
+.allen-row .dur { font-size: 12px; color: #5b6b82; white-space: nowrap; }
+.allen-back {
+  border: 1.5px solid #c9dcfa; background: #fff; color: var(--allen-blue);
+  border-radius: 999px; padding: 8px 15px; font-weight: 700; cursor: pointer; font-size: 13.5px;
+}
+.allen-back:hover { background: var(--allen-soft); }
+
+/* ---------- continue watching ---------- */
+.allen-continue { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px; }
+.allen-continue .cw {
+  min-width: 230px; max-width: 260px; border-radius: 14px; padding: 12px 14px;
+  background: linear-gradient(120deg, #0a2c63, #0b63e5); color: #eaf2ff; border: 0; text-align: left; cursor: pointer;
+}
+.allen-continue .cw b { color: #fff; display: block; font-size: 13.5px; line-height: 1.35; }
+.allen-continue .cw span { font-size: 11.5px; color: #a9c6f5; }
+
+/* ---------- player v2 ---------- */
+.ap-shell {
+  border-radius: 20px; overflow: hidden; background: #020814;
+  box-shadow: 0 24px 50px rgba(2, 8, 20, 0.5); border: 1px solid #12305e;
+}
+.ap-stage { position: relative; background: #000; }
+.ap-stage video { width: 100%; max-height: 72vh; display: block; background: #000; }
+.ap-bigplay {
+  position: absolute; inset: 0; display: grid; place-items: center; border: 0; cursor: pointer;
+  background: radial-gradient(300px 300px at 50% 50%, rgba(11, 99, 229, 0.25), transparent 70%);
+  color: #fff; font-size: 15px; font-weight: 700;
+}
+.ap-bigplay .disc {
+  width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(120deg, var(--allen-blue), #084fb8);
+  box-shadow: 0 12px 30px rgba(11, 99, 229, 0.55); font-size: 26px;
+}
+.ap-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 11px 13px; background: linear-gradient(180deg, #0a2247, #071c3f); color: #dceaff;
+}
+.ap-btn {
+  border: 1px solid #1d4176; background: #0d2c58; color: #dceaff; cursor: pointer;
+  border-radius: 10px; padding: 7px 11px; font-weight: 700; font-size: 13px;
+}
+.ap-btn:hover { background: #123a75; }
+.ap-time { font-size: 12.5px; color: #9ec2ff; font-variant-numeric: tabular-nums; }
+.ap-select {
+  background: #0d2c58; color: #dceaff; border: 1px solid #1d4176; border-radius: 10px;
+  padding: 7px 8px; font-weight: 700; font-size: 12.5px;
+}
+.ap-progress { flex: 1 1 100%; height: 6px; border-radius: 99px; background: #12305e; cursor: pointer; position: relative; }
+.ap-progress i {
+  position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--allen-sky), var(--allen-amber));
+}
+.ap-note { padding: 9px 14px; font-size: 12.5px; color: #9ec2ff; background: #071c3f; }
+.ap-note:empty { display: none; }
+
+@media (max-width: 640px) {
+  .allen-hero { padding: 24px 18px 20px; }
+  .allen-toolbar { top: 56px; }
+}

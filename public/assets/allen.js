@@ -1,17 +1,23 @@
 /**
- * The Allen platform page: batches → subjects → chapters → lectures
- * → playback, entirely over /api/allen. Allen batch codes are not
- * PW ids, and the bt_/cr_ drill-down ids never leave this page's
- * own API — PW and Allen share no code path here.
+ * The Allen platform page v2: batches → subjects → chapters →
+ * lectures → upgraded player, entirely over our own /api/allen
+ * (which proxies the Allen upstream stack). Playback always loads the
+ * ArsVibe Allen proxy URL — the browser never talks to Allen hosts
+ * directly — with quality/speed/PiP/fullscreen, seek bar, resume
+ * position and self-retry.
  */
 const $ = (s) => document.querySelector(s);
 const savedKey = "arsvibe.allen.saved.v1";
 const historyKey = "arsvibe.allen.history.v1";
+const posKey = (id) => `arsvibe.allen.pos.${id}`;
 
 let all = [];
 let exam = "All";
+let sortBy = "default";
 let showSaved = false;
 let hls = null;
+let currentLecture = null;
+let lastSaveAt = 0;
 
 const readJson = (key, fallback) => {
   try {
@@ -38,40 +44,72 @@ async function api(path) {
   return res.json().catch(() => ({ success: false, items: [] }));
 }
 
+const fmt = (s) => {
+  if (!Number.isFinite(s) || s < 0) s = 0;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  return `${h ? `${h}:` : ""}${h ? String(m).padStart(2, "0") : m}:${String(sec).padStart(2, "0")}`;
+};
+
+/* ---------------- catalogue ---------------- */
+
+function examClass(b) {
+  if (b.exam === "NEET") return "exam-neet";
+  if (b.exam === "JEE Main") return "exam-main";
+  if (/grade|foundation/i.test(b.exam)) return "exam-foundation";
+  return "";
+}
+
 function card(batch) {
   const el = document.createElement("article");
-  el.className = "card batch-card";
+  el.className = "allen-card";
   el.innerHTML = `
-    <div class="batch-card-body">
+    <div class="allen-card-top ${examClass(batch)}">
       <div class="row" style="gap:6px;align-items:center">
-        <span class="badge">${batch.exam}</span>
-        ${batch.class ? `<span class="tiny dim">${batch.class}</span>` : ""}
-        ${batch.live ? `<span class="badge live-badge">LIVE</span>` : ""}
-        <span class="tiny dim" style="margin-left:auto">${batch.code}</span>
+        <span class="allen-tag">${batch.exam}</span>
+        ${batch.live ? `<span class="allen-tag live">● LIVE</span>` : ""}
+        <span class="allen-card-code" style="margin-left:auto"></span>
       </div>
-      <h3 class="batch-name"></h3>
-      ${batch.type ? `<p class="tiny dim">${batch.type}${batch.timing ? ` • ${batch.timing}` : ""}</p>` : ""}
-      <div class="row" style="gap:8px">
-        <button class="btn btn-sm btn-primary" data-explore type="button">Explore</button>
-        <button class="btn btn-sm btn-ghost" data-save type="button">${isSaved(batch.code) ? "Saved ✓" : "Save"}</button>
+      <h3 class="allen-card-name"></h3>
+    </div>
+    <div class="allen-card-body">
+      <div class="allen-meta">
+        ${batch.class ? `<span>🎓 ${batch.class}</span>` : ""}
+        ${batch.type ? `<span>📦 ${batch.type}</span>` : ""}
+        ${batch.timing ? `<span>🕐 ${batch.timing}</span>` : ""}
+      </div>
+      <div class="allen-actions">
+        <button class="allen-btn" data-explore type="button">Explore →</button>
+        <button class="allen-btn ghost ${isSaved(batch.code) ? "saved" : ""}" data-save type="button">${isSaved(batch.code) ? "★ Saved" : "☆ Save"}</button>
       </div>
     </div>`;
-  // Names and codes come from a third-party catalogue: they are data,
-  // never markup.
-  el.querySelector(".batch-name").textContent = batch.name;
+  // Catalogue text is data, never markup.
+  el.querySelector(".allen-card-code").textContent = batch.code;
+  el.querySelector(".allen-card-name").textContent = batch.name;
   el.querySelector("[data-explore]").addEventListener("click", () => openBatch(batch));
   el.querySelector("[data-save]").addEventListener("click", () => toggleSaved(batch.code));
   return el;
 }
 
+function sorted(rows) {
+  const out = [...rows];
+  if (sortBy === "name") out.sort((a, b) => a.name.localeCompare(b.name));
+  if (sortBy === "class") out.sort((a, b) => String(a.class).localeCompare(String(b.class), undefined, { numeric: true }));
+  if (sortBy === "type") out.sort((a, b) => String(a.type).localeCompare(String(b.type)));
+  return out;
+}
+
 function renderGrid() {
   const term = $("#allenSearch").value.trim().toLowerCase();
-  const rows = all.filter((b) => {
-    if (showSaved && !isSaved(b.code)) return false;
-    if (exam !== "All" && b.exam !== exam) return false;
-    if (!term) return true;
-    return `${b.name} ${b.code} ${b.class} ${b.exam}`.toLowerCase().includes(term);
-  });
+  const rows = sorted(
+    all.filter((b) => {
+      if (showSaved && !isSaved(b.code)) return false;
+      if (exam !== "All" && b.exam !== exam) return false;
+      if (!term) return true;
+      return `${b.name} ${b.code} ${b.class} ${b.exam} ${b.type}`.toLowerCase().includes(term);
+    })
+  );
   $("#allenGrid").replaceChildren(...rows.map(card));
   $("#allenStatus").textContent = rows.length
     ? `All Batches (${rows.length}${rows.length !== all.length ? ` of ${all.length}` : ""})`
@@ -80,15 +118,63 @@ function renderGrid() {
       : "The Allen catalogue is quiet right now — it will recover on its own when the upstream answers again.";
 }
 
+function paintStats() {
+  const set = (id, n) => {
+    const el = $(id);
+    if (el) el.textContent = String(n);
+  };
+  set("#allenStatTotal", all.length);
+  set("#allenStatJee", all.filter((b) => /^JEE/.test(b.exam)).length);
+  set("#allenStatNeet", all.filter((b) => b.exam === "NEET").length);
+  set("#allenStatLive", all.filter((b) => b.live).length);
+}
+
+function paintContinue() {
+  const history = readJson(historyKey, []);
+  const wrap = $("#allenContinueWrap");
+  if (!history.length) {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  $("#allenContinue").replaceChildren(
+    ...history.slice(0, 8).map((h) => {
+      const b = document.createElement("button");
+      b.className = "cw";
+      b.type = "button";
+      b.innerHTML = `<span>▶ Continue · </span><b></b><span></span>`;
+      b.querySelector("b").textContent = h.title;
+      b.querySelectorAll("span")[1].textContent = `${h.subject || ""} · ${h.code || ""}`;
+      b.addEventListener("click", () => {
+        const batch = all.find((x) => x.code === h.code);
+        if (batch) openBatch(batch);
+      });
+      return b;
+    })
+  );
+}
+
 async function loadCatalogue() {
   paintSavedCount();
+  $("#allenGrid").replaceChildren(
+    ...Array.from({ length: 8 }, () => {
+      const d = document.createElement("div");
+      d.className = "allen-skel";
+      return d;
+    })
+  );
   const out = await api("/api/allen?view=batches");
   all = Array.isArray(out.items) ? out.items : [];
+  paintStats();
+  paintContinue();
   renderGrid();
 }
 
+/* ---------------- drill-down ---------------- */
+
 async function openBatch(batch) {
   $("#allenCatalogue").hidden = true;
+  $("#allenContinueWrap").hidden = true;
   $("#allenWatch").hidden = true;
   $("#allenBatch").hidden = false;
   $("#allenBatchName").textContent = batch.name;
@@ -108,8 +194,8 @@ async function openBatch(batch) {
   box.replaceChildren(
     ...subjects.map((s) => {
       const el = document.createElement("article");
-      el.className = "card";
-      el.innerHTML = `<h3></h3><p class="tiny dim">${s.tag || s.badge || "Lectures"}</p><button class="btn btn-sm btn-primary" type="button">Open chapters</button>`;
+      el.className = "allen-subject";
+      el.innerHTML = `<h3></h3><p class="tiny dim">${s.tag || s.badge || "Lectures"}</p><button class="allen-btn" type="button">Open chapters →</button>`;
       el.querySelector("h3").textContent = s.name;
       el.querySelector("button").addEventListener("click", () => openSubject(batch, s));
       return el;
@@ -117,21 +203,27 @@ async function openBatch(batch) {
   );
 }
 
+function rowEl(num, title, meta, actionLabel) {
+  const row = document.createElement("button");
+  row.className = "allen-row";
+  row.type = "button";
+  row.innerHTML = `<span class="num"></span><span class="ttl"></span>${meta || ""}<span class="allen-btn" style="pointer-events:none">${actionLabel}</span>`;
+  row.querySelector(".num").textContent = num;
+  row.querySelector(".ttl").textContent = title;
+  return row;
+}
+
 async function openSubject(batch, subject) {
   const out = await api(
     `/api/allen?view=topics&batch=${encodeURIComponent(batch.batchId)}&course=${encodeURIComponent(batch.courseId)}&subject=${encodeURIComponent(subject.id)}&taxonomy=${encodeURIComponent(subject.taxonomyId)}`
   );
   const topics = Array.isArray(out.items) ? out.items : [];
-  $("#allenTopicHead").textContent = `${subject.name} — chapters`;
+  $("#allenTopicHead").textContent = `${subject.name} — chapters (${topics.length})`;
   const list = $("#allenTopics");
   list.replaceChildren(
     ...topics.map((t) => {
-      const row = document.createElement("div");
-      row.className = "row";
-      row.style.cssText = "gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border,#3332)";
-      row.innerHTML = `<span class="tiny dim">${t.order || ""}</span><span style="flex:1"></span>${t.completed ? `<span class="badge">Completed</span>` : ""}<button class="btn btn-sm btn-primary" type="button">Open chapter</button>`;
-      row.querySelector("span:nth-child(2)").textContent = t.name;
-      row.querySelector("button").addEventListener("click", () => openTopic(batch, subject, t));
+      const row = rowEl(t.order || "•", t.name, t.completed ? `<span class="done">✓ Completed</span>` : "", "Open →");
+      row.addEventListener("click", () => openTopic(batch, subject, t));
       return row;
     })
   );
@@ -146,16 +238,13 @@ async function openTopic(batch, subject, topic) {
     `/api/allen?view=lectures&batch=${encodeURIComponent(batch.batchId)}&course=${encodeURIComponent(batch.courseId)}&subject=${encodeURIComponent(subject.id)}&taxonomy=${encodeURIComponent(subject.taxonomyId)}&topic=${encodeURIComponent(topic.id)}`
   );
   const lectures = Array.isArray(out.items) ? out.items : [];
-  $("#allenLectureHead").textContent = `${topic.name} — lectures`;
+  $("#allenLectureHead").textContent = `${topic.name} — lectures (${lectures.length})`;
   const list = $("#allenLectures");
   list.replaceChildren(
     ...lectures.map((lec, i) => {
-      const row = document.createElement("div");
-      row.className = "row";
-      row.style.cssText = "gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border,#3332)";
-      row.innerHTML = `<span class="tiny dim">${i + 1}</span><span style="flex:1"></span><span class="tiny dim">${lec.date || ""}</span><span class="tiny dim">${lec.duration || ""}</span><button class="btn btn-sm btn-primary" type="button">Watch</button>`;
-      row.querySelector("span:nth-child(2)").textContent = lec.subTopics?.length ? `${lec.title} — ${lec.subTopics.join(", ")}` : lec.title;
-      row.querySelector("button").addEventListener("click", () => watch(batch, subject, lec));
+      const label = lec.subTopics?.length ? `${lec.title} — ${lec.subTopics.join(", ")}` : lec.title;
+      const row = rowEl(i + 1, label, `<span class="dur">${lec.date || ""}${lec.duration ? ` · ⏱ ${lec.duration}` : ""}</span>`, "▶ Watch");
+      row.addEventListener("click", () => watch(batch, subject, lec));
       return row;
     })
   );
@@ -164,69 +253,197 @@ async function openTopic(batch, subject, topic) {
   $("#allenLecturesWrap").scrollIntoView({ behavior: "smooth" });
 }
 
+/* ---------------- player v2 ---------------- */
+
+const video = () => $("#allenVideo");
+
+function setNote(t) {
+  $("#allenWatchNote").textContent = t || "";
+}
+
+function destroyHls() {
+  if (hls) {
+    try {
+      hls.destroy();
+    } catch {
+      /* already gone */
+    }
+    hls = null;
+  }
+}
+
+function paintPlayBtn() {
+  const v = video();
+  $("#allenPlayBtn").textContent = v.paused ? "▶ Play" : "⏸ Pause";
+  $("#allenBigPlay").style.display = v.paused && !v.currentTime ? "grid" : "none";
+}
+
+function wirePlayer() {
+  const v = video();
+  v.addEventListener("play", paintPlayBtn);
+  v.addEventListener("pause", paintPlayBtn);
+  v.addEventListener("timeupdate", () => {
+    const d = v.duration || 0;
+    $("#allenProgressFill").style.width = d ? `${(v.currentTime / d) * 100}%` : "0%";
+    $("#allenTime").textContent = `${fmt(v.currentTime)} / ${fmt(d)}`;
+    // Resume memory, throttled: one write every five seconds of play.
+    if (currentLecture && v.currentTime > 5 && Date.now() - lastSaveAt > 5000) {
+      lastSaveAt = Date.now();
+      try {
+        localStorage.setItem(posKey(currentLecture.id), JSON.stringify({ t: v.currentTime, at: Date.now() }));
+      } catch {
+        /* private mode */
+      }
+    }
+  });
+  v.addEventListener("loadedmetadata", () => {
+    if (!currentLecture) return;
+    const pos = readJson(posKey(currentLecture.id), null);
+    if (pos && pos.t > 5 && v.duration && pos.t < v.duration - 10) {
+      v.currentTime = pos.t;
+      setNote(`Resumed from ${fmt(pos.t)} — jahan chhoda tha, wahi se.`);
+    }
+  });
+  $("#allenPlayBtn").addEventListener("click", () => (v.paused ? v.play() : v.pause()));
+  $("#allenBigPlay").addEventListener("click", () => v.play().catch(() => {}));
+  $("#allenBack10").addEventListener("click", () => (v.currentTime = Math.max(0, v.currentTime - 10)));
+  $("#allenFwd10").addEventListener("click", () => (v.currentTime = Math.min(v.duration || 1e9, v.currentTime + 10)));
+  $("#allenProgress").addEventListener("click", (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (v.duration) v.currentTime = ((e.clientX - r.left) / r.width) * v.duration;
+  });
+  $("#allenSpeed").addEventListener("change", (e) => (v.playbackRate = Number(e.target.value) || 1));
+  $("#allenQuality").addEventListener("change", (e) => {
+    if (hls) hls.currentLevel = Number(e.target.value);
+  });
+  $("#allenPip").addEventListener("click", async () => {
+    try {
+      if (document.pictureInPictureElement) await document.exitPictureInPicture();
+      else await v.requestPictureInPicture();
+    } catch {
+      setNote("Picture-in-picture is browser ne allow nahi kiya.");
+    }
+  });
+  $("#allenFull").addEventListener("click", () => {
+    const shell = $("#allenPlayerShell");
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else shell.requestFullscreen?.().catch(() => {});
+  });
+  $("#allenRetry").addEventListener("click", () => {
+    if (currentLecture?.retry) currentLecture.retry();
+  });
+  document.addEventListener("keydown", (e) => {
+    if ($("#allenWatch").hidden) return;
+    if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || "")) return;
+    if (e.key === " ") {
+      e.preventDefault();
+      v.paused ? v.play() : v.pause();
+    } else if (e.key === "ArrowRight") v.currentTime += 10;
+    else if (e.key === "ArrowLeft") v.currentTime -= 10;
+    else if (e.key.toLowerCase() === "f") $("#allenFull").click();
+  });
+}
+
 async function watch(batch, subject, lec) {
   $("#allenBatch").hidden = true;
   $("#allenWatch").hidden = false;
   $("#allenWatchTitle").textContent = lec.title;
-  const note = $("#allenWatchNote");
-  note.textContent = "Asking the Allen upstream for the stream…";
-  const video = $("#allenVideo");
-  if (hls) {
-    hls.destroy();
-    hls = null;
-  }
-  video.removeAttribute("src");
+  const v = video();
+  destroyHls();
+  v.removeAttribute("src");
+  v.load();
+  setNote("Asking the Allen upstream for the stream…");
   if (!lec.playUrl) {
-    note.textContent = "This lecture carries no play address upstream.";
+    setNote("This lecture carries no play address upstream.");
     return;
   }
+  currentLecture = { id: lec.id, retry: () => watch(batch, subject, lec) };
   const out = await api(`/api/allen?view=play&play=${encodeURIComponent(lec.playUrl)}`);
-  if (!out.success || !out.url) {
-    note.textContent =
-      "Playback is not answering upstream for this lecture yet — Allen streams ride on donated accounts, so some lectures stay dark until an account covers this batch.";
+  if (!out.success || !(out.proxyUrl || out.url)) {
+    setNote(
+      "Playback is not answering upstream for this lecture yet — Allen streams ride on donated accounts, so some lectures stay dark until an account covers this batch. ↻ Retry try karo."
+    );
     return;
   }
   const history = readJson(historyKey, []);
   history.unshift({ code: batch.code, subject: subject.name, title: lec.title, at: Date.now() });
-  localStorage.setItem(historyKey, JSON.stringify(history.slice(0, 50)));
-  const proxied = `/api/media?url=${encodeURIComponent(out.url)}`;
-  if (window.Hls && window.Hls.isSupported() && /\.m3u8($|\?)/i.test(out.url)) {
-    hls = new window.Hls();
-    hls.loadSource(proxied);
-    hls.attachMedia(video);
-  } else {
-    video.src = proxied;
+  try {
+    localStorage.setItem(historyKey, JSON.stringify(history.slice(0, 50)));
+  } catch {
+    /* private mode */
   }
-  note.textContent = "";
-  video.play().catch(() => {});
+  paintContinue();
+  // Always our own proxy URL: playlists rewritten, segments relayed.
+  const src = out.proxyUrl || out.url;
+  const quality = $("#allenQuality");
+  const mkOption = (label, value) => {
+    const o = document.createElement("option");
+    o.textContent = label;
+    o.value = value;
+    return o;
+  };
+  quality.replaceChildren(mkOption("Auto", "-1"));
+  if (window.Hls && window.Hls.isSupported() && /\.m3u8($|\?)/i.test(out.url || src)) {
+    hls = new window.Hls({ maxBufferLength: 60, capLevelToPlayerSize: true });
+    hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+      (hls.levels || []).forEach((lv, i) => {
+        quality.appendChild(mkOption(lv.height ? `${lv.height}p` : `${Math.round((lv.bitrate || 0) / 1000)}k`, String(i)));
+      });
+    });
+    hls.on(window.Hls.Events.ERROR, (_e, data) => {
+      if (!data?.fatal) return;
+      if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
+        setNote("Stream network error — khud retry ho raha hai…");
+        hls.startLoad();
+      } else if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
+        hls.recoverMediaError();
+      } else {
+        setNote("Playback atak gaya — ↻ Retry dabao, token fresh milega.");
+      }
+    });
+    hls.loadSource(src);
+    hls.attachMedia(v);
+  } else {
+    v.src = src;
+  }
+  setNote("");
+  paintPlayBtn();
+  v.play().catch(() => paintPlayBtn());
 }
 
+/* ---------------- wiring ---------------- */
+
 document.addEventListener("DOMContentLoaded", () => {
+  wirePlayer();
   $("#allenSearch").addEventListener("input", renderGrid);
+  $("#allenSort").addEventListener("change", (e) => {
+    sortBy = e.target.value;
+    renderGrid();
+  });
   $("#allenExamChips").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-exam]");
     if (!btn) return;
     exam = btn.dataset.exam;
     document.querySelectorAll("#allenExamChips [data-exam]").forEach((b) => {
-      b.className = `btn btn-sm ${b.dataset.exam === exam ? "btn-primary" : "btn-ghost"}`;
+      b.classList.toggle("on", b.dataset.exam === exam);
     });
     renderGrid();
   });
   $("#allenSavedTab").addEventListener("click", () => {
     showSaved = !showSaved;
+    $("#allenSavedTab").classList.toggle("on", showSaved);
     renderGrid();
   });
   $("#allenBack").addEventListener("click", () => {
     $("#allenBatch").hidden = true;
     $("#allenCatalogue").hidden = false;
+    paintContinue();
   });
   $("#allenWatchBack").addEventListener("click", () => {
-    const video = $("#allenVideo");
-    video.pause();
-    if (hls) {
-      hls.destroy();
-      hls = null;
-    }
+    const v = video();
+    v.pause();
+    destroyHls();
+    currentLecture = null;
     $("#allenWatch").hidden = true;
     $("#allenBatch").hidden = false;
   });

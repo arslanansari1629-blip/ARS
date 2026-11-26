@@ -8,11 +8,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
+  allenProxyAllowed,
   normalizeAllenBatch,
   normalizeAllenLecture,
   normalizeAllenSubject,
   normalizeAllenTopic,
   resetAllenCache,
+  rewriteAllenPlaylist,
 } from "../lib/allen.mjs";
 
 /** A response object that records what the handler did. */
@@ -168,6 +170,34 @@ test("/api/allen serves batches, subjects and lectures from the real upstream ro
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("the Allen proxy rewrites playlists onto our own media relay", () => {
+  const out = rewriteAllenPlaylist(
+    '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXTINF:6,\nseg-1.ts\nhttps://cdn.allen.in/abs/seg-2.ts\n',
+    "https://cdn.allen.in/live/master.m3u8"
+  );
+  assert.match(out, /URI="\/api\/media\?url=https%3A%2F%2Fcdn\.allen\.in%2Flive%2Fkey\.bin"/);
+  assert.match(out, /\/api\/media\?url=https%3A%2F%2Fcdn\.allen\.in%2Flive%2Fseg-1\.ts/);
+  assert.match(out, /seg-2\.ts/);
+  assert.ok(!/seg-1\.ts\n/.test(out.replace(/%2Fseg-1\.ts/, "")), "no bare segment URI may survive the rewrite");
+  assert.equal(allenProxyAllowed("https://cdn.allen.in/x.m3u8"), true);
+  assert.equal(allenProxyAllowed("https://stream.nexthope.sbs/api/token?t=1"), true);
+  assert.equal(allenProxyAllowed("https://evil.example.com/x.m3u8"), false, "the proxy is for Allen hosts, not the open internet");
+  assert.equal(allenProxyAllowed("http://cdn.allen.in/x.m3u8"), false);
+});
+
+test("the Allen page ships its own skin and the upgraded player", async () => {
+  const page = await readFile(new URL("../public/allen.html", import.meta.url), "utf8");
+  assert.match(page, /\/assets\/allen\.css/, "the Allen page must load its own stylesheet");
+  for (const id of ["allenQuality", "allenSpeed", "allenPip", "allenFull", "allenProgress", "allenBigPlay", "allenSort", "allenStatTotal"]) {
+    assert.match(page, new RegExp(`id="${id}"`), `upgraded player/catalogue is missing #${id}`);
+  }
+  const css = await readFile(new URL("../public/assets/allen.css", import.meta.url), "utf8");
+  assert.match(css, /allen-hero/);
+  const script = await readFile(new URL("../public/assets/allen.js", import.meta.url), "utf8");
+  assert.match(script, /proxyUrl/, "the player must load our proxy URL, not Allen's host");
+  assert.match(script, /arsvibe\.allen\.pos\./, "resume-position memory is missing");
 });
 
 test("/api/allen without a batch id answers a useful 400, never a crash", async () => {
