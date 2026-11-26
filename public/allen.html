@@ -122,7 +122,7 @@
                 <div class="ap-spin" id="allenSpin" hidden></div>
               </div>
               <div class="ap-overlay">
-                <div class="ap-progress" id="allenProgress" role="slider" aria-label="Seek"><i id="allenProgressFill"></i></div>
+                <div class="ap-progress" id="allenProgress" role="slider" aria-label="Seek"><b id="allenBuffered"></b><i id="allenProgressFill"></i></div>
                 <div class="ap-bar">
               <button class="ap-btn icon" id="allenPlayBtn" type="button" aria-label="Play or pause">▶</button>
               <button class="ap-btn" id="allenPrev" type="button" title="Previous lecture">⏮</button>
@@ -130,6 +130,7 @@
               <button class="ap-btn" id="allenBack10" type="button">−10s</button>
               <button class="ap-btn" id="allenFwd10" type="button">+10s</button>
               <span class="ap-time" id="allenTime">0:00 / 0:00</span>
+              <span class="ap-audiobadge" id="allenAudioBadge" title="Audio track">🔊</span>
               <span style="flex:1"></span>
               <input class="ap-vol" id="allenVol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
               <div class="ap-menuwrap">

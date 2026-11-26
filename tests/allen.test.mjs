@@ -175,10 +175,18 @@ test("/api/allen serves batches, subjects and lectures from the real upstream ro
 
 test("the Allen proxy rewrites playlists onto our own media relay", () => {
   const out = rewriteAllenPlaylist(
-    '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXTINF:6,\nseg-1.ts\nhttps://cdn.allen.in/abs/seg-2.ts\n',
+    '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio",URI="audio/main.m3u8"\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXTINF:6,\nseg-1.ts\nhttps://cdn.allen.in/abs/seg-2.ts\n',
     "https://cdn.allen.in/live/master.m3u8"
   );
   assert.match(out, /URI="\/api\/media\?url=https%3A%2F%2Fcdn\.allen\.in%2Flive%2Fkey\.bin"/, "keys ride the media relay");
+  // The audio playlist is a playlist, not a file: through the plain
+  // relay it arrived unrewritten and its segments died — video with
+  // no awaaz. It must recurse through the playlist proxy.
+  assert.match(
+    out,
+    /#EXT-X-MEDIA:[^\n]*URI="\/api\/allen\?view=playlist&u=https%3A%2F%2Fcdn\.allen\.in%2Flive%2Faudio%2Fmain\.m3u8"/,
+    "the audio playlist must recurse through the playlist proxy"
+  );
   // Media lines ride the playlist proxy again, never the plain relay:
   // a variant playlist through the relay keeps its relative segments
   // and they resolve against the relay URL and die (proven live).

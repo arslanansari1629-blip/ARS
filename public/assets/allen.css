@@ -352,3 +352,12 @@ body[data-page="allen"] {
 .ap-menu button:hover { background: #14315c; }
 .ap-menu button.on { background: var(--al-blue); color: #fff; }
 .ap-hidden { display: none !important; }
+
+/* ---------- player v5 (Allen Player Pro) ---------- */
+.ap-progress b {
+  position: absolute; inset: 0 auto 0 0; width: 0%;
+  background: rgba(255, 255, 255, 0.35); border-radius: 99px;
+}
+.ap-audiobadge { font-size: 13px; opacity: 0.45; filter: grayscale(1); }
+.ap-audiobadge.on { opacity: 1; filter: none; }
+.ap-shell.ap-paused .ap-center { display: flex; }

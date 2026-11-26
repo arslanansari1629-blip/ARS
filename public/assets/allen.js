@@ -264,9 +264,17 @@ async function openTopic(batch, subject, topic) {
   $("#allenLecturesWrap").scrollIntoView({ behavior: "smooth" });
 }
 
-/* ---------------- player v2 ---------------- */
+/* ---------------- Allen Player Pro (v5) ----------------
+   Built fresh on the source player's layout: top title bar, center
+   −10s/play/+10s cluster, bottom seek + Speed/Quality menus. Fast
+   start (estimated-best level, deep buffer, quick fragment retry),
+   a buffered-ahead bar, a live audio-track badge (the audio lives
+   in its own playlist — when that dies the badge stays grey and the
+   note says so), resume memory, Up Next and bounded self-recovery:
+   in-place retries → one fresh-token reload → native engine. */
 
 const video = () => $("#allenVideo");
+const shell = () => $("#allenPlayerShell");
 
 function setNote(t) {
   $("#allenWatchNote").textContent = t || "";
@@ -286,9 +294,7 @@ function destroyHls() {
 function paintPlayBtn() {
   const v = video();
   $("#allenPlayBtn").textContent = v.paused ? "▶" : "⏸";
-  // Paused state drives the whole overlay: top bar, center cluster
-  // (−10s / play / +10s) and the control bar fade in together.
-  $("#allenPlayerShell")?.classList.toggle("ap-paused", v.paused);
+  shell()?.classList.toggle("ap-paused", v.paused);
 }
 
 function paintUpNext() {
@@ -299,9 +305,7 @@ function paintUpNext() {
     ...lectures.map((lec, i) => {
       const row = rowEl(i + 1, lec.title, `<span class="dur">${lec.duration || ""}</span>`, "");
       row.classList.toggle("now", currentLecture?.id === lec.id);
-      row.addEventListener("click", () =>
-        watch(currentChapter.batch, currentChapter.subject, lec)
-      );
+      row.addEventListener("click", () => watch(currentChapter.batch, currentChapter.subject, lec));
       return row;
     })
   );
@@ -315,15 +319,43 @@ function stepLecture(dir) {
   if (next && currentChapter) watch(currentChapter.batch, currentChapter.subject, next);
 }
 
+function reportStage(stage, detail) {
+  try {
+    const payload = JSON.stringify({
+      where: "allen-player",
+      stage,
+      detail: String(detail || "").slice(0, 300),
+      at: Date.now(),
+    });
+    if (navigator.sendBeacon) navigator.sendBeacon("/api/client-error", payload);
+  } catch {
+    /* telemetry is best-effort */
+  }
+}
+
 function wirePlayer() {
   const v = video();
+  const spin = (on) => {
+    const s = $("#allenSpin");
+    if (s) s.hidden = !on;
+  };
   v.addEventListener("play", paintPlayBtn);
   v.addEventListener("pause", paintPlayBtn);
+  v.addEventListener("waiting", () => spin(true));
+  v.addEventListener("playing", () => spin(false));
+  v.addEventListener("canplay", () => spin(false));
+  v.addEventListener("error", () => spin(false));
+  v.addEventListener("ended", () => stepLecture(1));
   v.addEventListener("timeupdate", () => {
     const d = v.duration || 0;
     $("#allenProgressFill").style.width = d ? `${(v.currentTime / d) * 100}%` : "0%";
+    try {
+      const end = v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0;
+      $("#allenBuffered").style.width = d ? `${(end / d) * 100}%` : "0%";
+    } catch {
+      /* no buffered ranges yet */
+    }
     $("#allenTime").textContent = `${fmt(v.currentTime)} / ${fmt(d)}`;
-    // Resume memory, throttled: one write every five seconds of play.
     if (currentLecture && v.currentTime > 5 && Date.now() - lastSaveAt > 5000) {
       lastSaveAt = Date.now();
       try {
@@ -333,7 +365,6 @@ function wirePlayer() {
       }
     }
   });
-  v.addEventListener("ended", () => stepLecture(1));
   v.addEventListener("loadedmetadata", () => {
     if (!currentLecture) return;
     const pos = readJson(posKey(currentLecture.id), null);
@@ -342,65 +373,20 @@ function wirePlayer() {
       setNote(`Resumed from ${fmt(pos.t)} — jahan chhoda tha, wahi se.`);
     }
   });
-  const spin = (on) => {
-    const s = $("#allenSpin");
-    if (s) s.hidden = !on;
+  v.addEventListener("click", () => (v.paused ? v.play().catch(() => {}) : v.pause()));
+
+  const seekBy = (delta) => {
+    v.currentTime = Math.max(0, Math.min(v.duration || 1e9, v.currentTime + delta));
   };
-  v.addEventListener("waiting", () => spin(true));
-  v.addEventListener("playing", () => spin(false));
-  v.addEventListener("canplay", () => spin(false));
-  v.addEventListener("error", () => spin(false));
   $("#allenPlayBtn").addEventListener("click", () => (v.paused ? v.play() : v.pause()));
   $("#allenBigPlay").addEventListener("click", () => v.play().catch(() => {}));
-  $("#allenCBack")?.addEventListener("click", () => (v.currentTime = Math.max(0, v.currentTime - 10)));
-  $("#allenCFwd")?.addEventListener("click", () => (v.currentTime = Math.min(v.duration || 1e9, v.currentTime + 10)));
-  v.addEventListener("click", () => (v.paused ? v.play().catch(() => {}) : v.pause()));
-  // Speed / Quality popup menus, driving the hidden selects so every
-  // existing listener keeps working unchanged.
-  const bindMenu = (btnId, menuId, label) => {
-    const btn = $(btnId);
-    const menu = $(menuId);
-    if (!btn || !menu) return { btn, menu };
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      document.querySelectorAll(".ap-menu").forEach((m) => {
-        if (m !== menu) m.hidden = true;
-      });
-      menu.hidden = !menu.hidden;
-    });
-    document.addEventListener("click", (e) => {
-      if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true;
-    });
-    return { btn, menu };
-  };
-  const speed = bindMenu("#allenSpeedBtn", "#allenSpeedMenu");
-  speed.menu?.addEventListener("click", (e) => {
-    const item = e.target.closest("[data-speed]");
-    if (!item) return;
-    const sel = $("#allenSpeed");
-    sel.value = item.dataset.speed;
-    sel.dispatchEvent(new Event("change"));
-    if (![...sel.options].some((o) => o.value === item.dataset.speed)) v.playbackRate = Number(item.dataset.speed);
-    speed.menu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === item));
-    speed.btn.textContent = `Speed · ${item.dataset.speed}×`;
-    speed.menu.hidden = true;
-  });
-  const qualityMenuApi = bindMenu("#allenQualityBtn", "#allenQualityMenu");
-  qualityMenuApi.menu?.addEventListener("click", (e) => {
-    const item = e.target.closest("[data-quality]");
-    if (!item) return;
-    const sel = $("#allenQuality");
-    sel.value = item.dataset.quality;
-    sel.dispatchEvent(new Event("change"));
-    qualityMenuApi.menu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === item));
-    qualityMenuApi.btn.textContent = `Quality · ${item.textContent.trim()}`;
-    qualityMenuApi.menu.hidden = true;
-  });
+  $("#allenCBack")?.addEventListener("click", () => seekBy(-10));
+  $("#allenCFwd")?.addEventListener("click", () => seekBy(10));
+  $("#allenBack10").addEventListener("click", () => seekBy(-10));
+  $("#allenFwd10").addEventListener("click", () => seekBy(10));
   $("#allenPrev").addEventListener("click", () => stepLecture(-1));
   $("#allenNext").addEventListener("click", () => stepLecture(1));
   $("#allenVol").addEventListener("input", (e) => (v.volume = Number(e.target.value)));
-  $("#allenBack10").addEventListener("click", () => (v.currentTime = Math.max(0, v.currentTime - 10)));
-  $("#allenFwd10").addEventListener("click", () => (v.currentTime = Math.min(v.duration || 1e9, v.currentTime + 10)));
   $("#allenProgress").addEventListener("click", (e) => {
     const r = e.currentTarget.getBoundingClientRect();
     if (v.duration) v.currentTime = ((e.clientX - r.left) / r.width) * v.duration;
@@ -418,21 +404,57 @@ function wirePlayer() {
     }
   });
   $("#allenFull").addEventListener("click", () => {
-    const shell = $("#allenPlayerShell");
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else shell.requestFullscreen?.().catch(() => {});
+    else shell()?.requestFullscreen?.().catch(() => {});
   });
-  $("#allenRetry").addEventListener("click", () => {
-    if (currentLecture?.retry) currentLecture.retry();
+  $("#allenRetry").addEventListener("click", () => currentLecture?.retry?.());
+
+  // Popup menus (Speed / Quality) driving the hidden selects.
+  const bindMenu = (btnId, menuId) => {
+    const btn = $(btnId);
+    const menu = $(menuId);
+    if (!btn || !menu) return { btn, menu };
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".ap-menu").forEach((m) => {
+        if (m !== menu) m.hidden = true;
+      });
+      menu.hidden = !menu.hidden;
+    });
+    document.addEventListener("click", (e) => {
+      if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) menu.hidden = true;
+    });
+    return { btn, menu };
+  };
+  const speed = bindMenu("#allenSpeedBtn", "#allenSpeedMenu");
+  speed.menu?.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-speed]");
+    if (!item) return;
+    v.playbackRate = Number(item.dataset.speed) || 1;
+    speed.menu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === item));
+    speed.btn.textContent = `Speed · ${item.dataset.speed}×`;
+    speed.menu.hidden = true;
   });
+  const qualityMenuApi = bindMenu("#allenQualityBtn", "#allenQualityMenu");
+  qualityMenuApi.menu?.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-quality]");
+    if (!item) return;
+    const sel = $("#allenQuality");
+    sel.value = item.dataset.quality;
+    sel.dispatchEvent(new Event("change"));
+    qualityMenuApi.menu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === item));
+    qualityMenuApi.btn.textContent = `Quality · ${item.textContent.trim()}`;
+    qualityMenuApi.menu.hidden = true;
+  });
+
   document.addEventListener("keydown", (e) => {
     if ($("#allenWatch").hidden) return;
     if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || "")) return;
     if (e.key === " ") {
       e.preventDefault();
       v.paused ? v.play() : v.pause();
-    } else if (e.key === "ArrowRight") v.currentTime += 10;
-    else if (e.key === "ArrowLeft") v.currentTime -= 10;
+    } else if (e.key === "ArrowRight") seekBy(10);
+    else if (e.key === "ArrowLeft") seekBy(-10);
     else if (e.key.toLowerCase() === "f") $("#allenFull").click();
   });
 }
@@ -446,7 +468,7 @@ async function watch(batch, subject, lec, isRetry = false) {
   const stageTitle = $("#allenStageTitle");
   if (stageTitle) stageTitle.textContent = lec.title;
   const stageDur = $("#allenStageDur");
-  if (stageDur) stageDur.textContent = lec.duration ? `⏱ ${lec.duration}` : "";
+  if (stageDur) stageDur.textContent = lec.duration || "";
   if (!currentChapter || !currentChapter.lectures.some((l) => l.id === lec.id)) {
     currentChapter = { batch, subject, topic: { name: "" }, lectures: [lec] };
   }
@@ -454,28 +476,26 @@ async function watch(batch, subject, lec, isRetry = false) {
   watchRetriedOnce = isRetry;
   paintUpNext();
   $("#allenWatch").scrollIntoView({ behavior: "smooth" });
+
   const v = video();
   destroyHls();
   v.removeAttribute("src");
   v.load();
-  setNote("Asking the Allen upstream for the stream…");
+  const audioBadge = $("#allenAudioBadge");
+  if (audioBadge) audioBadge.classList.remove("on");
   if (!lec.playUrl) {
     setNote("This lecture carries no play address upstream.");
     return;
   }
-  if (lec.thumbnail) {
-    v.poster = `/api/media?url=${encodeURIComponent(lec.thumbnail)}`;
-  }
+  if (lec.thumbnail) v.poster = `/api/media?url=${encodeURIComponent(lec.thumbnail)}`;
+  setNote("Token le rahe hain…");
+  const startedAt = Date.now();
   const out = await api(`/api/allen?view=play&play=${encodeURIComponent(lec.playUrl)}`);
-  // Fallback, their player's own method: their player.html loads the
-  // token URL itself as the stream source. If our resolver could not
-  // classify the answer, route the token URL through our playlist
-  // proxy directly and let the proxy sniff the playlist out of it.
   if (!out.success || !(out.proxyUrl || out.url)) {
+    // Their player's own fallback: route the token through the proxy.
     out.success = true;
     out.url = lec.playUrl;
     out.proxyUrl = `/api/allen?view=playlist&u=${encodeURIComponent(lec.playUrl)}`;
-    setNote("Direct stream mode — proxy se stream jor rahe hain…");
   }
   const history = readJson(historyKey, []);
   history.unshift({ code: batch.code, subject: subject.name, title: lec.title, at: Date.now() });
@@ -485,67 +505,61 @@ async function watch(batch, subject, lec, isRetry = false) {
     /* private mode */
   }
   paintContinue();
-  // Always our own proxy URL: playlists rewritten, segments relayed.
+
   const src = out.proxyUrl || out.url;
   const quality = $("#allenQuality");
-  const mkOption = (label, value) => {
-    const o = document.createElement("option");
-    o.textContent = label;
-    o.value = value;
-    return o;
-  };
-  quality.replaceChildren(mkOption("Auto", "-1"));
+  quality.replaceChildren();
+  const autoOpt = document.createElement("option");
+  autoOpt.value = "-1";
+  autoOpt.textContent = "Auto";
+  quality.appendChild(autoOpt);
   const qMenu = $("#allenQualityMenu");
   if (qMenu) {
     qMenu.querySelectorAll("[data-quality]:not([data-quality='-1'])").forEach((b) => b.remove());
     const qb = $("#allenQualityBtn");
     if (qb) qb.textContent = "Quality · Auto";
   }
-  // Our proxy URL always serves a playlist (token URLs carry no
-  // .m3u8 suffix, which is why name-matching alone starved hls.js
-  // and left Chrome staring at an unplayable native source).
+
+  setNote("Playlist load ho rahi hai — fast start…");
   const looksHls = /\.m3u8($|\?)/i.test(out.url || "") || Boolean(out.proxyUrl);
   if (window.Hls && window.Hls.isSupported() && looksHls && !/\.mp4($|\?)/i.test(out.url || "")) {
-    // Buffer-free tuning: start on the estimated-best level, keep a
-    // deep forward buffer so a lecture plays straight through, retry
-    // fragments fast instead of stalling, and let the ABR breathe.
     hls = new window.Hls({
       enableWorker: true,
       startLevel: -1,
-      capLevelToPlayerSize: false,
-      maxBufferLength: 90,
-      maxMaxBufferLength: 300,
-      backBufferLength: 30,
-      maxBufferSize: 120 * 1000 * 1000,
+      capLevelToPlayerSize: true,
+      maxBufferLength: 60,
+      maxMaxBufferLength: 240,
+      backBufferLength: 20,
       fragLoadingMaxRetry: 6,
-      fragLoadingRetryDelay: 400,
-      fragLoadingMaxRetryTimeout: 4000,
+      fragLoadingRetryDelay: 350,
+      fragLoadingMaxRetryTimeout: 3500,
       manifestLoadingMaxRetry: 3,
       levelLoadingMaxRetry: 4,
       testBandwidth: true,
     });
     let fatalRetries = 0;
-    let firstFrag = false;
     let nativeTried = false;
-    const reportStage = (stage, detail) => {
-      try {
-        const payload = JSON.stringify({ where: "allen-player", stage, detail: String(detail || "").slice(0, 300), at: Date.now() });
-        if (navigator.sendBeacon) navigator.sendBeacon("/api/client-error", payload);
-      } catch {
-        /* telemetry is best-effort */
-      }
-    };
+    let firstFragAt = 0;
     hls.on(window.Hls.Events.MANIFEST_LOADED, () => setNote("Playlist mil gayi — stream jod rahe hain…"));
+    hls.on(window.Hls.Events.AUDIO_TRACKS_UPDATED, (_e, data) => {
+      if (audioBadge && (data?.audioTracks?.length || 0) > 0) audioBadge.classList.add("on");
+    });
     hls.on(window.Hls.Events.FRAG_LOADED, () => {
-      if (!firstFrag) {
-        firstFrag = true;
-        setNote("");
+      if (!firstFragAt) {
+        firstFragAt = Date.now();
+        setNote(`⚡ Fast load — ${((firstFragAt - startedAt) / 1000).toFixed(1)}s me stream shuru.`);
+        setTimeout(() => {
+          if (!video().paused) setNote("");
+        }, 2500);
       }
     });
     hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
       (hls.levels || []).forEach((lv, i) => {
         const label = lv.height ? `${lv.height}p` : `${Math.round((lv.bitrate || 0) / 1000)}k`;
-        quality.appendChild(mkOption(label, String(i)));
+        const o = document.createElement("option");
+        o.value = String(i);
+        o.textContent = label;
+        quality.appendChild(o);
         if (qMenu) {
           const b = document.createElement("button");
           b.type = "button";
@@ -561,21 +575,20 @@ async function watch(batch, subject, lec, isRetry = false) {
       if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
         fatalRetries += 1;
         if (fatalRetries <= 4) {
-          setNote(`Stream error (${data.details || "network"}) — retry ${fatalRetries}/4 ho raha hai…`);
+          setNote(`Stream error (${data.details || "network"}) — retry ${fatalRetries}/4…`);
           hls.startLoad();
         } else if (currentLecture?.retry && !watchRetriedOnce) {
-          // Bounded: four in-place retries, then ONE fresh-token reload.
           watchRetriedOnce = true;
-          setNote("Stream phir se jod rahe hain (fresh token)…");
+          setNote("Fresh token se phir koshish…");
           currentLecture.retry();
         } else if (!nativeTried) {
-          // Last resort: hand the same proxy URL to the native engine
-          // (Safari-style HLS) before declaring the lecture dark.
           nativeTried = true;
           setNote("Native player se aakhri koshish…");
           destroyHls();
           v.src = src;
-          v.play().catch(() => setNote(`Lecture nahi chala (${data.details || "stream error"}) — ↻ dabao ya doosra lecture try karo.`));
+          v.play().catch(() =>
+            setNote(`Lecture nahi chala (${data.details || "stream error"}) — ↻ dabao ya doosra lecture try karo.`)
+          );
         } else {
           setNote(`Lecture nahi chala (${data.details || "stream error"}) — ↻ dabao ya doosra lecture try karo.`);
         }
@@ -590,7 +603,6 @@ async function watch(batch, subject, lec, isRetry = false) {
   } else {
     v.src = src;
   }
-  setNote("Playlist hamare proxy se load ho rahi hai…");
   paintPlayBtn();
   v.play().catch(() => paintPlayBtn());
 }
