@@ -763,10 +763,14 @@ test("a plan is never minted from the first rendition that answers", async () =>
 });
 
 test("renditions refused anonymously are re-asked with a minted token, patiently", async () => {
-  // Production shape: the parallel anonymous sweep hears only 240p before
-  // the signer starts answering 403; the same playlists serve at once with
-  // a guest token (which is how the relay fetches them). The ladder behind
-  // `renditions.settled` must therefore include the token-only renditions.
+  // Production shape: anonymous asks draw 403s, while the same
+  // playlists serve at once with a guest token. The lead lane is now
+  // our own Cloudflare signer, which mints internally — so the token
+  // renditions must be heard without waiting for a later pass, and
+  // the settled ladder must carry them too. (Before the own signer,
+  // the anonymous sweep heard only 240p and a patient minted pass
+  // behind `renditions.settled` widened it; the own lane collapses
+  // that choreography into its first answer.)
   const { probeRenditions, forgetSignerToken } = await import("../lib/api-data.mjs");
   forgetSignerToken();
   const previous = globalThis.fetch;
@@ -777,10 +781,11 @@ test("renditions refused anonymously are re-asked with a minted token, patiently
     if (/generate_token/.test(url)) {
       return new Response(JSON.stringify({ token: "minted-token-value-123" }), { status: 200 });
     }
-    const m = url.match(/key=(1080|720|480|360|240)\/main\.m3u8/);
+    const m = url.match(/key=(1080|720|480|360|240)(?:%2F|\/)main\.m3u8/);
     if (m) {
       const headers = init.headers || {};
-      const presented = headers.token || headers.authorization || "";
+      const presented =
+        headers.token || headers.authorization || new URLSearchParams(url.split("?")[1] || "").get("authorization") || "";
       if (m[1] !== "240" && !String(presented).includes("minted-token-value-123")) {
         return new Response("anonymous refused", { status: 403 });
       }
@@ -790,7 +795,10 @@ test("renditions refused anonymously are re-asked with a minted token, patiently
   };
   try {
     const probe = await probeRenditions({ folder: "11112222-3333-4444-5555-666677778888", fresh: true });
-    assert.deepEqual(probe.renditions.map((r) => r.quality), ["240"], "the anonymous sweep hears only 240p");
+    assert.ok(
+      probe.renditions.map((r) => r.quality).includes("720"),
+      `the own Cloudflare lane never presented its mint: ${JSON.stringify(probe.renditions.map((r) => r.quality))}`
+    );
     const widened = await probe.renditions.settled;
     assert.ok(
       widened.map((r) => r.quality).includes("720"),

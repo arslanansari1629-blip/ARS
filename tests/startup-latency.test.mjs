@@ -285,9 +285,9 @@ test("a sleepy mirror does not set the latency of the lecture", async () => {
     if (/generate_token/.test(url)) {
       return new Response(JSON.stringify({ token: MINTED }), { status: 200 });
     }
-    // Our own Vercel lane leads the ladder now; it is a healthy host in
-    // this world too (it walks upstreams and answers at once).
-    if (url.startsWith(healthy) || url.includes("arsvibe-pw-sepia.vercel.app")) {
+    // Our own Cloudflare signer leads the ladder now; its upstreams
+    // (PW's official API) are healthy hosts in this world too.
+    if (url.startsWith(healthy) || url.includes("api.penpencil.")) {
       return new Response(MASTER, { status: 200 });
     }
     // Everything else: a mirror that is up but wedged. It must not be waited on.
@@ -319,7 +319,7 @@ test("a slow rendition does not delay the start, and still joins the ladder", as
   globalThis.fetch = async (input) => {
     const url = String(input);
     if (/generate_token/.test(url)) return new Response(JSON.stringify({ token: MINTED }), { status: 200 });
-    if (/240\/main/.test(url)) {
+    if (/240(?:%2F|\/)main/.test(url)) {
       await new Promise((r) => setTimeout(r, 2500));
       return new Response(MASTER, { status: 200 });
     }

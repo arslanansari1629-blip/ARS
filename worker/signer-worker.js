@@ -166,9 +166,11 @@ async function sign(videoKey, key, env) {
       if (upstream.ok) return upstream;
       lastStatus = upstream.status;
       lastError = `upstream answered ${upstream.status}`;
-      // 401/403 once per upstream earns a fresh mint; a second refusal is
-      // the upstream's final word and the ladder moves on.
-      if ((upstream.status === 401 || upstream.status === 403) && !reminted) {
+      // A refusal (401/402/403/429) once per upstream earns a fresh
+      // mint; a second refusal is the upstream's final word and the
+      // ladder moves on. 402 joined the family after our Vercel lane
+      // died behind a fair-use quota wall that nothing tallied.
+      if ([401, 402, 403, 429].includes(upstream.status) && !reminted) {
         reminted = true;
         const fresh = await mintToken(env, true);
         if (fresh.token && fresh.token !== token) {
