@@ -163,7 +163,10 @@ test("a signer refusal is not reported as 'not published'", async () => {
 });
 
 test("an unreachable signer is reported as a transport problem", async () => {
-  const { resolveStream } = await import("../lib/api-data.mjs");
+  const { resolveStream, forgetSignerToken } = await import("../lib/api-data.mjs");
+  const { resetToken } = await import("../lib/pw-auth.mjs");
+  resetToken();
+  forgetSignerToken();
 
   const plan = await withFetch(
     async (url) => {
@@ -772,6 +775,8 @@ test("renditions refused anonymously are re-asked with a minted token, patiently
   // behind `renditions.settled` widened it; the own lane collapses
   // that choreography into its first answer.)
   const { probeRenditions, forgetSignerToken } = await import("../lib/api-data.mjs");
+  const { resetToken } = await import("../lib/pw-auth.mjs");
+  resetToken();
   forgetSignerToken();
   const previous = globalThis.fetch;
   const previousToken = process.env.PW_TOKEN;
@@ -878,7 +883,13 @@ test("when every direct signer refuses, the probe still reaches the proxy lanes"
       probe.renditions.length > 0,
       `the proxy lane was never reached: ${JSON.stringify(probe.counts)} ${probe.probeError || ""}`
     );
-    assert.ok(vidcloudAsks <= 7, `vidcloud was re-asked ${vidcloudAsks} times for one refusal`);
+    // Vidcloud is now asked in two roles — as the own-Cloudflare
+    // signer's third upstream and as a direct ladder lane — and each
+    // credential pass may ask it once (its refusals are memoized per
+    // credential in both places, and per rendition never). The bound
+    // is therefore the concurrent opening wave (5) plus one ask per
+    // credential pass in each role, not the old single-role 7.
+    assert.ok(vidcloudAsks <= 12, `vidcloud was re-asked ${vidcloudAsks} times for one refusal`);
   } finally {
     globalThis.fetch = previous;
     if (previousToken === undefined) delete process.env.PW_TOKEN;
