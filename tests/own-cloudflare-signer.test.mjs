@@ -66,6 +66,33 @@ test("a 402 from the first official host walks to the second", async () => {
   assert.ok(signAsks.some((u) => u.includes("api.penpencil.co")), signAsks.join(", "));
 });
 
+test("a hung upstream cannot hold the ask past its deadline", async () => {
+  // Three upstreams x three credentials x a long timeout was a
+  // 72-second worst case hiding inside one probe ask. The deadline
+  // caps the whole walk: one hung fetch spends it, nothing else is
+  // asked, and the answer is an honest 502.
+  const { askOwnSigner, forgetOwnSignerRefusals } = await import("../lib/own-signer.mjs");
+  forgetOwnSignerRefusals();
+  let asks = 0;
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("generate_token")) return new Response("guest-token-value-123456");
+    asks += 1;
+    await new Promise((r) => setTimeout(r, 300));
+    throw new Error("hang");
+  };
+  try {
+    const started = Date.now();
+    const res = await askOwnSigner("folder-hang", "720/main.m3u8", "", { timeoutMs: 4000, deadlineMs: 120 });
+    const elapsed = Date.now() - started;
+    assert.equal(res.status, 502);
+    assert.equal(asks, 1, `the walk kept asking after the deadline (${asks} asks)`);
+    assert.ok(elapsed < 500, `the ask took ${elapsed} ms against a 120 ms deadline`);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("fetchSigned mints through the own Cloudflare lane before any relay", async () => {
   const { fetchSigned } = await import("../lib/sign.mjs");
   const { asked, restore } = stubFetch((u) => {
