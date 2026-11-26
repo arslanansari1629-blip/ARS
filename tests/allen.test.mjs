@@ -178,8 +178,11 @@ test("the Allen proxy rewrites playlists onto our own media relay", () => {
     '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin"\n#EXTINF:6,\nseg-1.ts\nhttps://cdn.allen.in/abs/seg-2.ts\n',
     "https://cdn.allen.in/live/master.m3u8"
   );
-  assert.match(out, /URI="\/api\/media\?url=https%3A%2F%2Fcdn\.allen\.in%2Flive%2Fkey\.bin"/);
-  assert.match(out, /\/api\/media\?url=https%3A%2F%2Fcdn\.allen\.in%2Flive%2Fseg-1\.ts/);
+  assert.match(out, /URI="\/api\/media\?url=https%3A%2F%2Fcdn\.allen\.in%2Flive%2Fkey\.bin"/, "keys ride the media relay");
+  // Media lines ride the playlist proxy again, never the plain relay:
+  // a variant playlist through the relay keeps its relative segments
+  // and they resolve against the relay URL and die (proven live).
+  assert.match(out, /\/api\/allen\?view=playlist&u=https%3A%2F%2Fcdn\.allen\.in%2Flive%2Fseg-1\.ts/);
   assert.match(out, /seg-2\.ts/);
   assert.ok(!/seg-1\.ts\n/.test(out.replace(/%2Fseg-1\.ts/, "")), "no bare segment URI may survive the rewrite");
   assert.equal(allenProxyAllowed("https://cdn.allen.in/x.m3u8"), true);
