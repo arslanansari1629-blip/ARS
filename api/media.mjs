@@ -19,6 +19,8 @@ const ALLOWED = [
   "d2bps9p1kiy4ka.cloudfront.net",
   // The Allen section's upstream (catalogue/assets relay for /allen).
   "nexthope.sbs",
+  // Allen's own asset/stream CDN (lecture thumbnails, resolved streams).
+  "allen.in",
 ];
 
 const UA =
