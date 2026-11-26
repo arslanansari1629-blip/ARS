@@ -54,7 +54,7 @@ async function callBatches(query) {
   const res = fakeRes();
   await handler({ method: "GET", url: `/api/batches?${query}`, headers: {} }, res);
   await res.done;
-  return { status: res.statusCode, json: async () => JSON.parse(res.text()) };
+  return { status: res.statusCode, headers: res.headers, text: () => res.text(), json: async () => JSON.parse(res.text()) };
 }
 
 test("a Nexthope batches.json row normalises to code/ids/exam", () => {
@@ -223,6 +223,31 @@ test("the playlist proxy sniffs #EXTM3U out of a text/plain answer", async () =>
     );
     // callBatches parses via the fake res: check the raw body instead.
     assert.equal(res.status, 200);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("the playlist proxy retries a refused first ask on the second header shape", async () => {
+  resetAllenCache();
+  const original = globalThis.fetch;
+  let asks = 0;
+  globalThis.fetch = async () => {
+    asks += 1;
+    if (asks === 1) return new Response("denied", { status: 403 });
+    return new Response("#EXTM3U\n#EXTINF:6,\nseg-1.ts\n", {
+      status: 200,
+      headers: { "content-type": "text/plain" },
+    });
+  };
+  try {
+    const res = await callBatches(
+      "action=allen&view=playlist&u=https%3A%2F%2Fcdn.allen.in%2Ftoken%3Ft%3Dretry1"
+    );
+    assert.equal(res.status, 200);
+    assert.match(res.text(), /#EXTM3U/);
+    assert.match(res.text(), /view=playlist/, "segments must recurse through the proxy");
+    assert.equal(asks, 2, "a 403 on the player header shape must be retried once, not surrendered");
   } finally {
     globalThis.fetch = original;
   }
