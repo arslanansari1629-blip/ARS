@@ -31,7 +31,7 @@
    module with no way to notice: the deploy succeeds, the file on the server is
    new, and the browser never asks for it again. That is what "I fixed it but you
    still see the old behaviour" looks like — twice, in this project's history. */
-const VERSION = "arsvibe-v37";
+const VERSION = "arsvibe-v38";
 const SHELL_CACHE = `${VERSION}-shell`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const FILE_CACHE = `${VERSION}-files`;
@@ -99,6 +99,16 @@ self.addEventListener("activate", (event) => {
         names.filter((name) => name.startsWith("arsvibe-") && !keep.has(name)).map((name) => caches.delete(name))
       );
       await self.clients.claim();
+      // Navigation Preload: the browser fetches the page while this
+      // worker boots, erasing service-worker start latency from
+      // every navigation. Best-effort — older engines ignore it.
+      try {
+        if (self.registration && self.registration.navigationPreload) {
+          await self.registration.navigationPreload.enable();
+        }
+      } catch {
+        /* not supported here */
+      }
     })()
   );
 });
@@ -227,11 +237,28 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  /* Pages: network-first, so a deploy is never hidden behind a stale copy. */
+  /* Pages: network-first, so a deploy is never hidden behind a stale copy.
+     With Navigation Preload the browser starts the network fetch in
+     parallel with this worker's boot, so the network-first answer
+     costs no worker-start latency at all. */
   if (isDocument(request) || (request.headers.get("accept") || "").includes("text/html")) {
     event.respondWith(
       (async () => {
         try {
+          const preloaded = event.preloadResponse ? await event.preloadResponse.catch(() => null) : null;
+          if (preloaded) {
+            // Same caching contract as fetchAndCache, fed by the preload.
+            if (preloaded.ok || preloaded.type === "opaque") {
+              const cache = await caches.open(PAGE_CACHE);
+              try {
+                await cache.put(request, preloaded.clone());
+                await trim(cache, PAGE_LIMIT);
+              } catch {
+                /* quota never blocks serving */
+              }
+            }
+            return preloaded;
+          }
           return await fetchAndCache(request, PAGE_CACHE);
         } catch {
           const cache = await caches.open(PAGE_CACHE);

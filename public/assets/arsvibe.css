@@ -12002,3 +12002,13 @@ html[data-device="phone"] .brain-face { width: 54px; height: 54px; }
   content-visibility: auto;
   contain-intrinsic-size: auto 260px;
 }
+
+/* Adaptive Performance Engine tiers (shell.mjs sets data-perf):
+   weaker devices keep every word and lose only the fireworks. */
+html[data-perf="lite"] *, html[data-perf="balanced"] * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html[data-perf="lite"] *, html.page-hidden *, html.page-hidden *::before, html.page-hidden *::after {
+  animation-play-state: paused !important;
+}

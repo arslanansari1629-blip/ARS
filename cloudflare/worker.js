@@ -273,7 +273,26 @@ export default {
       }
       return dispatch(request, env);
     }
-    return env.ASSETS.fetch(request);
+    const assetRes = await env.ASSETS.fetch(request);
+    // Document hardening at the edge (pages only — media and API keep
+    // exactly the headers they were born with): a browser should never
+    // sniff a lecture page into something it is not, referrers stay
+    // on-site, and device APIs the site never uses stay off. No
+    // frame-ancestors here on purpose: the site is legitimately
+    // embedded by preview tooling, and SAMEORIGIN framing guards
+    // would break it.
+    const isDoc =
+      request.headers.get("sec-fetch-dest") === "document" ||
+      url.pathname === "/" ||
+      url.pathname.endsWith(".html");
+    if (isDoc && assetRes.status === 200) {
+      const out = new Response(assetRes.body, assetRes);
+      out.headers.set("X-Content-Type-Options", "nosniff");
+      out.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      out.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+      return out;
+    }
+    return assetRes;
   },
 
   /**

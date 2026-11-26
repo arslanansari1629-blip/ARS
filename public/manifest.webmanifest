@@ -6,7 +6,8 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui", "browser"],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui", "browser"],
+  "launch_handler": { "client_mode": "focus-existing" },
   "orientation": "any",
   "background_color": "#eef1f5",
   "theme_color": "#eef1f5",
@@ -45,6 +46,12 @@
       "short_name": "Batches",
       "url": "/batches.html",
       "description": "Browse every Physics Wallah batch"
+    },
+    {
+      "name": "Allen batches",
+      "short_name": "Allen",
+      "url": "/allen.html",
+      "description": "Allen JEE and NEET batches, subjects and lectures"
     },
     {
       "name": "Offline reading",

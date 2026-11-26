@@ -792,3 +792,62 @@ mount();
     /* instant nav is an optimisation, never a dependency */
   }
 })();
+
+/* ------------------------------------------------------------------
+   Adaptive Performance Engine (site-wide): the site reads the
+   device it is running on and chooses how much spectacle it may
+   afford — flagship phones get the full aurora, a 2 GB phone on a
+   draining battery gets the same content with the fireworks off.
+
+   Signals: connection class + data-saver, deviceMemory,
+   hardwareConcurrency, battery level/charging. The verdict lands
+   on <html data-perf="ultra|balanced|lite"> (CSS throttles blur
+   and decorative motion in the lower tiers), animations pause
+   while the tab is hidden, and on strong devices the catalogue is
+   warmed during idle time so the batches page opens instantly.
+   ------------------------------------------------------------------ */
+(function perfEngine() {
+  try {
+    const rootEl = document.documentElement;
+    const conn = navigator.connection || {};
+    const mem = Number(navigator.deviceMemory || 4);
+    const cores = Number(navigator.hardwareConcurrency || 4);
+    const slowNet = Boolean(conn.saveData) || /^(slow-)?2g$|^3g$/.test(conn.effectiveType || "");
+    let tier = "ultra";
+    if (conn.saveData || /^(slow-)?2g$/.test(conn.effectiveType || "") || mem <= 2 || cores <= 2) tier = "lite";
+    else if (slowNet || mem <= 4 || cores <= 4) tier = "balanced";
+    const apply = (t) => {
+      rootEl.dataset.perf = t;
+      window.ArsVibePerf = { tier: t, mem, cores, effectiveType: conn.effectiveType || "" };
+    };
+    apply(tier);
+    if (navigator.getBattery) {
+      navigator.getBattery().then((b) => {
+        const check = () => {
+          if (!b.charging && b.level <= 0.2) apply("lite");
+        };
+        check();
+        b.addEventListener("levelchange", check);
+        b.addEventListener("chargingchange", check);
+      }).catch(() => {});
+    }
+    // Nothing animates for an audience of zero.
+    const onVis = () => rootEl.classList.toggle("page-hidden", document.hidden);
+    document.addEventListener("visibilitychange", onVis);
+    onVis();
+    // Idle warm-up (strong devices, fast networks only): the
+    // catalogue JSON and the heaviest style asset will be wanted
+    // within the next click or two — fetch them while the CPU is
+    // bored instead of when the student is waiting.
+    if (tier === "ultra" && !slowNet && "requestIdleCallback" in window) {
+      requestIdleCallback(
+        () => {
+          fetch("/api/batches", { credentials: "same-origin" }).catch(() => {});
+        },
+        { timeout: 4000 }
+      );
+    }
+  } catch {
+    /* adaptation is an optimisation, never a dependency */
+  }
+})();
