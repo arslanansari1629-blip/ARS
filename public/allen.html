@@ -108,10 +108,17 @@
           <div class="ap-shell ap-paused" id="allenPlayerShell">
             <div class="ap-stagewrap">
               <div class="ap-stage">
-                <video id="allenVideo" playsinline preload="metadata"></video>
-                <button class="ap-bigplay" id="allenBigPlay" type="button" aria-label="Play">
-                  <span class="disc">▶</span>
-                </button>
+                <video id="allenVideo" playsinline preload="auto"></video>
+                <div class="ap-topbar">
+                  <span class="ap-topdot"></span>
+                  <span class="ap-toptitle" id="allenStageTitle">Lecture</span>
+                  <span class="ap-durbadge" id="allenStageDur"></span>
+                </div>
+                <div class="ap-center" id="allenCenter">
+                  <button class="ap-seekbtn" id="allenCBack" type="button" aria-label="Back 10 seconds">↺<small>10</small></button>
+                  <button class="ap-bigplay" id="allenBigPlay" type="button" aria-label="Play"><span class="disc">▶</span></button>
+                  <button class="ap-seekbtn" id="allenCFwd" type="button" aria-label="Forward 10 seconds">↻<small>10</small></button>
+                </div>
                 <div class="ap-spin" id="allenSpin" hidden></div>
               </div>
               <div class="ap-overlay">
@@ -125,11 +132,35 @@
               <span class="ap-time" id="allenTime">0:00 / 0:00</span>
               <span style="flex:1"></span>
               <input class="ap-vol" id="allenVol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
-              <select class="ap-select" id="allenQuality" aria-label="Quality"><option value="-1">Auto</option></select>
-              <select class="ap-select" id="allenSpeed" aria-label="Playback speed">
-                <option value="0.5">0.5×</option><option value="0.75">0.75×</option>
+              <div class="ap-menuwrap">
+                <button class="ap-btn" id="allenSpeedBtn" type="button">Speed · 1×</button>
+                <div class="ap-menu" id="allenSpeedMenu" hidden>
+                  <p>Playback Speed</p>
+                  <button type="button" data-speed="0.25">0.25×</button>
+                  <button type="button" data-speed="0.5">0.5×</button>
+                  <button type="button" data-speed="0.75">0.75×</button>
+                  <button type="button" data-speed="1" class="on">Normal · 1×</button>
+                  <button type="button" data-speed="1.25">1.25×</button>
+                  <button type="button" data-speed="1.5">1.5×</button>
+                  <button type="button" data-speed="1.75">1.75×</button>
+                  <button type="button" data-speed="2">2×</button>
+                  <button type="button" data-speed="2.5">2.5×</button>
+                  <button type="button" data-speed="3">3×</button>
+                </div>
+              </div>
+              <div class="ap-menuwrap">
+                <button class="ap-btn" id="allenQualityBtn" type="button">Quality · Auto</button>
+                <div class="ap-menu" id="allenQualityMenu" hidden>
+                  <p>Stream Quality</p>
+                  <button type="button" data-quality="-1" class="on">Auto</button>
+                </div>
+              </div>
+              <select class="ap-hidden" id="allenQuality" aria-label="Quality"><option value="-1">Auto</option></select>
+              <select class="ap-hidden" id="allenSpeed" aria-label="Playback speed">
+                <option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option>
                 <option value="1" selected>1×</option><option value="1.25">1.25×</option>
                 <option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option>
+                <option value="2.5">2.5×</option><option value="3">3×</option>
               </select>
               <button class="ap-btn" id="allenPip" type="button">PiP</button>
               <button class="ap-btn" id="allenRetry" type="button" title="Fresh token retry">↻</button>

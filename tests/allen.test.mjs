@@ -256,7 +256,7 @@ test("the playlist proxy retries a refused first ask on the second header shape"
 test("the Allen page ships its own skin and the upgraded player", async () => {
   const page = await readFile(new URL("../public/allen.html", import.meta.url), "utf8");
   assert.match(page, /\/assets\/allen\.css/, "the Allen page must load its own stylesheet");
-  for (const id of ["allenQuality", "allenSpeed", "allenPip", "allenFull", "allenProgress", "allenBigPlay", "allenSort", "allenStatTotal"]) {
+  for (const id of ["allenQuality", "allenSpeed", "allenPip", "allenFull", "allenProgress", "allenBigPlay", "allenSort", "allenStatTotal", "allenCenter", "allenCBack", "allenCFwd", "allenSpeedBtn", "allenQualityBtn", "allenSpeedMenu", "allenQualityMenu", "allenStageTitle"]) {
     assert.match(page, new RegExp(`id="${id}"`), `upgraded player/catalogue is missing #${id}`);
   }
   const css = await readFile(new URL("../public/assets/allen.css", import.meta.url), "utf8");

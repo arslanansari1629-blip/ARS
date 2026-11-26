@@ -19,6 +19,7 @@ let hls = null;
 let currentLecture = null;
 let currentChapter = null; // { batch, subject, topic, lectures }
 let lastSaveAt = 0;
+let watchRetriedOnce = false;
 
 const readJson = (key, fallback) => {
   try {
@@ -285,8 +286,8 @@ function destroyHls() {
 function paintPlayBtn() {
   const v = video();
   $("#allenPlayBtn").textContent = v.paused ? "▶" : "⏸";
-  $("#allenBigPlay").style.display = v.paused && !v.currentTime ? "grid" : "none";
-  // Overlay controls: visible while paused, on hover otherwise.
+  // Paused state drives the whole overlay: top bar, center cluster
+  // (−10s / play / +10s) and the control bar fade in together.
   $("#allenPlayerShell")?.classList.toggle("ap-paused", v.paused);
 }
 
@@ -351,6 +352,50 @@ function wirePlayer() {
   v.addEventListener("error", () => spin(false));
   $("#allenPlayBtn").addEventListener("click", () => (v.paused ? v.play() : v.pause()));
   $("#allenBigPlay").addEventListener("click", () => v.play().catch(() => {}));
+  $("#allenCBack")?.addEventListener("click", () => (v.currentTime = Math.max(0, v.currentTime - 10)));
+  $("#allenCFwd")?.addEventListener("click", () => (v.currentTime = Math.min(v.duration || 1e9, v.currentTime + 10)));
+  v.addEventListener("click", () => (v.paused ? v.play().catch(() => {}) : v.pause()));
+  // Speed / Quality popup menus, driving the hidden selects so every
+  // existing listener keeps working unchanged.
+  const bindMenu = (btnId, menuId, label) => {
+    const btn = $(btnId);
+    const menu = $(menuId);
+    if (!btn || !menu) return { btn, menu };
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".ap-menu").forEach((m) => {
+        if (m !== menu) m.hidden = true;
+      });
+      menu.hidden = !menu.hidden;
+    });
+    document.addEventListener("click", (e) => {
+      if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true;
+    });
+    return { btn, menu };
+  };
+  const speed = bindMenu("#allenSpeedBtn", "#allenSpeedMenu");
+  speed.menu?.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-speed]");
+    if (!item) return;
+    const sel = $("#allenSpeed");
+    sel.value = item.dataset.speed;
+    sel.dispatchEvent(new Event("change"));
+    if (![...sel.options].some((o) => o.value === item.dataset.speed)) v.playbackRate = Number(item.dataset.speed);
+    speed.menu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === item));
+    speed.btn.textContent = `Speed · ${item.dataset.speed}×`;
+    speed.menu.hidden = true;
+  });
+  const qualityMenuApi = bindMenu("#allenQualityBtn", "#allenQualityMenu");
+  qualityMenuApi.menu?.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-quality]");
+    if (!item) return;
+    const sel = $("#allenQuality");
+    sel.value = item.dataset.quality;
+    sel.dispatchEvent(new Event("change"));
+    qualityMenuApi.menu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === item));
+    qualityMenuApi.btn.textContent = `Quality · ${item.textContent.trim()}`;
+    qualityMenuApi.menu.hidden = true;
+  });
   $("#allenPrev").addEventListener("click", () => stepLecture(-1));
   $("#allenNext").addEventListener("click", () => stepLecture(1));
   $("#allenVol").addEventListener("input", (e) => (v.volume = Number(e.target.value)));
@@ -392,16 +437,21 @@ function wirePlayer() {
   });
 }
 
-async function watch(batch, subject, lec) {
+async function watch(batch, subject, lec, isRetry = false) {
   $("#allenBatch").hidden = true;
   $("#allenContinueWrap").hidden = true;
   $("#allenWatch").hidden = false;
   $("#allenWatchTitle").textContent = lec.title;
   $("#allenWatchMeta").textContent = [subject.name, batch.name, lec.date, lec.duration].filter(Boolean).join(" · ");
+  const stageTitle = $("#allenStageTitle");
+  if (stageTitle) stageTitle.textContent = lec.title;
+  const stageDur = $("#allenStageDur");
+  if (stageDur) stageDur.textContent = lec.duration ? `⏱ ${lec.duration}` : "";
   if (!currentChapter || !currentChapter.lectures.some((l) => l.id === lec.id)) {
     currentChapter = { batch, subject, topic: { name: "" }, lectures: [lec] };
   }
-  currentLecture = { id: lec.id, retry: () => watch(batch, subject, lec) };
+  currentLecture = { id: lec.id, retry: () => watch(batch, subject, lec, true) };
+  watchRetriedOnce = isRetry;
   paintUpNext();
   $("#allenWatch").scrollIntoView({ behavior: "smooth" });
   const v = video();
@@ -413,7 +463,6 @@ async function watch(batch, subject, lec) {
     setNote("This lecture carries no play address upstream.");
     return;
   }
-  currentLecture = { id: lec.id, retry: () => watch(batch, subject, lec) };
   if (lec.thumbnail) {
     v.poster = `/api/media?url=${encodeURIComponent(lec.thumbnail)}`;
   }
@@ -446,26 +495,68 @@ async function watch(batch, subject, lec) {
     return o;
   };
   quality.replaceChildren(mkOption("Auto", "-1"));
+  const qMenu = $("#allenQualityMenu");
+  if (qMenu) {
+    qMenu.querySelectorAll("[data-quality]:not([data-quality='-1'])").forEach((b) => b.remove());
+    const qb = $("#allenQualityBtn");
+    if (qb) qb.textContent = "Quality · Auto";
+  }
   // Our proxy URL always serves a playlist (token URLs carry no
   // .m3u8 suffix, which is why name-matching alone starved hls.js
   // and left Chrome staring at an unplayable native source).
   const looksHls = /\.m3u8($|\?)/i.test(out.url || "") || Boolean(out.proxyUrl);
   if (window.Hls && window.Hls.isSupported() && looksHls && !/\.mp4($|\?)/i.test(out.url || "")) {
-    hls = new window.Hls({ maxBufferLength: 60, capLevelToPlayerSize: true });
+    // Buffer-free tuning: start on the estimated-best level, keep a
+    // deep forward buffer so a lecture plays straight through, retry
+    // fragments fast instead of stalling, and let the ABR breathe.
+    hls = new window.Hls({
+      enableWorker: true,
+      startLevel: -1,
+      capLevelToPlayerSize: false,
+      maxBufferLength: 90,
+      maxMaxBufferLength: 300,
+      backBufferLength: 30,
+      maxBufferSize: 120 * 1000 * 1000,
+      fragLoadingMaxRetry: 6,
+      fragLoadingRetryDelay: 400,
+      fragLoadingMaxRetryTimeout: 4000,
+      manifestLoadingMaxRetry: 3,
+      levelLoadingMaxRetry: 4,
+      testBandwidth: true,
+    });
+    let fatalRetries = 0;
     hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
       (hls.levels || []).forEach((lv, i) => {
-        quality.appendChild(mkOption(lv.height ? `${lv.height}p` : `${Math.round((lv.bitrate || 0) / 1000)}k`, String(i)));
+        const label = lv.height ? `${lv.height}p` : `${Math.round((lv.bitrate || 0) / 1000)}k`;
+        quality.appendChild(mkOption(label, String(i)));
+        if (qMenu) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.dataset.quality = String(i);
+          b.textContent = label;
+          qMenu.appendChild(b);
+        }
       });
     });
     hls.on(window.Hls.Events.ERROR, (_e, data) => {
       if (!data?.fatal) return;
       if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
-        setNote("Stream network error — khud retry ho raha hai…");
-        hls.startLoad();
+        fatalRetries += 1;
+        if (fatalRetries <= 4) {
+          setNote("Stream network error — khud retry ho raha hai…");
+          hls.startLoad();
+        } else if (currentLecture?.retry && !watchRetriedOnce) {
+          // Bounded: four in-place retries, then ONE fresh-token reload.
+          watchRetriedOnce = true;
+          setNote("Stream phir se jod rahe hain (fresh token)…");
+          currentLecture.retry();
+        } else {
+          setNote("Playback atak gaya — ↻ dabao, token fresh milega.");
+        }
       } else if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
         hls.recoverMediaError();
       } else {
-        setNote("Playback atak gaya — ↻ Retry dabao, token fresh milega.");
+        setNote("Playback atak gaya — ↻ dabao, token fresh milega.");
       }
     });
     hls.loadSource(src);
