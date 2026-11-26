@@ -266,6 +266,31 @@ test("the Allen page ships its own skin and the upgraded player", async () => {
   assert.match(script, /arsvibe\.allen\.pos\./, "resume-position memory is missing");
 });
 
+test("view=play never consumes the token — it only hands back the proxy URL", async () => {
+  // Their player loads the token URL exactly once. A resolver that
+  // pre-fetches it to "check" burns a short-lived/single-use token,
+  // and the player's real ask then lands on a dead one. The play
+  // endpoint must answer without any upstream fetch at all.
+  const original = globalThis.fetch;
+  let fetched = false;
+  globalThis.fetch = async () => {
+    fetched = true;
+    throw new Error("upstream must not be touched by view=play");
+  };
+  try {
+    const res = await callBatches(
+      "action=allen&view=play&play=https%3A%2F%2Fstream.nexthope.sbs%2Fapi%2Ftoken%3Ftoken%3Dabc123"
+    );
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.success, true);
+    assert.match(body.proxyUrl, /view=playlist&u=/);
+    assert.equal(fetched, false);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("a stale client asking by batch CODE still gets its subjects", async () => {
   // The service worker serves /assets cache-first, so a returning
   // reader can run last week's allen.js, which asks view=subjects

@@ -285,3 +285,19 @@ body[data-page="allen"] {
   .allen-row .thumb { display: none; }
   .ap-vol { display: none; }
 }
+
+/* ---------- player v3: overlay control room ---------- */
+.ap-stagewrap { position: relative; }
+.ap-overlay {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3;
+  background: linear-gradient(180deg, transparent, rgba(2, 6, 14, 0.88) 34%);
+  padding: 40px 6px 4px;
+  opacity: 0; transition: opacity 0.25s ease;
+}
+.ap-shell.ap-paused .ap-overlay,
+.ap-stagewrap:hover .ap-overlay,
+.ap-overlay:focus-within { opacity: 1; }
+.ap-overlay .ap-bar { background: transparent; }
+.ap-overlay .ap-progress { margin: 0 10px; background: rgba(255, 255, 255, 0.22); }
+.ap-bigplay { z-index: 2; }
+.ap-title { font-size: 21px; }

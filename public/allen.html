@@ -105,16 +105,18 @@
       <button class="allen-back" id="allenWatchBack" type="button">← Back to lectures</button>
       <div class="ap-layout">
         <div class="ap-main">
-          <div class="ap-shell" id="allenPlayerShell">
-            <div class="ap-stage">
-              <video id="allenVideo" playsinline preload="metadata"></video>
-              <button class="ap-bigplay" id="allenBigPlay" type="button" aria-label="Play">
-                <span class="disc">▶</span>
-              </button>
-              <div class="ap-spin" id="allenSpin" hidden></div>
-            </div>
-            <div class="ap-progress" id="allenProgress" role="slider" aria-label="Seek"><i id="allenProgressFill"></i></div>
-            <div class="ap-bar">
+          <div class="ap-shell ap-paused" id="allenPlayerShell">
+            <div class="ap-stagewrap">
+              <div class="ap-stage">
+                <video id="allenVideo" playsinline preload="metadata"></video>
+                <button class="ap-bigplay" id="allenBigPlay" type="button" aria-label="Play">
+                  <span class="disc">▶</span>
+                </button>
+                <div class="ap-spin" id="allenSpin" hidden></div>
+              </div>
+              <div class="ap-overlay">
+                <div class="ap-progress" id="allenProgress" role="slider" aria-label="Seek"><i id="allenProgressFill"></i></div>
+                <div class="ap-bar">
               <button class="ap-btn icon" id="allenPlayBtn" type="button" aria-label="Play or pause">▶</button>
               <button class="ap-btn" id="allenPrev" type="button" title="Previous lecture">⏮</button>
               <button class="ap-btn" id="allenNext" type="button" title="Next lecture">⏭</button>
@@ -132,6 +134,8 @@
               <button class="ap-btn" id="allenPip" type="button">PiP</button>
               <button class="ap-btn" id="allenRetry" type="button" title="Fresh token retry">↻</button>
               <button class="ap-btn" id="allenFull" type="button">⛶</button>
+                </div>
+              </div>
             </div>
             <p class="ap-note" id="allenWatchNote" role="status" aria-live="polite"></p>
           </div>

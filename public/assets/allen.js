@@ -286,6 +286,8 @@ function paintPlayBtn() {
   const v = video();
   $("#allenPlayBtn").textContent = v.paused ? "▶" : "⏸";
   $("#allenBigPlay").style.display = v.paused && !v.currentTime ? "grid" : "none";
+  // Overlay controls: visible while paused, on hover otherwise.
+  $("#allenPlayerShell")?.classList.toggle("ap-paused", v.paused);
 }
 
 function paintUpNext() {
