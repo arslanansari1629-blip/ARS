@@ -67,6 +67,52 @@ test("with a minted token, the same refusal stays a per-lecture answer", async (
   assert.match(plan.reason, /refuses to mint|cannot sign/i);
 });
 
+test("a 402 from the lead signer walks the whole ladder instead of declaring an outage", async () => {
+  // The November 2026 live failure, reproduced: our own Vercel lane
+  // answered 402 (quota wall) five times, no tally recognised 402 as
+  // a refusal, `refused` stayed 0, the mint/anchor passes never ran,
+  // and a healthy vidcloud sitting second in the ladder was never
+  // asked. 402 is a refusal; the walk must reach the healthy host.
+  const { resolveStream, forgetSignerToken } = await import("../lib/api-data.mjs");
+  const { resetToken } = await import("../lib/pw-auth.mjs");
+  const { recordSignerResult } = await import("../lib/selfheal.mjs");
+  resetToken();
+  forgetSignerToken();
+  // Earlier tests in this file taught the healer that every host is
+  // dead (wall-to-wall 401 stubs), which ranks the healthy lane last
+  // and starves it of probe budget. Clear the lesson so this test
+  // measures the ladder, not the accumulated quarantine.
+  for (const h of [
+    "https://arsvibe-pw-sepia.vercel.app/api/pw/v1/videos/get-hls-key",
+    "https://vidcloud.eu.org/api/v1/videos/get-hls-key",
+    "https://www.learnxpw.site/api/v1/videos/get-hls-key",
+    "https://api.studyspark.study/api/penpencil/v1/videos/get-hls-key",
+    "https://proxy.streamvideo.co.in/api/v1/videos/get-hls-key",
+    "https://api.penpencil.xyz/v1/videos/get-hls-key",
+    "https://api.penpencil.co/v1/videos/get-hls-key",
+  ]) {
+    recordSignerResult(h, true, {});
+  }
+
+  const plan = await withFetch(
+    async (url) => {
+      const u = String(url);
+      if (u.includes("generate_token")) return new Response("down", { status: 502 });
+      if (u.includes("arsvibe-pw-sepia.vercel.app")) return new Response("quota", { status: 402 });
+      if (u.includes("vidcloud.eu.org")) {
+        return new Response("#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nseg-1.ts\n", {
+          status: 200,
+          headers: { "content-type": "application/vnd.apple.mpegurl" },
+        });
+      }
+      return new Response("denied", { status: 403 });
+    },
+    () => resolveStream({ rawUrl: mpd("44444444-aaaa-4aaa-8aaa-aaaaaaaaaaaa") })
+  );
+
+  assert.equal(plan.playable, true, "the healthy second lane must be reached past a 402 wall");
+});
+
 test("empty 200s from every signer are a signing failure, never 'not published'", async () => {
   // The November 2026 Vercel-lane regression: signer hosts answered 200
   // with empty bodies, so every tally (refused/answered/unreachable/

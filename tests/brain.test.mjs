@@ -21,6 +21,8 @@ import {
   setBrainAutomation,
 } from "../lib/brain.mjs";
 import { resetStore } from "../lib/store.mjs";
+import { playbackDoctor } from "../lib/brain.mjs";
+import { recordSignerResult } from "../lib/selfheal.mjs";
 import { PAGE_CONTRACT } from "../lib/scanner.mjs";
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
@@ -31,6 +33,22 @@ test("the Brain's map is the whole site, with its skills", () => {
   assert.ok(SITE_MAP.apis.includes("/api/batches"));
   assert.ok(SITE_MAP.skills.length >= 24, "the bot languages are not in the Brain's skills");
   assert.ok(SITE_MAP.skills.includes("Python"));
+});
+
+test("the Brain's playback doctor classifies a 402 quota wall by evidence", async () => {
+  // Taught, not born: the doctor reads learned signer health and
+  // names the class — 402 is a quota wall with a matching repair,
+  // not a mystery outage. Three failures also quarantine the host,
+  // which the doctor must be able to see in its own report.
+  const host = "https://quota-wall.example/api/v1/videos/get-hls-key";
+  recordSignerResult(host, false, { status: 402 });
+  recordSignerResult(host, false, { status: 402 });
+  recordSignerResult(host, false, { status: 402 });
+  const doctor = await playbackDoctor();
+  assert.match(doctor.diagnosis, /402/, "a quota wall must be named as one");
+  assert.ok(doctor.quarantined.some((h) => h.includes("quota-wall.example")), "the walled host must be quarantined out of the ladder's front");
+  assert.ok(doctor.action.length > 10, "a diagnosis without a matching action is just a label");
+  assert.ok(SITE_MAP.skills.includes("quota & rate-limit triage"), "the new skill is not on the Brain's map");
 });
 
 test("the mood follows evidence, never vibes", () => {
