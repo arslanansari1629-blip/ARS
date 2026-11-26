@@ -103,34 +103,45 @@
 
     <section id="allenWatch" hidden>
       <button class="allen-back" id="allenWatchBack" type="button">← Back to lectures</button>
-      <h2 id="allenWatchTitle" style="margin:12px 0 10px"></h2>
-      <div class="ap-shell" id="allenPlayerShell">
-        <div class="ap-stage">
-          <video id="allenVideo" playsinline preload="metadata"></video>
-          <button class="ap-bigplay" id="allenBigPlay" type="button" aria-label="Play">
-            <span><span class="disc">▶</span><br /><br />Tap to play</span>
-          </button>
+      <div class="ap-layout">
+        <div class="ap-main">
+          <div class="ap-shell" id="allenPlayerShell">
+            <div class="ap-stage">
+              <video id="allenVideo" playsinline preload="metadata"></video>
+              <button class="ap-bigplay" id="allenBigPlay" type="button" aria-label="Play">
+                <span class="disc">▶</span>
+              </button>
+              <div class="ap-spin" id="allenSpin" hidden></div>
+            </div>
+            <div class="ap-progress" id="allenProgress" role="slider" aria-label="Seek"><i id="allenProgressFill"></i></div>
+            <div class="ap-bar">
+              <button class="ap-btn icon" id="allenPlayBtn" type="button" aria-label="Play or pause">▶</button>
+              <button class="ap-btn" id="allenPrev" type="button" title="Previous lecture">⏮</button>
+              <button class="ap-btn" id="allenNext" type="button" title="Next lecture">⏭</button>
+              <button class="ap-btn" id="allenBack10" type="button">−10s</button>
+              <button class="ap-btn" id="allenFwd10" type="button">+10s</button>
+              <span class="ap-time" id="allenTime">0:00 / 0:00</span>
+              <span style="flex:1"></span>
+              <input class="ap-vol" id="allenVol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
+              <select class="ap-select" id="allenQuality" aria-label="Quality"><option value="-1">Auto</option></select>
+              <select class="ap-select" id="allenSpeed" aria-label="Playback speed">
+                <option value="0.5">0.5×</option><option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option><option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option>
+              </select>
+              <button class="ap-btn" id="allenPip" type="button">PiP</button>
+              <button class="ap-btn" id="allenRetry" type="button" title="Fresh token retry">↻</button>
+              <button class="ap-btn" id="allenFull" type="button">⛶</button>
+            </div>
+            <p class="ap-note" id="allenWatchNote" role="status" aria-live="polite"></p>
+          </div>
+          <h2 id="allenWatchTitle" class="ap-title"></h2>
+          <p class="ap-sub" id="allenWatchMeta"></p>
         </div>
-        <div class="ap-progress" id="allenProgress" role="slider" aria-label="Seek"><i id="allenProgressFill"></i></div>
-        <div class="ap-bar">
-          <button class="ap-btn" id="allenPlayBtn" type="button">▶ Play</button>
-          <button class="ap-btn" id="allenBack10" type="button">−10s</button>
-          <button class="ap-btn" id="allenFwd10" type="button">+10s</button>
-          <span class="ap-time" id="allenTime">0:00 / 0:00</span>
-          <span style="flex:1"></span>
-          <label class="ap-time" for="allenQuality">Quality</label>
-          <select class="ap-select" id="allenQuality"><option value="-1">Auto</option></select>
-          <label class="ap-time" for="allenSpeed">Speed</label>
-          <select class="ap-select" id="allenSpeed">
-            <option value="0.5">0.5×</option><option value="0.75">0.75×</option>
-            <option value="1" selected>1×</option><option value="1.25">1.25×</option>
-            <option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option>
-          </select>
-          <button class="ap-btn" id="allenPip" type="button">PiP</button>
-          <button class="ap-btn" id="allenRetry" type="button">↻ Retry</button>
-          <button class="ap-btn" id="allenFull" type="button">⛶ Fullscreen</button>
-        </div>
-        <p class="ap-note" id="allenWatchNote" role="status" aria-live="polite"></p>
+        <aside class="ap-side">
+          <h3 class="ap-side-head">Up next in this chapter</h3>
+          <div id="allenUpNext" class="ap-next"></div>
+        </aside>
       </div>
     </section>
   </div>

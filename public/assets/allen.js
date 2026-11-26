@@ -17,6 +17,7 @@ let sortBy = "default";
 let showSaved = false;
 let hls = null;
 let currentLecture = null;
+let currentChapter = null; // { batch, subject, topic, lectures }
 let lastSaveAt = 0;
 
 const readJson = (key, fallback) => {
@@ -75,9 +76,9 @@ function card(batch) {
     </div>
     <div class="allen-card-body">
       <div class="allen-meta">
-        ${batch.class ? `<span>🎓 ${batch.class}</span>` : ""}
-        ${batch.type ? `<span>📦 ${batch.type}</span>` : ""}
-        ${batch.timing ? `<span>🕐 ${batch.timing}</span>` : ""}
+        ${batch.class ? `<span>${batch.class}</span>` : ""}
+        ${batch.type ? `<span>${batch.type}</span>` : ""}
+        ${batch.timing ? `<span>${batch.timing}</span>` : ""}
       </div>
       <div class="allen-actions">
         <button class="allen-btn" data-explore type="button">Explore →</button>
@@ -238,12 +239,14 @@ async function openTopic(batch, subject, topic) {
     `/api/allen?view=lectures&batch=${encodeURIComponent(batch.batchId)}&course=${encodeURIComponent(batch.courseId)}&subject=${encodeURIComponent(subject.id)}&taxonomy=${encodeURIComponent(subject.taxonomyId)}&topic=${encodeURIComponent(topic.id)}`
   );
   const lectures = Array.isArray(out.items) ? out.items : [];
+  currentChapter = { batch, subject, topic, lectures };
   $("#allenLectureHead").textContent = `${topic.name} — lectures (${lectures.length})`;
   const list = $("#allenLectures");
   list.replaceChildren(
     ...lectures.map((lec, i) => {
       const label = lec.subTopics?.length ? `${lec.title} — ${lec.subTopics.join(", ")}` : lec.title;
-      const row = rowEl(i + 1, label, `<span class="dur">${lec.date || ""}${lec.duration ? ` · ⏱ ${lec.duration}` : ""}</span>`, "▶ Watch");
+      const thumb = lec.thumbnail ? `<img class="thumb" loading="lazy" alt="" src="/api/media?url=${encodeURIComponent(lec.thumbnail)}" />` : "";
+      const row = rowEl(i + 1, label, `${thumb}<span class="dur">${lec.date || ""}${lec.duration ? ` · ${lec.duration}` : ""}</span>`, "Watch");
       row.addEventListener("click", () => watch(batch, subject, lec));
       return row;
     })
@@ -274,8 +277,32 @@ function destroyHls() {
 
 function paintPlayBtn() {
   const v = video();
-  $("#allenPlayBtn").textContent = v.paused ? "▶ Play" : "⏸ Pause";
+  $("#allenPlayBtn").textContent = v.paused ? "▶" : "⏸";
   $("#allenBigPlay").style.display = v.paused && !v.currentTime ? "grid" : "none";
+}
+
+function paintUpNext() {
+  const box = $("#allenUpNext");
+  if (!box) return;
+  const lectures = currentChapter?.lectures || [];
+  box.replaceChildren(
+    ...lectures.map((lec, i) => {
+      const row = rowEl(i + 1, lec.title, `<span class="dur">${lec.duration || ""}</span>`, "");
+      row.classList.toggle("now", currentLecture?.id === lec.id);
+      row.addEventListener("click", () =>
+        watch(currentChapter.batch, currentChapter.subject, lec)
+      );
+      return row;
+    })
+  );
+  if (!lectures.length) box.innerHTML = `<p class="tiny dim">No lectures in this chapter.</p>`;
+}
+
+function stepLecture(dir) {
+  const lectures = currentChapter?.lectures || [];
+  const i = lectures.findIndex((l) => l.id === currentLecture?.id);
+  const next = lectures[i + dir];
+  if (next && currentChapter) watch(currentChapter.batch, currentChapter.subject, next);
 }
 
 function wirePlayer() {
@@ -296,6 +323,7 @@ function wirePlayer() {
       }
     }
   });
+  v.addEventListener("ended", () => stepLecture(1));
   v.addEventListener("loadedmetadata", () => {
     if (!currentLecture) return;
     const pos = readJson(posKey(currentLecture.id), null);
@@ -304,8 +332,19 @@ function wirePlayer() {
       setNote(`Resumed from ${fmt(pos.t)} — jahan chhoda tha, wahi se.`);
     }
   });
+  const spin = (on) => {
+    const s = $("#allenSpin");
+    if (s) s.hidden = !on;
+  };
+  v.addEventListener("waiting", () => spin(true));
+  v.addEventListener("playing", () => spin(false));
+  v.addEventListener("canplay", () => spin(false));
+  v.addEventListener("error", () => spin(false));
   $("#allenPlayBtn").addEventListener("click", () => (v.paused ? v.play() : v.pause()));
   $("#allenBigPlay").addEventListener("click", () => v.play().catch(() => {}));
+  $("#allenPrev").addEventListener("click", () => stepLecture(-1));
+  $("#allenNext").addEventListener("click", () => stepLecture(1));
+  $("#allenVol").addEventListener("input", (e) => (v.volume = Number(e.target.value)));
   $("#allenBack10").addEventListener("click", () => (v.currentTime = Math.max(0, v.currentTime - 10)));
   $("#allenFwd10").addEventListener("click", () => (v.currentTime = Math.min(v.duration || 1e9, v.currentTime + 10)));
   $("#allenProgress").addEventListener("click", (e) => {
@@ -346,8 +385,16 @@ function wirePlayer() {
 
 async function watch(batch, subject, lec) {
   $("#allenBatch").hidden = true;
+  $("#allenContinueWrap").hidden = true;
   $("#allenWatch").hidden = false;
   $("#allenWatchTitle").textContent = lec.title;
+  $("#allenWatchMeta").textContent = [subject.name, batch.name, lec.date, lec.duration].filter(Boolean).join(" · ");
+  if (!currentChapter || !currentChapter.lectures.some((l) => l.id === lec.id)) {
+    currentChapter = { batch, subject, topic: { name: "" }, lectures: [lec] };
+  }
+  currentLecture = { id: lec.id, retry: () => watch(batch, subject, lec) };
+  paintUpNext();
+  $("#allenWatch").scrollIntoView({ behavior: "smooth" });
   const v = video();
   destroyHls();
   v.removeAttribute("src");
