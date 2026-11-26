@@ -135,7 +135,7 @@ test("upstream walks respect the subrequest budget", async () => {
   const proxy = await read("lib/pw-proxy.mjs");
   assert.match(proxy, /No host even answered/);
   const data = await read("lib/api-data.mjs");
-  assert.match(data, /\(UPSTREAMS \|\| \[\]\)\.slice\(0, 4\)/);
+  assert.match(data, /\(UPSTREAMS \|\| \[\]\)\.slice\(0, 2\)/);
   const check = await read("api/check.mjs");
   assert.match(check, /SWEEP_CONCURRENCY = 1/);
 });
