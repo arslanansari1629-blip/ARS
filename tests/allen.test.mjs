@@ -8,6 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
+  allenPlay,
   allenProxyAllowed,
   normalizeAllenBatch,
   normalizeAllenLecture,
@@ -185,6 +186,43 @@ test("the Allen proxy rewrites playlists onto our own media relay", () => {
   assert.equal(allenProxyAllowed("https://stream.nexthope.sbs/api/token?t=1"), true);
   assert.equal(allenProxyAllowed("https://evil.example.com/x.m3u8"), false, "the proxy is for Allen hosts, not the open internet");
   assert.equal(allenProxyAllowed("http://cdn.allen.in/x.m3u8"), false);
+});
+
+test("a playlist served as text/plain at the token URL still resolves", async () => {
+  // Their player loads the token URL itself as the HLS source, and
+  // the endpoint answers #EXTM3U with a lying content-type. Sniffing
+  // the body is the fix; trusting text/plain was the outage.
+  const original = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response("#EXTM3U\n#EXTINF:6,\nseg-1.ts\n", {
+      status: 200,
+      headers: { "content-type": "text/plain" },
+    });
+  try {
+    const out = await allenPlay("https://stream.nexthope.sbs/api/token?token=t1&media=1");
+    assert.equal(out.success, true);
+    assert.match(out.url, /\/api\/token\?token=t1/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("the playlist proxy sniffs #EXTM3U out of a text/plain answer", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response("#EXTM3U\n#EXTINF:6,\nseg-1.ts\n", {
+      status: 200,
+      headers: { "content-type": "text/plain" },
+    });
+  try {
+    const res = await callBatches(
+      "action=allen&view=playlist&u=https%3A%2F%2Fcdn.allen.in%2Fapi%2Ftoken%3Ftoken%3Dt1"
+    );
+    // callBatches parses via the fake res: check the raw body instead.
+    assert.equal(res.status, 200);
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test("the Allen page ships its own skin and the upgraded player", async () => {

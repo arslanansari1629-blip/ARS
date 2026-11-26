@@ -21,6 +21,10 @@ const ALLOWED = [
   "nexthope.sbs",
   // Allen's own asset/stream CDN (lecture thumbnails, resolved streams).
   "allen.in",
+  // Allen's live platform host and its segment CDNs.
+  "allenbpms.in",
+  "akamaized.net",
+  "akamaihd.net",
 ];
 
 const UA =

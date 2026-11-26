@@ -358,12 +358,19 @@ async function watch(batch, subject, lec) {
     return;
   }
   currentLecture = { id: lec.id, retry: () => watch(batch, subject, lec) };
+  if (lec.thumbnail) {
+    v.poster = `/api/media?url=${encodeURIComponent(lec.thumbnail)}`;
+  }
   const out = await api(`/api/allen?view=play&play=${encodeURIComponent(lec.playUrl)}`);
+  // Fallback, their player's own method: their player.html loads the
+  // token URL itself as the stream source. If our resolver could not
+  // classify the answer, route the token URL through our playlist
+  // proxy directly and let the proxy sniff the playlist out of it.
   if (!out.success || !(out.proxyUrl || out.url)) {
-    setNote(
-      "Playback is not answering upstream for this lecture yet — Allen streams ride on donated accounts, so some lectures stay dark until an account covers this batch. ↻ Retry try karo."
-    );
-    return;
+    out.success = true;
+    out.url = lec.playUrl;
+    out.proxyUrl = `/api/allen?view=playlist&u=${encodeURIComponent(lec.playUrl)}`;
+    setNote("Direct stream mode — proxy se stream jor rahe hain…");
   }
   const history = readJson(historyKey, []);
   history.unshift({ code: batch.code, subject: subject.name, title: lec.title, at: Date.now() });
@@ -383,7 +390,11 @@ async function watch(batch, subject, lec) {
     return o;
   };
   quality.replaceChildren(mkOption("Auto", "-1"));
-  if (window.Hls && window.Hls.isSupported() && /\.m3u8($|\?)/i.test(out.url || src)) {
+  // Our proxy URL always serves a playlist (token URLs carry no
+  // .m3u8 suffix, which is why name-matching alone starved hls.js
+  // and left Chrome staring at an unplayable native source).
+  const looksHls = /\.m3u8($|\?)/i.test(out.url || "") || Boolean(out.proxyUrl);
+  if (window.Hls && window.Hls.isSupported() && looksHls && !/\.mp4($|\?)/i.test(out.url || "")) {
     hls = new window.Hls({ maxBufferLength: 60, capLevelToPlayerSize: true });
     hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
       (hls.levels || []).forEach((lv, i) => {
