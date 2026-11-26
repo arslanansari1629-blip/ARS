@@ -266,6 +266,47 @@ test("the Allen page ships its own skin and the upgraded player", async () => {
   assert.match(script, /arsvibe\.allen\.pos\./, "resume-position memory is missing");
 });
 
+test("a stale client asking by batch CODE still gets its subjects", async () => {
+  // The service worker serves /assets cache-first, so a returning
+  // reader can run last week's allen.js, which asks view=subjects
+  // with the visible code instead of the bt_ id. The API resolves
+  // code → ids; without this, that reader sees an empty panel.
+  resetAllenCache();
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("/Allen/batches.json")) {
+      return new Response(
+        JSON.stringify([
+          {
+            batch_id: "bt_TgS6lWQF1S9ESPIh1BCOf",
+            batch_name: "D6TL-36-DILC21",
+            course_id: "cr_LylAze94OqLyj641cXJTA",
+            course_name: "JEE (MAIN + ADVANCED) LEADER ENGLISH",
+            stream: "JEE Advanced",
+          },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    if (u.includes("/Allen/api/subjects")) {
+      return new Response(
+        JSON.stringify({ success: true, data: [{ subject_id: "984", name: "Chemistry", taxonomy_id: "1763385325sj" }] }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    return new Response("nope", { status: 404 });
+  };
+  try {
+    const res = await callBatches("action=allen&view=subjects&code=D6TL-36-DILC21");
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.items[0].name, "Chemistry");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("/api/allen without a batch id answers a useful 400, never a crash", async () => {
   const res = await callBatches("action=allen&view=subjects");
   assert.equal(res.status, 400);

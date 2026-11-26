@@ -183,13 +183,20 @@ async function openBatch(batch) {
   $("#allenSubjects").replaceChildren();
   $("#allenTopicsWrap").hidden = true;
   $("#allenLecturesWrap").hidden = true;
-  const out = await api(
-    `/api/allen?view=subjects&batch=${encodeURIComponent(batch.batchId)}&course=${encodeURIComponent(batch.courseId)}`
-  );
-  const subjects = Array.isArray(out.items) ? out.items : [];
+  const subjectsUrl = `/api/allen?view=subjects&batch=${encodeURIComponent(batch.batchId)}&course=${encodeURIComponent(batch.courseId)}`;
+  let out = await api(subjectsUrl);
+  let subjects = Array.isArray(out.items) ? out.items : [];
+  if (!subjects.length) {
+    // One quiet retry before saying anything: upstream blips and a
+    // stale cached page both look exactly like "no subjects" once.
+    await new Promise((r) => setTimeout(r, 700));
+    out = await api(subjectsUrl);
+    subjects = Array.isArray(out.items) ? out.items : [];
+  }
   const box = $("#allenSubjects");
   if (!subjects.length) {
-    box.innerHTML = `<p class="tiny dim">Subjects are not answering upstream for this batch yet.</p>`;
+    box.innerHTML = `<p class="tiny dim">Subjects load nahi ho paye${out.status ? ` (upstream status ${out.status})` : ""} — network blip ho sakta hai. <button class="allen-btn ghost" id="allenSubjectsRetry" type="button">Retry</button></p>`;
+    $("#allenSubjectsRetry")?.addEventListener("click", () => openBatch(batch));
     return;
   }
   box.replaceChildren(
