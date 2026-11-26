@@ -63,9 +63,13 @@ function examClass(b) {
   return "";
 }
 
-function card(batch) {
+function card(batch, i = 0) {
   const el = document.createElement("article");
   el.className = "allen-card";
+  // Entrance stagger (Allen Ultra): rows bloom in sequence instead of
+  // landing as one flat slab; capped so a 500-row catalogue never
+  // keeps a student waiting on choreography.
+  el.style.animationDelay = `${Math.min(i, 14) * 38}ms`;
   el.innerHTML = `
     <div class="allen-card-top ${examClass(batch)}">
       <div class="row" style="gap:6px;align-items:center">
@@ -112,7 +116,7 @@ function renderGrid() {
       return `${b.name} ${b.code} ${b.class} ${b.exam} ${b.type}`.toLowerCase().includes(term);
     })
   );
-  $("#allenGrid").replaceChildren(...rows.map(card));
+  $("#allenGrid").replaceChildren(...rows.map((b, i) => card(b, i)));
   $("#allenStatus").textContent = rows.length
     ? `All Batches (${rows.length}${rows.length !== all.length ? ` of ${all.length}` : ""})`
     : all.length
@@ -123,7 +127,22 @@ function renderGrid() {
 function paintStats() {
   const set = (id, n) => {
     const el = $(id);
-    if (el) el.textContent = String(n);
+    if (!el) return;
+    // Count-up (Allen Ultra): the number climbs to its real value.
+    // Always lands exactly on n; a reduced-motion reader gets it
+    // instantly.
+    const target = Number(n) || 0;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || target === 0) {
+      el.textContent = String(target);
+      return;
+    }
+    const started = performance.now();
+    const tick = (now) => {
+      const p = Math.min(1, (now - started) / 750);
+      el.textContent = String(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   };
   set("#allenStatTotal", all.length);
   set("#allenStatJee", all.filter((b) => /^JEE/.test(b.exam)).length);
@@ -643,6 +662,28 @@ document.addEventListener("DOMContentLoaded", () => {
     $("#allenWatch").hidden = true;
     $("#allenBatch").hidden = false;
   });
+  // Poster tilt (Allen Ultra): cards lean a few degrees toward the
+  // pointer — enough to feel physical, never enough to fight the
+  // click. Hover-capable pointers only; touch keeps the flat grid.
+  if (matchMedia("(hover: hover) and (prefers-reduced-motion: no-preference)").matches) {
+    const grid = $("#allenGrid");
+    grid.addEventListener("pointermove", (e) => {
+      const el = e.target.closest(".allen-card");
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      el.style.setProperty("--ry", `${(x * 5).toFixed(2)}deg`);
+      el.style.setProperty("--rx", `${(-y * 5).toFixed(2)}deg`);
+    });
+    grid.addEventListener("pointerout", (e) => {
+      const el = e.target.closest(".allen-card");
+      if (el) {
+        el.style.setProperty("--rx", "0deg");
+        el.style.setProperty("--ry", "0deg");
+      }
+    });
+  }
   loadCatalogue().catch(() => {
     $("#allenStatus").textContent = "The Allen catalogue could not load — check the connection and retry.";
   });
