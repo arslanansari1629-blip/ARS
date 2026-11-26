@@ -138,7 +138,10 @@ function paintStats() {
     }
     const started = performance.now();
     const tick = (now) => {
-      const p = Math.min(1, (now - started) / 750);
+      // Clamped both ways: a frame timestamp can predate `started`
+      // by a frame, and an unclamped negative p turns the easing
+      // cubic into a runaway negative number on the hero.
+      const p = Math.min(1, Math.max(0, (now - started) / 750));
       el.textContent = String(Math.round(target * (1 - Math.pow(1 - p, 3))));
       if (p < 1) requestAnimationFrame(tick);
     };
