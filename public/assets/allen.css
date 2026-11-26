@@ -478,3 +478,41 @@ body[data-page="allen"] {
   .allen-subject, .allen-row, .allen-continue .cw, .ap-bigplay .disc { animation: none !important; }
   .allen-card { transform: none; transition: none; }
 }
+
+/* ---------- player v7 (Pro X): QoE console, seek FX, cinema ---------- */
+.ap-stats {
+  position: absolute; top: 52px; left: 12px; z-index: 5; min-width: 218px;
+  background: rgba(4, 10, 20, 0.88); border: 1px solid rgba(96, 165, 250, 0.4);
+  border-radius: 14px; padding: 10px 12px; color: #cfe3ff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;
+  backdrop-filter: blur(8px); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+.ap-stats p { margin: 0 0 7px; font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: #7fa5dd; }
+.ap-stats dl { margin: 0; display: grid; gap: 4px; }
+.ap-stats dl div { display: flex; justify-content: space-between; gap: 14px; }
+.ap-stats dt { color: #7fa5dd; }
+.ap-stats dd { margin: 0; font-weight: 700; color: #eaf3ff; font-variant-numeric: tabular-nums; }
+.ap-seekfx {
+  position: absolute; top: 0; bottom: 0; width: 34%; z-index: 4; display: grid; place-items: center;
+  color: #fff; font-weight: 850; font-size: 17px; opacity: 0; pointer-events: none;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+}
+.ap-seekfx.left { left: 0; background: radial-gradient(circle at 18% 50%, rgba(255,255,255,0.28), transparent 62%); }
+.ap-seekfx.right { right: 0; background: radial-gradient(circle at 82% 50%, rgba(255,255,255,0.28), transparent 62%); }
+.ap-seekfx.pop { animation: apSeekPop 0.55s ease-out; }
+@keyframes apSeekPop {
+  0% { opacity: 0; transform: scale(0.92); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+/* Cinema mode: the page goes dark, only the lecture glows. */
+body.allen-cinema { background: #010204; }
+body.allen-cinema .allen-hero, body.allen-cinema #allenCatalogue,
+body.allen-cinema #allenContinueWrap, body.allen-cinema .ap-side,
+body.allen-cinema .ap-title, body.allen-cinema .ap-sub,
+body.allen-cinema .footer, body.allen-cinema .allen-marquee {
+  opacity: 0.08; pointer-events: none; transition: opacity 0.4s;
+}
+body.allen-cinema .ap-shell { box-shadow: 0 0 120px rgba(37, 99, 235, 0.4), 0 34px 70px rgba(0, 0, 0, 0.8); }
+#allenCinemaBtn.on { background: var(--al-amber, #d97706); border-color: transparent; color: #fff; }
+#allenStatsBtn.on { background: var(--al-blue); border-color: transparent; color: #fff; }

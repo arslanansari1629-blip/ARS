@@ -732,3 +732,63 @@ function mount() {
 }
 
 mount();
+
+/* ------------------------------------------------------------------
+   Instant navigation (site-wide engineering): teach the browser to
+   prepare the next page before the click lands.
+
+   Chromium gets Speculation Rules — same-origin pages prerender in
+   a hidden tab on hover (moderate eagerness) and swap in instantly.
+   Every other engine gets the classic trick with the same trigger:
+   a <link rel="prefetch"> the first time a link is hovered or
+   touched. External links, downloads and the API are never warmed:
+   prerendering must not spend a student's data on pages they may
+   never open, so data-saver and 2G sit this out entirely.
+   ------------------------------------------------------------------ */
+(function instantNav() {
+  try {
+    const conn = navigator.connection || {};
+    if (conn.saveData || /^(slow-)?2g$/.test(conn.effectiveType || "")) return;
+    const warm = new Set();
+    const prepare = (href) => {
+      if (!href || warm.has(href)) return;
+      warm.add(href);
+      const l = document.createElement("link");
+      l.rel = "prefetch";
+      l.href = href;
+      document.head.appendChild(l);
+    };
+    if (HTMLScriptElement.supports && HTMLScriptElement.supports("speculationrules")) {
+      const rules = document.createElement("script");
+      rules.type = "speculationrules";
+      rules.textContent = JSON.stringify({
+        prerender: [
+          {
+            where: {
+              and: [
+                { href_matches: "/*" },
+                { not: { href_matches: "/api/*" } },
+                { not: { selector_matches: "[download], [data-no-prerender]" } },
+              ],
+            },
+            eagerness: "moderate",
+          },
+        ],
+      });
+      document.head.appendChild(rules);
+      return; // the browser schedules prerenders itself
+    }
+    document.addEventListener(
+      "pointerover",
+      (e) => {
+        const a = e.target.closest && e.target.closest("a[href]");
+        if (!a) return;
+        const u = new URL(a.getAttribute("href"), location.href);
+        if (u.origin === location.origin && !u.pathname.startsWith("/api/")) prepare(u.pathname + u.search);
+      },
+      { passive: true }
+    );
+  } catch {
+    /* instant nav is an optimisation, never a dependency */
+  }
+})();

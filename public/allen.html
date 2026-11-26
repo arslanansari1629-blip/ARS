@@ -130,6 +130,19 @@
                   <button class="ap-seekbtn" id="allenCFwd" type="button" aria-label="Forward 10 seconds">↻<small>10</small></button>
                 </div>
                 <div class="ap-spin" id="allenSpin" hidden></div>
+                <div class="ap-seekfx left" id="allenSeekFxL" aria-hidden="true">−10s</div>
+                <div class="ap-seekfx right" id="allenSeekFxR" aria-hidden="true">+10s</div>
+                <div class="ap-stats" id="allenStatsPanel" hidden>
+                  <p>Stream console · QoE</p>
+                  <dl>
+                    <div><dt>Resolution</dt><dd id="allenStRes">—</dd></div>
+                    <div><dt>Bitrate</dt><dd id="allenStBitrate">—</dd></div>
+                    <div><dt>Buffer ahead</dt><dd id="allenStBuffer">—</dd></div>
+                    <div><dt>Dropped frames</dt><dd id="allenStDropped">—</dd></div>
+                    <div><dt>Network</dt><dd id="allenStNet">—</dd></div>
+                    <div><dt>Engine</dt><dd id="allenStEngine">—</dd></div>
+                  </dl>
+                </div>
               </div>
               <div class="ap-overlay">
                 <div class="ap-progress" id="allenProgress" role="slider" aria-label="Seek"><b id="allenBuffered"></b><i id="allenProgressFill"></i></div>
@@ -173,6 +186,8 @@
                 <option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option>
                 <option value="2.5">2.5×</option><option value="3">3×</option>
               </select>
+              <button class="ap-btn" id="allenStatsBtn" type="button" title="Stream console (I)">Stats</button>
+              <button class="ap-btn" id="allenCinemaBtn" type="button" title="Cinema mode — lights off">Cinema</button>
               <button class="ap-btn" id="allenPip" type="button">PiP</button>
               <button class="ap-btn" id="allenRetry" type="button" title="Fresh token retry">↻</button>
               <button class="ap-btn" id="allenFull" type="button">⛶</button>

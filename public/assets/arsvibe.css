@@ -11994,3 +11994,11 @@ html[data-device="phone"] .brain-face { width: 54px; height: 54px; }
   border-bottom: 1px dashed var(--hair); padding-bottom: 2px;
 }
 .brain-rows b { font-family: var(--mono); font-size: 0.72rem; color: var(--ink); }
+
+/* Long catalogues: off-screen cards cost no layout or paint until
+   they approach the viewport — hundreds of batch posters stay at
+   60fps even on a tired phone GPU. */
+.grid-batches > *, .allen-subject-grid > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+}

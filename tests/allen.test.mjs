@@ -274,6 +274,20 @@ test("the Allen page ships its own skin and the upgraded player", async () => {
   assert.match(script, /arsvibe\.allen\.pos\./, "resume-position memory is missing");
 });
 
+test("the Allen player is Pro X: QoE console, seek FX, cinema, settings memory", async () => {
+  const page = await readFile(new URL("../public/allen.html", import.meta.url), "utf8");
+  for (const id of ["allenStatsPanel", "allenStatsBtn", "allenCinemaBtn", "allenSeekFxL", "allenSeekFxR", "allenStBuffer", "allenStDropped"]) {
+    assert.match(page, new RegExp(`id="${id}"`), `Pro X player is missing #${id}`);
+  }
+  const script = await readFile(new URL("../public/assets/allen.js", import.meta.url), "utf8");
+  assert.match(script, /arsvibe\.allen\.settings\.v1/, "player settings must persist across sessions");
+  assert.match(script, /getVideoPlaybackQuality/, "the QoE console must read dropped frames");
+  assert.match(script, /slowNet/, "a data-saver connection must change the start level");
+  assert.match(script, /dblclick/, "double-tap seek is missing");
+  const shell = await readFile(new URL("../public/assets/shell.mjs", import.meta.url), "utf8");
+  assert.match(shell, /speculationrules/, "site-wide instant navigation is missing");
+});
+
 test("view=play never consumes the token — it only hands back the proxy URL", async () => {
   // Their player loads the token URL exactly once. A resolver that
   // pre-fetches it to "check" burns a short-lived/single-use token,

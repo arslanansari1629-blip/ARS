@@ -355,8 +355,35 @@ function reportStage(stage, detail) {
   }
 }
 
+/* Player settings that survive the session (Pro X): volume, mute,
+   speed and quality are the student's, not the page's — a returning
+   viewer should find the player exactly as they left it. */
+const SETTINGS_KEY = "arsvibe.allen.settings.v1";
+function loadSettings() {
+  return readJson(SETTINGS_KEY, {}) || {};
+}
+function saveSettings(patch) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...loadSettings(), ...patch }));
+  } catch {
+    /* private mode */
+  }
+}
+
 function wirePlayer() {
   const v = video();
+  // Restore the student's own setup before anything plays.
+  const settings = loadSettings();
+  if (typeof settings.volume === "number") {
+    v.volume = Math.min(1, Math.max(0, settings.volume));
+    const vol = $("#allenVol");
+    if (vol) vol.value = String(v.volume);
+  }
+  if (typeof settings.rate === "number" && settings.rate > 0) {
+    v.playbackRate = settings.rate;
+    const lbl = $("#allenSpeedBtn");
+    if (lbl) lbl.textContent = `Speed · ${settings.rate}×`;
+  }
   const spin = (on) => {
     const s = $("#allenSpin");
     if (s) s.hidden = !on;
@@ -408,7 +435,10 @@ function wirePlayer() {
   $("#allenFwd10").addEventListener("click", () => seekBy(10));
   $("#allenPrev").addEventListener("click", () => stepLecture(-1));
   $("#allenNext").addEventListener("click", () => stepLecture(1));
-  $("#allenVol").addEventListener("input", (e) => (v.volume = Number(e.target.value)));
+  $("#allenVol").addEventListener("input", (e) => {
+    v.volume = Number(e.target.value);
+    saveSettings({ volume: v.volume });
+  });
   $("#allenProgress").addEventListener("click", (e) => {
     const r = e.currentTarget.getBoundingClientRect();
     if (v.duration) v.currentTime = ((e.clientX - r.left) / r.width) * v.duration;
@@ -453,6 +483,7 @@ function wirePlayer() {
     const item = e.target.closest("[data-speed]");
     if (!item) return;
     v.playbackRate = Number(item.dataset.speed) || 1;
+    saveSettings({ rate: v.playbackRate });
     speed.menu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === item));
     speed.btn.textContent = `Speed · ${item.dataset.speed}×`;
     speed.menu.hidden = true;
@@ -463,21 +494,96 @@ function wirePlayer() {
     if (!item) return;
     const sel = $("#allenQuality");
     sel.value = item.dataset.quality;
+    saveSettings({ quality: Number(item.dataset.quality) });
     sel.dispatchEvent(new Event("change"));
     qualityMenuApi.menu.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === item));
     qualityMenuApi.btn.textContent = `Quality · ${item.textContent.trim()}`;
     qualityMenuApi.menu.hidden = true;
   });
 
+  /* ---- Pro X: QoE console, seek FX, cinema mode ---- */
+  const statsPanel = $("#allenStatsPanel");
+  const paintStatsPanel = () => {
+    if (!statsPanel || statsPanel.hidden) return;
+    const set = (id, val) => {
+      const el = $(id);
+      if (el) el.textContent = val;
+    };
+    set("#allenStRes", v.videoWidth ? `${v.videoWidth}×${v.videoHeight}` : "—");
+    const lv = hls && hls.levels && hls.levels[hls.currentLevel];
+    set(
+      "#allenStBitrate",
+      lv ? `${Math.round((lv.bitrate || 0) / 1000)} kbps${hls.autoLevelEnabled ? " (auto)" : ""}` : "native"
+    );
+    let ahead = 0;
+    try {
+      for (let i = 0; i < v.buffered.length; i += 1) {
+        if (v.buffered.start(i) <= v.currentTime && v.currentTime <= v.buffered.end(i)) {
+          ahead = v.buffered.end(i) - v.currentTime;
+          break;
+        }
+      }
+    } catch {
+      /* no ranges yet */
+    }
+    set("#allenStBuffer", `${ahead.toFixed(1)}s`);
+    const q = v.getVideoPlaybackQuality ? v.getVideoPlaybackQuality() : null;
+    set("#allenStDropped", q ? `${q.droppedVideoFrames} / ${q.totalVideoFrames}` : "—");
+    const conn = navigator.connection || {};
+    set("#allenStNet", conn.effectiveType ? `${conn.effectiveType}${conn.saveData ? " · data-saver" : ""}` : "—");
+    set("#allenStEngine", hls ? "hls.js · ABR" : "native");
+  };
+  setInterval(paintStatsPanel, 500);
+  const toggleStats = () => {
+    if (!statsPanel) return;
+    statsPanel.hidden = !statsPanel.hidden;
+    $("#allenStatsBtn")?.classList.toggle("on", !statsPanel.hidden);
+    paintStatsPanel();
+  };
+  $("#allenStatsBtn")?.addEventListener("click", toggleStats);
+  $("#allenCinemaBtn")?.addEventListener("click", (e) => {
+    const on = document.body.classList.toggle("allen-cinema");
+    e.currentTarget.classList.toggle("on", on);
+  });
+  // Double-tap / double-click seek with a ripple readout. Single
+  // click still toggles play (the two toggles of a double-click
+  // cancel out), which is the pattern every big player uses.
+  const seekFx = (side) => {
+    const el = side < 0 ? $("#allenSeekFxL") : $("#allenSeekFxR");
+    if (!el) return;
+    el.classList.remove("pop");
+    void el.offsetWidth;
+    el.classList.add("pop");
+  };
+  v.addEventListener("dblclick", (e) => {
+    const r = v.getBoundingClientRect();
+    const dir = e.clientX - r.left < r.width / 2 ? -1 : 1;
+    seekBy(dir * 10);
+    seekFx(dir);
+  });
+
   document.addEventListener("keydown", (e) => {
     if ($("#allenWatch").hidden) return;
     if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || "")) return;
-    if (e.key === " ") {
+    const key = e.key;
+    if (key === " " || key.toLowerCase() === "k") {
       e.preventDefault();
       v.paused ? v.play() : v.pause();
-    } else if (e.key === "ArrowRight") seekBy(10);
-    else if (e.key === "ArrowLeft") seekBy(-10);
-    else if (e.key.toLowerCase() === "f") $("#allenFull").click();
+    } else if (key === "ArrowRight" || key.toLowerCase() === "l") seekBy(10);
+    else if (key === "ArrowLeft" || key.toLowerCase() === "j") seekBy(-10);
+    else if (key === "ArrowUp") {
+      e.preventDefault();
+      v.volume = Math.min(1, v.volume + 0.1);
+      saveSettings({ volume: v.volume });
+    } else if (key === "ArrowDown") {
+      e.preventDefault();
+      v.volume = Math.max(0, v.volume - 0.1);
+      saveSettings({ volume: v.volume });
+    } else if (key.toLowerCase() === "m") v.muted = !v.muted;
+    else if (key.toLowerCase() === "p") $("#allenPip").click();
+    else if (key.toLowerCase() === "i") toggleStats();
+    else if (key.toLowerCase() === "f") $("#allenFull").click();
+    else if (/^[0-9]$/.test(key) && v.duration) v.currentTime = (Number(key) / 10) * v.duration;
   });
 }
 
@@ -545,9 +651,15 @@ async function watch(batch, subject, lec, isRetry = false) {
   setNote("Playlist load ho rahi hai — fast start…");
   const looksHls = /\.m3u8($|\?)/i.test(out.url || "") || Boolean(out.proxyUrl);
   if (window.Hls && window.Hls.isSupported() && looksHls && !/\.mp4($|\?)/i.test(out.url || "")) {
+    // Network-aware start (Pro X): a data-saver or 2G/3G connection
+    // opens on the lowest rung and climbs, instead of stalling on
+    // the top rendition while the ABR engine measures. Everyone
+    // else keeps the measuring start.
+    const conn = navigator.connection || {};
+    const slowNet = Boolean(conn.saveData) || /^(slow-)?2g$|^3g$/.test(conn.effectiveType || "");
     hls = new window.Hls({
       enableWorker: true,
-      startLevel: -1,
+      startLevel: slowNet ? 0 : -1,
       capLevelToPlayerSize: true,
       maxBufferLength: 60,
       maxMaxBufferLength: 240,
@@ -576,6 +688,18 @@ async function watch(batch, subject, lec, isRetry = false) {
       }
     });
     hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+      // The student's own quality choice outranks Auto when it
+      // still exists in this lecture's ladder.
+      const savedQ = loadSettings().quality;
+      if (typeof savedQ === "number" && savedQ >= 0 && (hls.levels || [])[savedQ]) {
+        hls.currentLevel = savedQ;
+        quality.value = String(savedQ);
+        const qb = $("#allenQualityBtn");
+        if (qb) {
+          const lv = hls.levels[savedQ];
+          qb.textContent = `Quality · ${lv.height ? `${lv.height}p` : `${Math.round((lv.bitrate || 0) / 1000)}k`}`;
+        }
+      }
       (hls.levels || []).forEach((lv, i) => {
         const label = lv.height ? `${lv.height}p` : `${Math.round((lv.bitrate || 0) / 1000)}k`;
         const o = document.createElement("option");
