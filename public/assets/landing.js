@@ -45,6 +45,12 @@ const fmtK = (n) =>
     const proof = $("#nhLiveCount");
     if (proof) proof.textContent = total.toLocaleString("en-IN");
   });
+  get("/api/nexttopper?view=batches").then((d) => {
+    const total = d?.total || (Array.isArray(d?.items) ? d.items.length : 0);
+    if (!(total > 0)) return;
+    const card = $("#platformNtCount");
+    if (card) card.textContent = String(total);
+  });
   get("/api/allen?view=batches").then((d) => {
     const total = d?.total || (Array.isArray(d?.items) ? d.items.length : 0);
     if (!(total > 0)) return;

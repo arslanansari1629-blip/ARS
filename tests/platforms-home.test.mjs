@@ -36,20 +36,18 @@ test("the home page is the NextHope-style landing: tickers, hero, Choose Platfor
   assert.doesNotMatch(page, /open\.js/, "the opening-sheet module must not load on the landing");
 });
 
-test("Next Toppers is teased in its own Coming Soon section, never as a live platform", async () => {
+test("Next Toppers is a third LIVE platform card once its platform shipped", async () => {
   const page = await read("public/index.html");
-  assert.match(page, /id="coming-soon"/, "coming soon section is missing");
-  assert.match(page, /Coming Soon/, "coming soon heading is missing");
   assert.match(page, /data-platform="next-toppers"/, "Next Toppers card is missing");
+  assert.match(page, /href="\/nexttopper"[^>]*data-status="live"|data-status="live"[^>]*href="\/nexttopper"/, "NT card must link live to /nexttopper");
   assert.match(page, /\/assets\/platforms\/next-toppers\.jpg/, "Next Toppers logo must be a local asset");
   await access(new URL("../public/assets/platforms/next-toppers.jpg", import.meta.url));
-  // Teaser only: no dead link, and the live picker keeps exactly its
-  // real platforms (this card lives outside #platformsGrid).
-  const card = page.match(/<article class="platform-card is-soon"[^>]*>/);
-  assert.ok(card, "coming soon card markup is missing");
-  assert.doesNotMatch(card[0], /href=/, "a coming-soon card must not be a dead link");
-  const grid = page.match(/id="platformsGrid"[\s\S]*?id="comingSoonGrid"/);
-  assert.ok(grid && !grid[0].includes("next-toppers.jpg"), "Next Toppers must not pollute the live platform picker");
+  // The Coming Soon teaser is retired — a live platform must not
+  // keep wearing a coming-soon badge.
+  assert.doesNotMatch(page, /id="coming-soon"/, "the coming-soon section must retire once NT is live");
+  const js = await read("public/assets/landing.js");
+  assert.match(js, /platformNtCount/, "NT count wiring is missing");
+  assert.match(js, /\/api\/nexttopper\?view=batches/, "NT count must come from its live catalogue");
 });
 
 test("landing content never depends on animation or JS to be visible, and counts/filter are garnish", async () => {

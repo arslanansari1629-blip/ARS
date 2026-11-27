@@ -97,6 +97,7 @@
 .platform-card:hover .platform-open { gap: 12px; }
 .platform-card[data-platform="pw"]:hover .platform-open { background: #4c1d95; }
 .platform-card[data-platform="allen"]:hover .platform-open { background: #1d4ed8; }
+.platform-card[data-platform="next-toppers"]:hover .platform-open { background: #0f766e; }
 @media (max-width: 640px) {
   .platform-logo { width: 96px; height: 96px; border-radius: 24px; }
   .platform-card { padding: 28px 18px 22px; }

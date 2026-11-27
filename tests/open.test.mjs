@@ -289,7 +289,7 @@ test("the front door serves the landing with no sheet over it", async () => {
   assert.equal(doc.getElementById("intro"), null, "the front door carries a sheet mount");
   assert.equal(doc.documentElement.classList.contains("intro-armed"), false, "the page starts hidden");
   assert.ok(doc.getElementById("platformsGrid"), "the platform picker is missing");
-  assert.equal(doc.querySelectorAll("#platformsGrid .platform-card").length, 2, "both platforms must be offered");
+  assert.equal(doc.querySelectorAll("#platformsGrid .platform-card").length, 3, "all three platforms must be offered");
   assert.match(doc.body.textContent, /Stop paying/);
   window.close();
 });
