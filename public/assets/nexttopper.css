@@ -1,0 +1,46 @@
+/* Next Toppers platform: teal-on-cream sibling of the Allen page.
+   White-grid rule applies as everywhere: nothing here depends on an
+   animation or on JS to be visible — JS only fills the grids. */
+.nt-hero { text-align: center; padding: 26px 0 8px; }
+.nt-eyebrow { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; color: #0f766e; background: #f0fdfa; border: 1px solid #99f6e4; padding: 5px 11px; border-radius: 999px; }
+.nt-eyebrow .pulse { width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+.nt-hero-brand { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; margin: 16px 0 10px; }
+.nt-hero-brand img { width: 84px; height: 84px; object-fit: cover; border-radius: 22px; box-shadow: 0 14px 30px rgba(13,148,136,.25); }
+.nt-hero-brand h1 { margin: 0; font-size: clamp(34px, 6vw, 56px); line-height: 1.02; letter-spacing: -.03em; font-weight: 900; text-align: left; }
+.nt-hero-brand .grad { background: linear-gradient(92deg, #0d9488, #2dd4bf 60%, #0ea5e9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nt-hero p { max-width: 620px; margin: 0 auto; color: var(--ink-2); line-height: 1.65; }
+.nt-stats { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+.nt-stat { background: var(--card); border: 1px solid var(--rule); border-radius: 16px; padding: 12px 20px; min-width: 110px; }
+.nt-stat b { display: block; font-size: 22px; letter-spacing: -.02em; }
+.nt-stat span { font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--ink-3); }
+
+.nt-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 22px 0 8px; }
+.nt-search { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; background: var(--card); border: 1.5px solid var(--rule); border-radius: 999px; padding: 9px 15px; }
+.nt-search input { border: 0; outline: 0; background: transparent; flex: 1; font-size: 14px; color: var(--ink); }
+.nt-chip { border: 1.5px solid var(--rule); background: var(--card); color: var(--ink-2); padding: 7px 14px; border-radius: 999px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.nt-chip.on { background: #0f766e; border-color: #0f766e; color: #fff; }
+
+.nt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 12px; }
+.nt-card { position: relative; display: flex; flex-direction: column; gap: 7px; background: var(--card); border: 1.5px solid var(--rule); border-radius: 20px; padding: 12px; text-align: left; cursor: pointer; color: var(--ink); transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; font: inherit; }
+.nt-card:hover { transform: translateY(-4px); border-color: #2dd4bf; box-shadow: 0 18px 34px rgba(13,148,136,.14); }
+.nt-card img.nt-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 13px; background: var(--card-2); }
+.nt-card .nt-kind { font-size: 10px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; }
+.nt-card strong { font-size: 14.5px; line-height: 1.35; }
+.nt-card .nt-meta { font-size: 12px; color: var(--ink-3); }
+.nt-save { position: absolute; top: 10px; right: 10px; border: 1px solid var(--rule); background: rgba(255,253,248,.92); border-radius: 999px; padding: 4px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.nt-save.on { background: #fef3c7; border-color: #fcd34d; }
+.nt-skel { min-height: 190px; border-radius: 20px; background: var(--card-2); border: 1px solid var(--rule); }
+.nt-empty { grid-column: 1 / -1; text-align: center; padding: 34px 16px; color: var(--ink-3); background: var(--card); border: 1.5px dashed var(--rule); border-radius: 20px; line-height: 1.6; }
+
+.nt-back { border: 1.5px solid var(--rule); background: var(--card); border-radius: 999px; padding: 8px 16px; font-weight: 700; cursor: pointer; color: var(--ink); }
+.nt-course-head { display: flex; gap: 16px; align-items: center; margin: 16px 0 10px; flex-wrap: wrap; }
+.nt-course-head img { width: 160px; aspect-ratio: 16/9; object-fit: cover; border-radius: 14px; }
+.nt-overview { background: var(--card); border: 1px solid var(--rule); border-radius: 16px; padding: 16px 18px; line-height: 1.65; color: var(--ink-2); margin: 10px 0; overflow-wrap: anywhere; }
+.nt-crumbs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 14px 0 2px; font-size: 13px; }
+.nt-crumbs button { border: 0; background: none; font-weight: 700; color: #0f766e; cursor: pointer; padding: 2px 4px; font-size: 13px; }
+.nt-crumbs .sep { color: var(--ink-3); }
+.nt-crumbs .here { color: var(--ink); font-weight: 800; }
+
+.nt-player-shell { position: relative; background: #000; border-radius: 20px; overflow: hidden; aspect-ratio: 16/9; margin-top: 14px; }
+.nt-player-shell video, .nt-player-shell iframe { width: 100%; height: 100%; border: 0; display: block; }
+.nt-next { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
