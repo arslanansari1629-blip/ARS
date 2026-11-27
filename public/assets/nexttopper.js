@@ -269,57 +269,20 @@ async function openItem(item) {
     $("#ntContentStatus").textContent = "Tests abhi ArsVibe par nahi chalte — yeh sirf listing hai.";
     return;
   }
-  // video
-  show("#ntWatch");
-  stopPlayer();
-  $("#ntWatchTitle").textContent = item.title;
-  $("#ntWatchMeta").textContent = [course?.title, item.duration && item.duration !== "0" ? item.duration : ""].filter(Boolean).join(" · ");
-  $("#ntWatchNote").textContent = "Stream taiyaar kar rahe hain…";
-  $("#ntUpNext").innerHTML = folderItems
-    .filter((x) => x.kind === "video" && x.id !== item.id)
-    .map(itemHtml)
-    .join("");
-  $("#ntUpNext").querySelectorAll("[data-item]").forEach((el) => {
-    const next = folderItems.find((x) => x.id === el.dataset.item);
-    el.addEventListener("click", () => next && openItem(next));
+  // video → the dedicated upgraded player page (quality / speed /
+  // audio menus, stream console, resume, up-next). The batch page
+  // stays a catalogue; playback lives on /ntwatch.
+  const folder = folderPath[folderPath.length - 1];
+  const qs = new URLSearchParams({
+    course: course.id,
+    content: item.id,
+    vdc: item.vdcId || "",
+    file: item.fileUrl || "",
+    title: item.title,
+    folder: folder?.id || "0",
+    courseTitle: course.title || "",
   });
-  window.scrollTo({ top: 0 });
-  try {
-    const d = await api(
-      `view=play&course=${encodeURIComponent(course.id)}&content=${encodeURIComponent(item.id)}&file=${encodeURIComponent(item.fileUrl || "")}&vdc=${encodeURIComponent(item.vdcId || "")}`
-    );
-    if (!d.success) throw new Error(d.error || "no stream");
-    const v = $("#ntVideo");
-    if (d.kind === "youtube") {
-      const m = d.url.match(/(?:v=|youtu\.be\/)([\w-]{6,})/);
-      v.hidden = true;
-      const f = $("#ntFrame");
-      f.src = m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : d.url;
-      f.hidden = false;
-      $("#ntWatchNote").textContent = "YouTube lecture";
-      return;
-    }
-    const src = d.proxyUrl || d.url;
-    if (d.kind === "hls" && window.Hls && Hls.isSupported()) {
-      hls = new Hls({ maxBufferLength: 30 });
-      hls.loadSource(src);
-      hls.attachMedia(v);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => v.play().catch(() => {}));
-    } else {
-      v.src = src;
-      v.play().catch(() => {});
-    }
-    // Resume where this lecture was left (Allen/PW parity).
-    const at = Number(localStorage.getItem(POS_KEY(item.id)) || 0);
-    if (at > 5) v.addEventListener("loadedmetadata", () => (v.currentTime = at), { once: true });
-    v.ontimeupdate = () => {
-      if (v.currentTime > 5 && !v.ended) localStorage.setItem(POS_KEY(item.id), String(Math.floor(v.currentTime)));
-    };
-    v.onended = () => localStorage.removeItem(POS_KEY(item.id));
-    $("#ntWatchNote").textContent = item.live ? "Live / recorded lecture" : "Lecture ready hai";
-  } catch (err) {
-    $("#ntWatchNote").textContent = `Yeh lecture abhi play nahi ho raha: ${err.message}`;
-  }
+  location.href = `/ntwatch?${qs}`;
 }
 
 /* ---------------- wiring ---------------- */

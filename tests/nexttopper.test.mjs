@@ -207,6 +207,29 @@ test("playlist rewrite recurses playlists and relays binaries", () => {
   assert.equal(ntProxyAllowed("http://d123.cloudfront.net/x.m3u8"), false);
 });
 
+test("playlist rewrite routes split audio renditions through the playlist proxy", () => {
+  const out = rewriteNtPlaylist(
+    '#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Hindi",URI="audio/hi.m3u8"\n#EXT-X-STREAM-INF:BANDWIDTH=1,AUDIO="aud"\nvideo.m3u8\n',
+    "https://d123.cloudfront.net/x/index.m3u8"
+  );
+  assert.match(out, /#EXT-X-MEDIA:TYPE=AUDIO.*URI="\/api\/nexttopper\?view=playlist&u=[^"]*audio%2Fhi\.m3u8/, "audio rendition must ride the playlist proxy, not the binary relay");
+});
+
+test("the dedicated /ntwatch player page carries the upgraded contract", async () => {
+  const page = await readFile(new URL("../public/ntwatch.html", import.meta.url), "utf8");
+  for (const id of ["ntwVideo", "ntwAudioBadge", "ntwQualityMenu", "ntwAudioMenu", "ntwSpeedMenu", "ntwStats", "ntwUpNext"]) {
+    assert.match(page, new RegExp(`id="${id}"`), `#${id} is missing from the player page`);
+  }
+  assert.match(page, /\/assets\/ntwatch\.js/, "player script missing");
+  assert.match(page, /\/assets\/ntwatch\.css/, "player styles missing");
+  const js = await readFile(new URL("../public/assets/ntwatch.js", import.meta.url), "utf8");
+  assert.match(js, /view: "play"/, "player must resolve streams via view=play");
+  assert.match(js, /audioTracks/, "player must surface split audio tracks when upstream ships them");
+  assert.match(js, /POS_KEY/, "player must persist resume position");
+  const catalogue = await readFile(new URL("../public/assets/nexttopper.js", import.meta.url), "utf8");
+  assert.match(catalogue, /\/ntwatch\?/, "catalogue video clicks must open the dedicated player page");
+});
+
 test("the raw probe refuses to wander off the NT tree", async () => {
   const out = await call({ view: "raw", path: "/Allen/batches.json" });
   assert.equal(out.body.success, false);

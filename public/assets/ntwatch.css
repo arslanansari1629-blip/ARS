@@ -1,0 +1,57 @@
+/* Next Toppers upgraded player page. Dark stage, teal accents.
+   White-grid rule: every control is plain DOM, visible without JS
+   animation; JS only wires behaviour. */
+.ntw-back { border: 1.5px solid var(--rule); background: var(--card); border-radius: 999px; padding: 8px 16px; font-weight: 700; cursor: pointer; color: var(--ink); }
+.ntw-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; margin-top: 14px; align-items: start; }
+@media (max-width: 900px) { .ntw-layout { grid-template-columns: 1fr; } }
+.ntw-shell { position: relative; background: #000; border-radius: 20px; overflow: hidden; aspect-ratio: 16/9; box-shadow: 0 24px 50px rgba(6, 46, 43, .35); }
+.ntw-shell video, .ntw-shell iframe { width: 100%; height: 100%; border: 0; display: block; }
+.ntw-topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 9px; padding: 12px 14px; background: linear-gradient(180deg, rgba(0,0,0,.65), transparent); color: #fff; font-size: 13px; font-weight: 700; pointer-events: none; }
+.ntw-dot { width: 8px; height: 8px; border-radius: 50%; background: #2dd4bf; flex: none; }
+.ntw-toptitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ntw-livebadge { background: #dc2626; color: #fff; font-size: 10px; font-weight: 850; letter-spacing: .1em; padding: 3px 8px; border-radius: 999px; }
+.ntw-audiobadge { margin-left: auto; background: rgba(13,148,136,.85); font-size: 10.5px; font-weight: 800; padding: 3px 9px; border-radius: 999px; flex: none; }
+.ntw-audiobadge.muted { background: rgba(120,113,108,.85); }
+.ntw-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 34px; }
+.ntw-bigplay { width: 74px; height: 74px; border-radius: 50%; border: 0; background: rgba(13,148,136,.92); color: #fff; font-size: 26px; cursor: pointer; display: grid; place-items: center; box-shadow: 0 14px 34px rgba(0,0,0,.45); }
+.ntw-seekbtn { width: 52px; height: 52px; border-radius: 50%; border: 0; background: rgba(0,0,0,.45); color: #fff; font-size: 19px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; }
+.ntw-seekbtn small { font-size: 9px; font-weight: 800; }
+.ntw-shell.playing .ntw-center { opacity: 0; pointer-events: none; }
+.ntw-spin { position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; margin: -22px; border-radius: 50%; border: 4px solid rgba(255,255,255,.25); border-top-color: #2dd4bf; animation: ntwSpin .8s linear infinite; }
+@keyframes ntwSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ntw-spin { animation-duration: 2s; } }
+.ntw-seekfx { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,.55); color: #fff; font-weight: 850; padding: 8px 13px; border-radius: 999px; opacity: 0; pointer-events: none; }
+.ntw-seekfx.left { left: 18px; } .ntw-seekfx.right { right: 18px; }
+.ntw-seekfx.show { opacity: 1; }
+.ntw-stats { position: absolute; top: 52px; right: 12px; background: rgba(0,0,0,.78); color: #e7e5e4; border-radius: 14px; padding: 12px 14px; font-size: 12px; min-width: 210px; z-index: 5; }
+.ntw-stats p { margin: 0 0 7px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; font-size: 10.5px; color: #2dd4bf; }
+.ntw-stats dl { margin: 0; display: grid; gap: 5px; }
+.ntw-stats dl div { display: flex; justify-content: space-between; gap: 14px; }
+.ntw-stats dt { color: #a8a29e; } .ntw-stats dd { margin: 0; font-weight: 700; }
+.ntw-overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 12px 9px; background: linear-gradient(0deg, rgba(0,0,0,.72), transparent); }
+.ntw-progress { position: relative; height: 14px; cursor: pointer; }
+.ntw-progress::before { content: ""; position: absolute; left: 0; right: 0; top: 5px; height: 4px; background: rgba(255,255,255,.28); border-radius: 99px; }
+.ntw-progress b, .ntw-progress i { position: absolute; left: 0; top: 5px; height: 4px; border-radius: 99px; }
+.ntw-progress b { background: rgba(255,255,255,.45); width: 0; }
+.ntw-progress i { background: #2dd4bf; width: 0; }
+.ntw-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ntw-btn { border: 0; background: rgba(255,255,255,.08); color: #fff; font-weight: 700; font-size: 12.5px; padding: 7px 10px; border-radius: 10px; cursor: pointer; }
+.ntw-btn:hover { background: rgba(45,212,191,.35); }
+.ntw-time { color: #e7e5e4; font-size: 12px; font-weight: 700; min-width: 86px; }
+.ntw-vol { width: 74px; accent-color: #2dd4bf; }
+.ntw-menuwrap { position: relative; }
+.ntw-menu { position: absolute; bottom: 44px; right: 0; background: rgba(12,12,12,.96); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 8px; min-width: 168px; z-index: 6; display: grid; gap: 2px; }
+.ntw-menu p { margin: 3px 8px 6px; font-size: 10.5px; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; color: #2dd4bf; }
+.ntw-menu button { border: 0; background: none; color: #e7e5e4; text-align: left; padding: 7px 9px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.ntw-menu button:hover { background: rgba(255,255,255,.09); }
+.ntw-menu button.on { color: #2dd4bf; font-weight: 800; }
+.ntw-note { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; }
+.ntw-title { font-size: clamp(20px, 3.4vw, 28px); margin: 6px 0 2px; letter-spacing: -.02em; }
+.ntw-sub { color: var(--ink-3); font-size: 13px; margin: 0; }
+.ntw-side h3 { margin: 4px 0 10px; }
+.ntw-next { display: grid; gap: 10px; }
+.ntw-nextitem { display: flex; flex-direction: column; gap: 4px; background: var(--card); border: 1.5px solid var(--rule); border-radius: 15px; padding: 10px; cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
+.ntw-nextitem:hover { border-color: #2dd4bf; }
+.ntw-nextitem img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 9px; }
+.ntw-nextitem strong { font-size: 13px; line-height: 1.35; }
+.ntw-nextitem span { font-size: 11.5px; color: var(--ink-3); }
