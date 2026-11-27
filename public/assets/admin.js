@@ -2372,7 +2372,8 @@ async function loadBrain() {
     document.getElementById("brainMood").textContent = `Brain is ${d.mood}`;
     document.getElementById("brainLine").textContent = d.line || "";
     document.getElementById("brainMeta").textContent =
-      `Last check ${d.lastTick ? String(d.lastTick).slice(0, 16).replace("T", " ") : "—"} · last full travel ${d.lastTravel ? String(d.lastTravel).slice(0, 16).replace("T", " ") : "abhi nahi"} · kul fixes ${d.fixedTotal || 0}`;
+      `Last check ${d.lastTick ? String(d.lastTick).slice(0, 16).replace("T", " ") : "—"} · last full travel ${d.lastTravel ? String(d.lastTravel).slice(0, 16).replace("T", " ") : "abhi nahi"} · kul fixes ${d.fixedTotal || 0}` +
+      (d.health ? ` · ❤️ Health ${d.health.score}/100 (${d.health.grade})${d.health.factors?.length ? ` — ${d.health.factors.map((f) => `${f.label} ${f.points}`).join(", ")}` : ""}` : "");
     document.getElementById("brainStore").textContent =
       d.store === "cloudflare-kv" ? "permanent · Cloudflare KV" : d.store || "";
     document.getElementById("brainAuto").checked = d.automation !== false;

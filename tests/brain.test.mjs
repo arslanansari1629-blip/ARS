@@ -21,7 +21,7 @@ import {
   setBrainAutomation,
 } from "../lib/brain.mjs";
 import { resetStore } from "../lib/store.mjs";
-import { playbackDoctor } from "../lib/brain.mjs";
+import { playbackDoctor, brainHealthScore, incidentFingerprint, recordIncidents, activeRecurring, brainPredictions, RECURRENCE_THRESHOLD } from "../lib/brain.mjs";
 import { recordSignerResult } from "../lib/selfheal.mjs";
 import { PAGE_CONTRACT } from "../lib/scanner.mjs";
 
@@ -58,6 +58,40 @@ test("the mood follows evidence, never vibes", () => {
   assert.equal(brainMood({ healer: { counts: { degraded: 1 } } }), "fixing");
   assert.equal(brainMood({ canaryBad: true }), "worried", "lectures down but the Brain smiled");
   assert.equal(brainMood({}), "happy");
+});
+
+test("Ultra: the health score explains itself and grades the site", () => {
+  const perfect = brainHealthScore({});
+  assert.equal(perfect.score, 100);
+  assert.equal(perfect.grade, "S");
+  const hurt = brainHealthScore({ canaryBad: true, healer: { counts: { failed: 1, degraded: 1 } }, verdict: { level: "warn" } });
+  assert.ok(hurt.score < 40 && hurt.grade === "D", `playback down + failures must tank the score, got ${hurt.score}`);
+  assert.ok(hurt.factors.length >= 3 && hurt.factors.every((f) => f.points < 0), "every deduction must be named");
+});
+
+test("Ultra: incident memory recognises a recurring problem and escalates it", () => {
+  const doc = { incidents: {} };
+  const item = { key: "page:/watch:contract", severity: "high", what: "watch page contract broken" };
+  assert.equal(incidentFingerprint(item), incidentFingerprint({ ...item }), "fingerprints must be stable");
+  let out = recordIncidents(doc, [item]);
+  assert.equal(out.fresh.length, 1);
+  for (let i = 1; i < RECURRENCE_THRESHOLD; i++) out = recordIncidents(doc, [item]);
+  assert.equal(out.recurring.length, 1, "crossing the threshold must be reported exactly once");
+  assert.equal(activeRecurring(doc).length, 1);
+  assert.equal(brainMood({ escalated: true }), "worried", "a recurring incident must worry the Brain");
+  assert.equal(brainMood({ healer: { counts: { degraded: 1 } }, escalated: false }), "fixing");
+});
+
+test("Ultra: the predictive watch names drift before failure", () => {
+  const watch = brainPredictions({
+    doctor: { quarantined: ["signer.example"], hosts: [{ host: "weak.example", reason: "answered 402", quarantined: false }] },
+    incidents: { a: { count: 3, label: "same crash", lastAt: new Date().toISOString() } },
+    healer: { counts: { degraded: 2 } },
+    bots: [{ name: "PW Bot", status: "live", health: "degraded" }],
+  });
+  assert.ok(watch.length >= 4, `watch list too thin: ${watch.length}`);
+  assert.ok(watch.some((w) => /Recurring/.test(w.text)));
+  assert.ok(watch.some((w) => /402/.test(w.text)));
 });
 
 test("the report aggregates every organ and the diary persists", async () => {

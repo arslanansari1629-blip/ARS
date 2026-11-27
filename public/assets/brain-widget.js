@@ -76,6 +76,7 @@ function mountBrain() {
     set(".brain-r-bots", d.bots ? `${d.bots.live}/${d.bots.total}` : "—");
     set(".brain-r-fixes", String(d.fixed ?? "—"));
     set(".brain-r-open", String(d.openErrors ?? "—"));
+    set(".brain-r-health", d.health ? `${d.health.score}/100 · ${d.health.grade}` : "—");
     set(".brain-r-check", d.lastTick ? String(d.lastTick).slice(11, 16) : "—");
     set(".brain-meta", d.automation ? "Automation on — error aate hi khud fix karta hoon." : "Automation off hai — admin se on karo.");
     el.querySelector(".brain-zzz").hidden = d.mood !== "sleeping";
