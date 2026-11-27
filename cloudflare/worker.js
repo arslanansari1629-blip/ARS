@@ -201,7 +201,12 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === "/vidyakul-app" || url.pathname.startsWith("/vidyakul-app/")) {
-      return vidyakulProxy(request, url);
+      // Vidyakul is parked (Coming Soon): the mirror stays shut until
+      // the platform is rebuilt natively — nobody opens the site.
+      return new Response("Vidyakul — Coming Soon", {
+        status: 410,
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+      });
     }
     if (url.pathname.startsWith("/api/")) {
       // A resolved lecture plan warms its whole playback chain (see

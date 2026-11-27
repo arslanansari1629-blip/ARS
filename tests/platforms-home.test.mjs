@@ -72,25 +72,20 @@ test("the sidebar lives on the PW platform page, not the front door, and the NT 
   assert.ok(w > 0 && w === h, `NT logo must be square, got ${w}x${h}`);
 });
 
-test("Vidyakul is the fourth LIVE platform card and /vidyakul carries the platform", async () => {
+test("Vidyakul is parked in Coming Soon and its site cannot be opened", async () => {
   const page = await read("public/index.html");
-  assert.match(page, /href="\/vidyakul"[^>]*data-status="live"|data-status="live"[^>]*href="\/vidyakul"/, "Vidyakul card must link live to /vidyakul");
+  assert.match(page, /data-platform="vidyakul"/, "Vidyakul card is missing");
+  assert.match(page, /data-status="soon"/, "Vidyakul must be marked soon, not live");
+  assert.doesNotMatch(page, /<a[^>]*data-platform="vidyakul"/, "the parked Vidyakul card must not be a link");
   assert.match(page, /\/assets\/platforms\/vidyakul\.jpg/, "Vidyakul logo must be a local asset");
-  assert.doesNotMatch(page, /data-status="soon"/, "no platform may still claim Coming Soon");
   await access(new URL("../public/assets/platforms/vidyakul.jpg", import.meta.url));
-  const css = await read("public/assets/home-landing.css");
-  assert.match(css, /data-platform="vidyakul"/, "Vidyakul accent styling is missing");
-  // The platform page: hero + mirrored stage, batch links pass through.
+  // The page itself is a Coming Soon notice — no stage, no mirror.
   const vk = await read("public/vidyakul.html");
-  for (const id of ["vkFrame", "vkReload", "vkFull", "vkStage"]) {
-    assert.match(vk, new RegExp(`id="${id}"`), `#${id} missing from /vidyakul`);
-  }
-  assert.match(vk, /\/vidyakul-app\//, "the stage must load the mirrored app");
-  const js = await read("public/assets/vidyakul.js");
-  assert.match(js, /batch=/, "shared batch links must pass into the platform");
+  assert.match(vk, /Coming Soon/, "/vidyakul must say Coming Soon");
+  assert.doesNotMatch(vk, /vkFrame|vidyakul-app|<iframe/, "the parked page must not embed the platform");
+  // And the mirror route is shut at the edge: 410, nobody opens it.
   const worker = await read("cloudflare/worker.js");
-  assert.match(worker, /vidyakulProxy/, "the /vidyakul-app proxy is missing from the worker");
-  assert.match(worker, /vidyakool\.streamfiles\.eu\.org/, "the proxy must target the linked upstream");
+  assert.match(worker, /status: 410/, "the /vidyakul-app route must answer 410 while parked");
 });
 
 test("landing content never depends on animation or JS to be visible, and counts/filter are garnish", async () => {
