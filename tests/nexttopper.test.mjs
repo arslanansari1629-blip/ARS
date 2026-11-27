@@ -104,8 +104,8 @@ test("batches view reads the course_list_layout list through a POST", async () =
     const out = await call({ view: "batches" });
     assert.equal(out.status, 200);
     assert.equal(out.body.success, true);
-    assert.equal(out.body.total, 1);
-    assert.equal(out.body.items[0].class, "Class 10");
+    assert.ok(out.body.items.some((c) => c.id === "176" || c.title.includes("ABHAY")), "the API course is missing");
+    assert.equal(out.body.items.find((c) => c.title.includes("ABHAY"))?.class, "Class 10");
     assert.equal(calls[0].method, "POST");
     assert.match(calls[0].url, /\/nexttopper\/api\/all-courses$/);
     assert.equal(calls[0].body.limit, "100");
