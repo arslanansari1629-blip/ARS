@@ -111,6 +111,37 @@ test("batches view reads the course_list_layout list through a POST", async () =
   }
 });
 
+test("batches view merges batches_latest.json — where course 176 lives — ahead of the API subset", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts = {}) => {
+    const u = String(url);
+    const jsonRes = (obj) => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/json" },
+      url: u,
+      text: async () => JSON.stringify(obj),
+    });
+    if (u.includes("batches_latest.json"))
+      return jsonRes({ new: [{ id: 176, title: "AARAMBH 2.0 10th BATCH 26-27", thumbnail: "https://d.cloudfront.net/a.png" }], old: [] });
+    if (u.includes("batches.json")) return jsonRes({ new: [{ id: 62, title: "AARAMBH 2.0 10TH BATCH 2025-26" }] });
+    // the all-courses POST: a subset that does NOT know 176
+    return jsonRes({ data: [{ layout_type: "course_list_layout", list: [{ id: 264, title: "10TH ABHAY BATCH 2027" }] }] });
+  };
+  try {
+    resetNtCache();
+    const out = await call({ view: "batches" });
+    assert.equal(out.body.success, true);
+    const ids = out.body.items.map((c) => c.id);
+    assert.deepEqual(ids, ["176", "264", "62"]);
+    assert.equal(out.body.items[0].class, "Class 10");
+    assert.equal(out.body.items[2].archive, true);
+  } finally {
+    globalThis.fetch = realFetch;
+    resetNtCache();
+  }
+});
+
 test("content view reports a truly empty folder as empty, not an error to retry", async () => {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async () => ({
