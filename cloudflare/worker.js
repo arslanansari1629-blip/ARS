@@ -150,9 +150,59 @@ async function warmPlan(request, res, env, cache) {
   }
 }
 
+/**
+ * The Vidyakul mirror: the platform's own app (linked by the
+ * operator) reverse-proxied under /vidyakul-app/ so it runs as part
+ * of ArsVibe — same batches, subjects, classes and player, on this
+ * origin, where the student's favourites and added batches persist.
+ * Framing guards are stripped (it is meant to sit inside /vidyakul),
+ * a <base> keeps every relative asset and fetch under the prefix,
+ * and nothing is cached: upstream decides what is fresh.
+ */
+const VK_ORIGIN = "https://vidyakool.streamfiles.eu.org";
+async function vidyakulProxy(request, url) {
+  const rest = url.pathname.slice("/vidyakul-app".length) || "/";
+  const target = `${VK_ORIGIN}${rest}${url.search}`;
+  const init = {
+    method: request.method,
+    headers: {
+      "User-Agent": request.headers.get("user-agent") || "Mozilla/5.0",
+      Accept: request.headers.get("accept") || "*/*",
+      ...(request.headers.get("content-type") ? { "Content-Type": request.headers.get("content-type") } : {}),
+      Referer: `${VK_ORIGIN}/`,
+    },
+    redirect: "follow",
+  };
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = await request.arrayBuffer().catch(() => undefined);
+  }
+  const up = await fetch(target, init).catch(() => null);
+  if (!up) return new Response("Vidyakul upstream unreachable", { status: 502 });
+  const type = up.headers.get("content-type") || "";
+  const headers = new Headers(up.headers);
+  headers.delete("x-frame-options");
+  headers.delete("content-security-policy");
+  headers.delete("set-cookie");
+  headers.set("Cache-Control", "no-store");
+  if (/text\/html/i.test(type)) {
+    let html = await up.text();
+    if (!/<base\s/i.test(html)) {
+      html = html.replace(/<head([^>]*)>/i, `<head$1><base href="/vidyakul-app/" />`);
+    }
+    html = html
+      .replace(/(href|src)="\/(?!\/)/gi, `$1="/vidyakul-app/`)
+      .replaceAll(`${VK_ORIGIN}/`, "/vidyakul-app/");
+    return new Response(html, { status: up.status, headers });
+  }
+  return new Response(up.body, { status: up.status, headers });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname === "/vidyakul-app" || url.pathname.startsWith("/vidyakul-app/")) {
+      return vidyakulProxy(request, url);
+    }
     if (url.pathname.startsWith("/api/")) {
       // A resolved lecture plan warms its whole playback chain (see
       // warmPlan) — by the time the student presses play, the master,

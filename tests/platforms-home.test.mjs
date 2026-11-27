@@ -72,23 +72,25 @@ test("the sidebar lives on the PW platform page, not the front door, and the NT 
   assert.ok(w > 0 && w === h, `NT logo must be square, got ${w}x${h}`);
 });
 
-test("Vidyakul waits in Coming Soon with its real logo and no live promises", async () => {
+test("Vidyakul is the fourth LIVE platform card and /vidyakul carries the platform", async () => {
   const page = await read("public/index.html");
-  const section = page.match(/<section class="section coming-soon-section" id="coming-soon">[\s\S]*?<\/section>/)?.[0] || "";
-  assert.ok(section, "the coming-soon section is missing");
-  assert.match(section, /data-platform="vidyakul"/, "Vidyakul card is missing from Coming Soon");
-  assert.match(section, /data-status="soon"/, "Vidyakul must be marked soon, not live");
-  assert.match(section, /\/assets\/platforms\/vidyakul\.jpg/, "Vidyakul logo must be a local asset");
-  assert.match(section, /Coming Soon/, "the coming-soon badge is missing");
-  // A soon card must not be a dead link or claim to be openable.
-  assert.doesNotMatch(section, /<a[^>]*data-platform="vidyakul"/, "Vidyakul must not be an anchor yet");
-  assert.doesNotMatch(section, /data-status="live"/, "Vidyakul must not claim LIVE");
+  assert.match(page, /href="\/vidyakul"[^>]*data-status="live"|data-status="live"[^>]*href="\/vidyakul"/, "Vidyakul card must link live to /vidyakul");
+  assert.match(page, /\/assets\/platforms\/vidyakul\.jpg/, "Vidyakul logo must be a local asset");
+  assert.doesNotMatch(page, /data-status="soon"/, "no platform may still claim Coming Soon");
   await access(new URL("../public/assets/platforms/vidyakul.jpg", import.meta.url));
-  // The three live platforms stay in the live grid, untouched.
-  const grid = page.match(/<div class="platforms-grid" id="platformsGrid">[\s\S]*?<\/div>/)?.[0] || "";
-  assert.doesNotMatch(grid, /vidyakul/i, "Vidyakul belongs in Coming Soon, not the live grid");
   const css = await read("public/assets/home-landing.css");
   assert.match(css, /data-platform="vidyakul"/, "Vidyakul accent styling is missing");
+  // The platform page: hero + mirrored stage, batch links pass through.
+  const vk = await read("public/vidyakul.html");
+  for (const id of ["vkFrame", "vkReload", "vkFull", "vkStage"]) {
+    assert.match(vk, new RegExp(`id="${id}"`), `#${id} missing from /vidyakul`);
+  }
+  assert.match(vk, /\/vidyakul-app\//, "the stage must load the mirrored app");
+  const js = await read("public/assets/vidyakul.js");
+  assert.match(js, /batch=/, "shared batch links must pass into the platform");
+  const worker = await read("cloudflare/worker.js");
+  assert.match(worker, /vidyakulProxy/, "the /vidyakul-app proxy is missing from the worker");
+  assert.match(worker, /vidyakool\.streamfiles\.eu\.org/, "the proxy must target the linked upstream");
 });
 
 test("landing content never depends on animation or JS to be visible, and counts/filter are garnish", async () => {
