@@ -415,6 +415,12 @@ function wirePlayer() {
     }
   });
   v.addEventListener("loadedmetadata", () => {
+    // Fullscreen Fit Engine: remember the lecture's own shape so the
+    // stage can fit portrait recordings without cropping them.
+    shell()?.classList.toggle(
+      "ap-video-portrait",
+      !!v.videoHeight && v.videoHeight > v.videoWidth
+    );
     if (!currentLecture) return;
     const pos = readJson(posKey(currentLecture.id), null);
     if (pos && pos.t > 5 && v.duration && pos.t < v.duration - 10) {
@@ -455,10 +461,119 @@ function wirePlayer() {
       setNote("Picture-in-picture is browser ne allow nahi kiya.");
     }
   });
-  $("#allenFull").addEventListener("click", () => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else shell()?.requestFullscreen?.().catch(() => {});
+  /* ---- Fullscreen Fit Engine (player v8) ----
+     Mobile fullscreen used to silently fail or letterbox: iOS Safari has
+     no element requestFullscreen at all, Android needs an orientation
+     lock to actually use the screen, and the stage stayed locked to
+     aspect-ratio 16/9 inside the fullscreen box, so on a portrait phone
+     the lecture rendered as a thin strip. The engine detects the device
+     and walks a capability ladder until SOMETHING fills the screen:
+       1. standard / webkit element fullscreen on the player shell
+       2. + screen.orientation.lock("landscape") when the lecture is
+          landscape and the phone is portrait (Android Chrome)
+       3. iOS Safari: the video element's own webkitEnterFullscreen
+       4. pseudo-fullscreen (fixed 100dvw × 100dvh) for webviews and
+          browsers that expose none of the above — always works.
+     On fullscreenchange the stage drops its 16/9 ratio and stretches to
+     the real viewport (see the v8 CSS block), so the picture auto-fits
+     whatever device asked for it. */
+  const fsBtn = $("#allenFull");
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+  const inPseudoFs = () => !!shell()?.classList.contains("ap-pseudo-fs");
+  const isFs = () => !!fsEl() || inPseudoFs();
+  const touchDevice = () =>
+    (window.matchMedia?.("(pointer: coarse)").matches || "ontouchstart" in window) ?? false;
+  const isIOS = () =>
+    /iP(hone|ad|od)/.test(navigator.userAgent || "") ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+  const paintFsBtn = () => {
+    if (!fsBtn) return;
+    fsBtn.textContent = isFs() ? "🗗" : "⛶";
+    fsBtn.classList.toggle("on", isFs());
+    fsBtn.title = isFs() ? "Exit fullscreen" : "Fullscreen — auto-fits your device";
+  };
+  const lockLandscape = async () => {
+    // Only meaningful once a real fullscreen owns the screen; every
+    // failure here is cosmetic, so it is swallowed by design.
+    try {
+      const o = screen.orientation;
+      if (!o?.lock) return;
+      const landscapeVideo = !v.videoWidth || v.videoWidth >= v.videoHeight;
+      if (landscapeVideo && touchDevice()) await o.lock("landscape");
+    } catch {
+      /* browser refused (desktop, iOS, no gesture) — fullscreen still fits */
+    }
+  };
+  const unlockOrientation = () => {
+    try {
+      screen.orientation?.unlock?.();
+    } catch {
+      /* nothing was locked */
+    }
+  };
+  const setPseudoFs = (on) => {
+    shell()?.classList.toggle("ap-pseudo-fs", on);
+    document.body.classList.toggle("allen-pseudo-fs", on);
+    paintFsBtn();
+  };
+  const enterFs = async () => {
+    const target = shell();
+    // 1) Standard + prefixed element fullscreen.
+    const req =
+      target?.requestFullscreen ||
+      target?.webkitRequestFullscreen ||
+      target?.webkitRequestFullScreen;
+    if (target && req) {
+      try {
+        const p = req.call(target, { navigationUI: "hide" });
+        if (p?.catch) await p;
+        await lockLandscape();
+        return;
+      } catch {
+        try {
+          await req.call(target); // retry bare — some engines reject options
+          await lockLandscape();
+          return;
+        } catch {
+          /* fall through to the next rung */
+        }
+      }
+    }
+    // 2) iOS Safari: only the <video> itself may go fullscreen.
+    if (isIOS() && typeof v.webkitEnterFullscreen === "function") {
+      try {
+        v.webkitEnterFullscreen();
+        return;
+      } catch {
+        /* fall through */
+      }
+    }
+    // 3) Pseudo-fullscreen: CSS takes the whole dynamic viewport.
+    setPseudoFs(true);
+  };
+  const exitFs = async () => {
+    if (inPseudoFs()) {
+      setPseudoFs(false);
+      return;
+    }
+    unlockOrientation();
+    try {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else document.webkitExitFullscreen?.();
+    } catch {
+      /* already exited */
+    }
+  };
+  fsBtn?.addEventListener("click", () => (isFs() ? exitFs() : enterFs()));
+  document.addEventListener("fullscreenchange", paintFsBtn);
+  document.addEventListener("webkitfullscreenchange", paintFsBtn);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && inPseudoFs()) setPseudoFs(false);
   });
+  v.addEventListener("webkitendfullscreen", paintFsBtn);
+  // A rotating phone mid-lecture: keep the stage fitted to the new box.
+  window.addEventListener("orientationchange", () => setTimeout(paintFsBtn, 60));
   $("#allenRetry").addEventListener("click", () => currentLecture?.retry?.());
 
   // Popup menus (Speed / Quality) driving the hidden selects.

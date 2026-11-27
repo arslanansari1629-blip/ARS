@@ -288,6 +288,31 @@ test("the Allen player is Pro X: QoE console, seek FX, cinema, settings memory",
   assert.match(shell, /speculationrules/, "site-wide instant navigation is missing");
 });
 
+test("the Allen player has the Fullscreen Fit Engine: device-detecting auto-fit ladder", async () => {
+  const script = await readFile(new URL("../public/assets/allen.js", import.meta.url), "utf8");
+  // Rung 1: standard + prefixed element fullscreen, options retried bare.
+  assert.match(script, /requestFullscreen/, "standard fullscreen request is missing");
+  assert.match(script, /webkitRequestFullscreen/, "webkit-prefixed fullscreen is missing");
+  // Rung 2: Android orientation lock so a portrait phone actually fills.
+  assert.match(script, /orientation/, "orientation handling is missing");
+  assert.match(script, /\.lock\("landscape"\)/, "landscape lock is missing");
+  // Rung 3: iOS Safari only fullscreens the <video> element itself.
+  assert.match(script, /webkitEnterFullscreen/, "iOS video fullscreen fallback is missing");
+  assert.match(script, /isIOS/, "device detection is missing");
+  // Rung 4: pseudo-fullscreen so webviews still fill the viewport.
+  assert.match(script, /ap-pseudo-fs/, "pseudo-fullscreen fallback is missing");
+  assert.match(script, /fullscreenchange/, "fullscreen state sync is missing");
+
+  const css = await readFile(new URL("../public/assets/allen.css", import.meta.url), "utf8");
+  assert.match(css, /:fullscreen[^{]*\{[^}]*display: flex/s, "fullscreen shell must stretch to the viewport");
+  assert.match(css, /aspect-ratio: auto/, "fullscreen stage must drop the 16/9 strap");
+  assert.match(css, /safe-area-inset/, "notch safe-area padding is missing");
+  assert.match(css, /100dvh/, "pseudo-fullscreen must use the dynamic viewport");
+
+  const sw = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.match(sw, /arsvibe-v39/, "cached-asset changes must bump the SW version");
+});
+
 test("view=play never consumes the token — it only hands back the proxy URL", async () => {
   // Their player loads the token URL exactly once. A resolver that
   // pre-fetches it to "check" burns a short-lived/single-use token,

@@ -516,3 +516,47 @@ body.allen-cinema .footer, body.allen-cinema .allen-marquee {
 body.allen-cinema .ap-shell { box-shadow: 0 0 120px rgba(37, 99, 235, 0.4), 0 34px 70px rgba(0, 0, 0, 0.8); }
 #allenCinemaBtn.on { background: var(--al-amber, #d97706); border-color: transparent; color: #fff; }
 #allenStatsBtn.on { background: var(--al-blue); border-color: transparent; color: #fff; }
+
+/* ---------- player v8: Fullscreen Fit Engine ----------
+   The JS ladder gets us INTO fullscreen; this block makes the picture
+   actually fill whatever screen asked. Prior shape: stage kept
+   aspect-ratio 16/9 inside the fullscreen box → thin strip on phones. */
+.ap-shell:fullscreen, .ap-shell:-webkit-full-screen, .ap-shell.ap-pseudo-fs {
+  border-radius: 0; border: 0; background: #000;
+  width: 100%; height: 100%; max-height: 100dvh;
+  display: flex; flex-direction: column;
+}
+.ap-shell.ap-pseudo-fs {
+  position: fixed; inset: 0; z-index: 2147483000;
+  width: 100dvw; height: 100dvh;
+}
+body.allen-pseudo-fs { overflow: hidden !important; }
+.ap-shell:fullscreen .ap-stagewrap, .ap-shell:-webkit-full-screen .ap-stagewrap,
+.ap-shell.ap-pseudo-fs .ap-stagewrap { flex: 1 1 auto; min-height: 0; }
+.ap-shell:fullscreen .ap-stage, .ap-shell:-webkit-full-screen .ap-stage,
+.ap-shell.ap-pseudo-fs .ap-stage {
+  aspect-ratio: auto; width: 100%; height: 100%;
+}
+.ap-shell:fullscreen video, .ap-shell:-webkit-full-screen video,
+.ap-shell.ap-pseudo-fs video { object-fit: contain; width: 100%; height: 100%; }
+/* Notch / gesture-bar devices: keep controls out of the cut-outs. */
+.ap-shell:fullscreen .ap-overlay, .ap-shell:-webkit-full-screen .ap-overlay,
+.ap-shell.ap-pseudo-fs .ap-overlay {
+  padding-left: max(6px, env(safe-area-inset-left));
+  padding-right: max(6px, env(safe-area-inset-right));
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+.ap-shell:fullscreen .ap-topbar, .ap-shell:-webkit-full-screen .ap-topbar,
+.ap-shell.ap-pseudo-fs .ap-topbar {
+  padding-top: max(10px, env(safe-area-inset-top));
+  padding-left: max(14px, env(safe-area-inset-left));
+  padding-right: max(14px, env(safe-area-inset-right));
+}
+/* Portrait lecture on any screen: never crop, just fit height. */
+.ap-shell:fullscreen.ap-video-portrait video,
+.ap-shell.ap-pseudo-fs.ap-video-portrait video { object-fit: contain; }
+#allenFull.on { background: var(--al-blue); border-color: transparent; color: #fff; }
+/* Touch devices get a thumb-sized fullscreen target. */
+@media (pointer: coarse) {
+  #allenFull { min-width: 48px; min-height: 40px; font-size: 17px; }
+}
