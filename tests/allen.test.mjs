@@ -310,7 +310,26 @@ test("the Allen player has the Fullscreen Fit Engine: device-detecting auto-fit 
   assert.match(css, /100dvh/, "pseudo-fullscreen must use the dynamic viewport");
 
   const sw = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
-  assert.match(sw, /arsvibe-v39/, "cached-asset changes must bump the SW version");
+  assert.match(sw, /arsvibe-v40/, "cached-asset changes must bump the SW version");
+});
+
+test("the Allen page self-heals: fault-isolated wiring, versioned assets, boot watchdog", async () => {
+  const page = await readFile(new URL("../public/allen.html", import.meta.url), "utf8");
+  // Version-stamped assets defeat a stale worker's cache-first assets:
+  // the query is part of the cache key, so ?v= is a guaranteed miss.
+  assert.match(page, /allen\.js\?v=40/, "allen.js must be version-stamped");
+  assert.match(page, /allen\.css\?v=40/, "allen.css must be version-stamped");
+  // The watchdog is inline + classic (module failure cannot silence it)
+  // and purges caches/workers exactly once per session.
+  assert.match(page, /Boot watchdog/, "boot watchdog is missing");
+  assert.match(page, /arsvibe\.allen\.healed\.v1/, "watchdog must be loop-guarded");
+  assert.match(page, /caches\.delete/, "watchdog must purge caches");
+  assert.match(page, /getRegistrations/, "watchdog must unregister stale workers");
+
+  const script = await readFile(new URL("../public/assets/allen.js", import.meta.url), "utf8");
+  // Player wiring can throw without taking the catalogue down with it.
+  assert.match(script, /wire\(wirePlayer\)/, "player wiring must be fault-isolated");
+  assert.match(script, /loadCatalogue\(\)\.catch/, "catalogue load must carry its own failure path");
 });
 
 test("view=play never consumes the token — it only hands back the proxy URL", async () => {

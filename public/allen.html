@@ -12,7 +12,7 @@
 <meta property="og:description" content="Allen JEE & NEET batches with subjects, chapters, lectures and playback, in the ArsVibe Allen player." />
 <meta property="og:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
 <link rel="stylesheet" href="/assets/arsvibe.css" />
-<link rel="stylesheet" href="/assets/allen.css" />
+<link rel="stylesheet" href="/assets/allen.css?v=40" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -216,7 +216,71 @@
 </footer>
 
 <script src="/assets/vendor/hls.min.js"></script>
-<script type="module" src="/assets/allen.js"></script>
+<script>
+  /* Boot watchdog (self-heal). The one failure this page cannot code
+     its way out of from inside allen.js is a browser holding a stale,
+     mismatched set of cached assets (an old service worker that never
+     got its update accepted): the catalogue then never renders and
+     the student sees an empty page with no error to report. This
+     inline classic script — no modules, no dependencies, immune to
+     asset mismatch by construction — checks 7s after load: if the
+     grid is still empty (or only skeletons) and the status still
+     says Loading, it clears every ArsVibe cache + worker ONCE and
+     reloads into fresh assets. A session flag keeps it from ever
+     looping; if the fresh load still fails, it says so and offers
+     the same cure by hand. */
+  (function () {
+    var KEY = "arsvibe.allen.healed.v1";
+    function healed() {
+      try { return sessionStorage.getItem(KEY) === "1"; } catch (e) { return false; }
+    }
+    function mark() {
+      try { sessionStorage.setItem(KEY, "1"); } catch (e) { /* private mode */ }
+    }
+    async function purge() {
+      try {
+        if ("caches" in window) {
+          var names = await caches.keys();
+          await Promise.all(names.map(function (n) { return caches.delete(n); }));
+        }
+        if ("serviceWorker" in navigator) {
+          var regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(function (r) { return r.unregister(); }));
+        }
+      } catch (e) { /* the reload is the point, the purge is best-effort */ }
+    }
+    window.addEventListener("load", function () {
+      setTimeout(async function () {
+        var grid = document.getElementById("allenGrid");
+        var status = document.getElementById("allenStatus");
+        var onlySkeletons =
+          grid &&
+          grid.children.length > 0 &&
+          Array.prototype.every.call(grid.children, function (c) {
+            return c.classList && c.classList.contains("allen-skel");
+          });
+        var stuck =
+          grid && (grid.children.length === 0 || onlySkeletons) &&
+          (!status || /Loading/.test(status.textContent || ""));
+        if (!stuck) return;
+        if (!healed()) {
+          mark();
+          if (status) status.textContent = "Purana cache phas gaya tha — fresh load kar rahe hain…";
+          await purge();
+          location.reload();
+        } else if (status) {
+          status.textContent = "Allen catalogue load nahi ho raha — connection check karo, phir ";
+          var b = document.createElement("button");
+          b.type = "button";
+          b.textContent = "Fresh refresh";
+          b.addEventListener("click", async function () { await purge(); location.reload(); });
+          status.appendChild(b);
+        }
+      }, 7000);
+    });
+  })();
+</script>
+<script type="module" src="/assets/allen.js?v=40"></script>
 <script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
 <script type="module" src="/assets/telemetry.js"></script>

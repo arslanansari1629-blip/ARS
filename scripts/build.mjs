@@ -91,7 +91,7 @@ async function main() {
     const html = await readFile(path.join(PUBLIC, page), "utf8");
     const matches = [...html.matchAll(/<script[^>]+src="(\/assets\/[^"]+)"/g)];
     for (const [, src] of matches) {
-      if (!(await exists(path.join(PUBLIC, src.replace(/^\//, ""))))) {
+      if (!(await exists(path.join(PUBLIC, src.replace(/^\//, "").split("?")[0])))) {
         problems.push(`${page} references missing asset ${src}`);
       }
     }

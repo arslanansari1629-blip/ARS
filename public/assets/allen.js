@@ -871,7 +871,20 @@ async function watch(batch, subject, lec, isRetry = false) {
 /* ---------------- wiring ---------------- */
 
 document.addEventListener("DOMContentLoaded", () => {
-  wirePlayer();
+  // Every subsystem wires in its own fault cell. The catalogue is the
+  // page; the player is furniture. A throw in the furniture (a stale
+  // cached page missing a new button, an exotic browser missing an
+  // API) must never again leave a student staring at an empty grid —
+  // that exact failure is why this isolation exists.
+  const wire = (fn) => {
+    try {
+      fn();
+    } catch (err) {
+      reportStage("wire", err?.message || String(err));
+    }
+  };
+  wire(wirePlayer);
+  wire(() => {
   $("#allenSearch").addEventListener("input", renderGrid);
   $("#allenSort").addEventListener("change", (e) => {
     sortBy = e.target.value;
@@ -926,7 +939,18 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+  });
   loadCatalogue().catch(() => {
-    $("#allenStatus").textContent = "The Allen catalogue could not load — check the connection and retry.";
+    const st = $("#allenStatus");
+    if (st) {
+      st.textContent = "The Allen catalogue could not load — check the connection and retry.";
+      // A dead-end sentence helps nobody; give the failure a button.
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "allen-retry-inline";
+      btn.textContent = "Retry";
+      btn.addEventListener("click", () => loadCatalogue().catch(() => {}));
+      st.append(" ", btn);
+    }
   });
 });
