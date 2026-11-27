@@ -61,6 +61,10 @@ test("a course row normalises with a class read off its title", () => {
   assert.equal(c.id, "176");
   assert.equal(c.class, "Class 10");
   assert.equal(normalizeNtCourse({ id: 9, title: "CUET (Science)" }).class, "CUET");
+  // Session years are not classes: "2026-27" must not become Class 6.
+  assert.equal(normalizeNtCourse({ id: 122, title: "CUET (SCIENCE) 2026-27" }).class, "CUET");
+  assert.equal(normalizeNtCourse({ id: 183, title: "NIRMAAN Summer Camp 2026" }).class, "All classes");
+  assert.equal(normalizeNtCourse({ id: 176, title: "AARAMBH 2.0 10th BATCH 26-27" }).class, "Class 10");
   assert.equal(normalizeNtCourse({ title: "no id" }), null);
 });
 
