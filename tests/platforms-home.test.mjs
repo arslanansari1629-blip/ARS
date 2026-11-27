@@ -42,9 +42,10 @@ test("Next Toppers is a third LIVE platform card once its platform shipped", asy
   assert.match(page, /href="\/nexttopper"[^>]*data-status="live"|data-status="live"[^>]*href="\/nexttopper"/, "NT card must link live to /nexttopper");
   assert.match(page, /\/assets\/platforms\/next-toppers\.jpg/, "Next Toppers logo must be a local asset");
   await access(new URL("../public/assets/platforms/next-toppers.jpg", import.meta.url));
-  // The Coming Soon teaser is retired — a live platform must not
-  // keep wearing a coming-soon badge.
-  assert.doesNotMatch(page, /id="coming-soon"/, "the coming-soon section must retire once NT is live");
+  // A live platform must not keep wearing a coming-soon badge: the
+  // section may exist (Vidyakul waits there), but NT's own card is live.
+  const ntCard = page.match(/<a class="platform-card"[^>]*data-platform="next-toppers"[^>]*>/)?.[0] || "";
+  assert.doesNotMatch(ntCard, /is-soon|Coming Soon/, "the live NT card must not wear a coming-soon badge");
   const js = await read("public/assets/landing.js");
   assert.match(js, /platformNtCount/, "NT count wiring is missing");
   assert.match(js, /\/api\/nexttopper\?view=batches/, "NT count must come from its live catalogue");
@@ -69,6 +70,25 @@ test("the sidebar lives on the PW platform page, not the front door, and the NT 
     }
   }
   assert.ok(w > 0 && w === h, `NT logo must be square, got ${w}x${h}`);
+});
+
+test("Vidyakul waits in Coming Soon with its real logo and no live promises", async () => {
+  const page = await read("public/index.html");
+  const section = page.match(/<section class="section coming-soon-section" id="coming-soon">[\s\S]*?<\/section>/)?.[0] || "";
+  assert.ok(section, "the coming-soon section is missing");
+  assert.match(section, /data-platform="vidyakul"/, "Vidyakul card is missing from Coming Soon");
+  assert.match(section, /data-status="soon"/, "Vidyakul must be marked soon, not live");
+  assert.match(section, /\/assets\/platforms\/vidyakul\.jpg/, "Vidyakul logo must be a local asset");
+  assert.match(section, /Coming Soon/, "the coming-soon badge is missing");
+  // A soon card must not be a dead link or claim to be openable.
+  assert.doesNotMatch(section, /<a[^>]*data-platform="vidyakul"/, "Vidyakul must not be an anchor yet");
+  assert.doesNotMatch(section, /data-status="live"/, "Vidyakul must not claim LIVE");
+  await access(new URL("../public/assets/platforms/vidyakul.jpg", import.meta.url));
+  // The three live platforms stay in the live grid, untouched.
+  const grid = page.match(/<div class="platforms-grid" id="platformsGrid">[\s\S]*?<\/div>/)?.[0] || "";
+  assert.doesNotMatch(grid, /vidyakul/i, "Vidyakul belongs in Coming Soon, not the live grid");
+  const css = await read("public/assets/home-landing.css");
+  assert.match(css, /data-platform="vidyakul"/, "Vidyakul accent styling is missing");
 });
 
 test("landing content never depends on animation or JS to be visible, and counts/filter are garnish", async () => {
