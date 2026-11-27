@@ -242,6 +242,10 @@
     {
       "source": "/api/allen",
       "destination": "/api/batches?action=allen"
+    },
+    {
+      "source": "/api/nexttopper",
+      "destination": "/api/batches?action=nexttopper"
     }
   ],
   "crons": [

@@ -41,6 +41,8 @@ const ALIASES = {
   "client-error": ["admin", "client-error"],
   // The Allen platform's API rides on the batches function.
   allen: ["batches", "allen"],
+  // So does the Next Toppers platform's.
+  nexttopper: ["batches", "nexttopper"],
 };
 
 function resolveRoute(url) {

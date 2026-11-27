@@ -93,7 +93,8 @@ const server = http.createServer(async (req, res) => {
     pathname === "/api/download" ||
     pathname === "/api/scan" ||
     pathname === "/api/client-error" ||
-    pathname === "/api/allen"
+    pathname === "/api/allen" ||
+    pathname === "/api/nexttopper"
   ) {
     // `/api/sign` and `/api/repair` are mounted on the admin function; `/api/hls`
     // rides on stream, which is how all of them keep their own URL inside a
@@ -104,7 +105,7 @@ const server = http.createServer(async (req, res) => {
         ? "/api/stream"
         : action === "key"
           ? "/api/check"
-          : action === "allen"
+          : action === "allen" || action === "nexttopper"
             ? "/api/batches"
             : "/api/admin";
     url.searchParams.set("action", action);
