@@ -274,6 +274,7 @@ test("view=audit names the batches whose chain breaks, stage by stage", async ()
         { batch_id: "bt_nosub", batch_name: "NOSUB-1", course_id: "cr_2", course_name: "No Subjects", stream: "NEET" },
         { batch_id: "bt_nolec", batch_name: "NOLEC-1", course_id: "cr_3", course_name: "No Lectures", stream: "JEE Advanced" },
         { batch_id: "bt_empty", batch_name: "EMPTY-1", course_id: "cr_4", course_name: "Empty", stream: "NEET" },
+        { batch_id: "bt_twoface", batch_name: "TWOFACE-1", course_id: "cr_6", course_name: "Two Face", stream: "JEE Advanced" },
         { batch_id: "bt_wall", batch_name: "WALL-1", course_id: "cr_5", course_name: "Walled", stream: "NEET" },
       ]);
     }
@@ -281,9 +282,21 @@ test("view=audit names the batches whose chain breaks, stage by stage", async ()
       if (u.includes("bt_nosub")) return json({ success: false }, 404);
       if (u.includes("bt_empty")) return json({ success: true, count: 0, data: [] });
       if (u.includes("bt_wall")) return json({ success: false }, 401);
+      if (u.includes("bt_twoface"))
+        return json({
+          success: true,
+          data: [
+            { subject_id: "s-empty", name: "IOC", taxonomy_id: "tax1" },
+            { subject_id: "s-full", name: "Maths", taxonomy_id: "tax1" },
+          ],
+        });
       return json({ success: true, data: [{ subject_id: "984", name: "Chemistry", taxonomy_id: "tax1" }] });
     }
     if (u.includes("/Allen/api/topics")) {
+      // TWOFACE's first subject is a placeholder with no chapters;
+      // its second subject carries the course. A deep audit that
+      // judges by the first subject alone condemns a healthy batch.
+      if (u.includes("s-empty")) return json({ success: true, count: 0, data: [] });
       return json({ success: true, data: [{ topic_id: "1295", name: "Chapter 1" }] });
     }
     if (u.includes("/Allen/api/contents")) {
@@ -295,8 +308,8 @@ test("view=audit names the batches whose chain breaks, stage by stage", async ()
   try {
     const shallow = await callBatches("action=allen&view=audit&limit=20");
     const sbody = await shallow.json();
-    assert.equal(sbody.total, 5);
-    assert.equal(sbody.okCount, 2, "subjects-level audit must pass the two batches that answer subjects");
+    assert.equal(sbody.total, 6);
+    assert.equal(sbody.okCount, 3, "subjects-level audit must pass the three batches that answer subjects");
     assert.deepEqual(sbody.bad.map((b) => b.code), ["NOSUB-1", "EMPTY-1"]);
     assert.equal(sbody.bad[0].stage, "subjects");
     // A 200 with zero rows is a truly empty batch (bad, subjects
@@ -315,7 +328,10 @@ test("view=audit names the batches whose chain breaks, stage by stage", async ()
 
     const deep = await callBatches("action=allen&view=audit&limit=8&deep=1");
     const dbody = await deep.json();
-    assert.equal(dbody.okCount, 1, "deep audit must catch the batch whose first chapter has no lectures");
+    assert.equal(dbody.okCount, 2, "deep audit must pass GOOD and TWOFACE, whose second subject carries the chapters");
+    const twoface = dbody.results.find((b) => b.code === "TWOFACE-1");
+    assert.equal(twoface.ok, true);
+    assert.equal(twoface.topicsSubject, "Maths");
     const nolec = dbody.bad.find((b) => b.code === "NOLEC-1");
     assert.equal(nolec.stage, "lectures");
   } finally {
