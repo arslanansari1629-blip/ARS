@@ -261,6 +261,52 @@ test("the playlist proxy retries a refused first ask on the second header shape"
   }
 });
 
+test("view=audit names the batches whose chain breaks, stage by stage", async () => {
+  resetAllenCache();
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const json = (body, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    if (u.includes("/Allen/batches.json")) {
+      return json([
+        { batch_id: "bt_good", batch_name: "GOOD-1", course_id: "cr_1", course_name: "Good", stream: "JEE Advanced" },
+        { batch_id: "bt_nosub", batch_name: "NOSUB-1", course_id: "cr_2", course_name: "No Subjects", stream: "NEET" },
+        { batch_id: "bt_nolec", batch_name: "NOLEC-1", course_id: "cr_3", course_name: "No Lectures", stream: "JEE Advanced" },
+      ]);
+    }
+    if (u.includes("/Allen/api/subjects")) {
+      if (u.includes("bt_nosub")) return json({ success: false }, 404);
+      return json({ success: true, data: [{ subject_id: "984", name: "Chemistry", taxonomy_id: "tax1" }] });
+    }
+    if (u.includes("/Allen/api/topics")) {
+      return json({ success: true, data: [{ topic_id: "1295", name: "Chapter 1" }] });
+    }
+    if (u.includes("/Allen/api/contents")) {
+      if (u.includes("bt_nolec")) return json({ success: true, data: [] });
+      return json({ success: true, data: [{ content_id: "lec-1", title: "L1", play_url: "/api/token?token=t1" }] });
+    }
+    return new Response("nope", { status: 404 });
+  };
+  try {
+    const shallow = await callBatches("action=allen&view=audit&limit=20");
+    const sbody = await shallow.json();
+    assert.equal(sbody.total, 3);
+    assert.equal(sbody.okCount, 2, "subjects-level audit must pass the two batches that answer subjects");
+    assert.deepEqual(sbody.bad.map((b) => b.code), ["NOSUB-1"]);
+    assert.equal(sbody.bad[0].stage, "subjects");
+
+    const deep = await callBatches("action=allen&view=audit&limit=8&deep=1");
+    const dbody = await deep.json();
+    assert.equal(dbody.okCount, 1, "deep audit must catch the batch whose first chapter has no lectures");
+    const nolec = dbody.bad.find((b) => b.code === "NOLEC-1");
+    assert.equal(nolec.stage, "lectures");
+  } finally {
+    globalThis.fetch = original;
+    resetAllenCache();
+  }
+});
+
 test("the Allen page ships its own skin and the upgraded player", async () => {
   const page = await readFile(new URL("../public/allen.html", import.meta.url), "utf8");
   assert.match(page, /\/assets\/allen\.css/, "the Allen page must load its own stylesheet");
