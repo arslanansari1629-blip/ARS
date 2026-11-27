@@ -23,11 +23,14 @@ function imgTag(src, cls) {
 }
 
 function batchCard(c) {
-  return '<a class="vk-card" href="#/batch/' + encodeURIComponent(c.slug) + '">'
+  const href = c.direct
+    ? "#/classes/" + encodeURIComponent(c.slug) + "?type=previous"
+    : "#/batch/" + encodeURIComponent(c.slug);
+  return '<a class="vk-card" href="' + href + '">'
     + imgTag(c.image)
     + "<h3>" + esc(c.name) + "</h3>"
     + "<p>" + esc(c.subjectsList || c.description || "") + "</p>"
-    + '<div class="vk-meta"><span>' + esc(c.language || "") + "</span><span>" + esc(c.totalClasses) + " classes</span><span>" + c.subjects.length + " subjects</span></div>"
+    + '<div class="vk-meta"><span>' + esc(c.language || "") + "</span>" + (c.totalClasses ? "<span>" + esc(c.totalClasses) + " classes</span>" : "") + (c.subjects && c.subjects.length ? "<span>" + c.subjects.length + " subjects</span>" : "") + "</div>"
     + '<span class="vk-cta">Let\'s Study →</span></a>';
 }
 
