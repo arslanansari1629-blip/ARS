@@ -136,9 +136,25 @@ test("play view sorts hls / mp4 / youtube / vdc honestly", async () => {
   assert.match(hls.body.proxyUrl, /view=playlist/);
   const yt = await call({ view: "play", file: "https://www.youtube.com/watch?v=abcdefghijk" });
   assert.equal(yt.body.kind, "youtube");
-  const vdc = await call({ view: "play", file: "", vdc: "vdc123" });
-  assert.equal(vdc.body.success, false);
-  assert.equal(vdc.body.vdc, true);
+  // A vdc leaf resolves through GET /api/vc?<id> to a plain HLS file.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.match(String(url), /\/nexttopper\/api\/vc\?4812015_0_1$/);
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/json" },
+      json: async () => ({ success: true, data: { data: { link: { file_url: "https://dbil.cloudfront.net/v/4812015/x.m3u8", token: "" } } } }),
+    };
+  };
+  try {
+    const vdc = await call({ view: "play", file: "", vdc: "4812015_0_1" });
+    assert.equal(vdc.body.success, true);
+    assert.equal(vdc.body.kind, "hls");
+    assert.equal(vdc.body.via, "vc");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 
 test("playlist rewrite recurses playlists and relays binaries", () => {

@@ -248,9 +248,17 @@ async function openItem(item) {
     return;
   }
   if (item.kind === "pdf") {
-    const url = item.fileUrl ? `/api/media?url=${encodeURIComponent(item.fileUrl)}` : "";
-    if (url) window.open(url, "_blank", "noopener");
-    else $("#ntContentStatus").textContent = "Is PDF ka address upstream ne nahi diya.";
+    $("#ntContentStatus").textContent = "PDF ka address la rahe hain…";
+    try {
+      const d = await api(
+        `view=play&course=${encodeURIComponent(course.id)}&content=${encodeURIComponent(item.id)}&file=${encodeURIComponent(item.fileUrl || "")}`
+      );
+      if (!d.success || !(d.proxyUrl || d.url)) throw new Error(d.error || "no address");
+      window.open(d.proxyUrl || d.url, "_blank", "noopener");
+      $("#ntContentStatus").textContent = "";
+    } catch (err) {
+      $("#ntContentStatus").textContent = `Is PDF ka address nahi mila: ${err.message}`;
+    }
     return;
   }
   if (item.kind === "test") {
@@ -274,7 +282,7 @@ async function openItem(item) {
   window.scrollTo({ top: 0 });
   try {
     const d = await api(
-      `view=play&file=${encodeURIComponent(item.fileUrl || "")}&vdc=${encodeURIComponent(item.vdcId || "")}`
+      `view=play&course=${encodeURIComponent(course.id)}&content=${encodeURIComponent(item.id)}&file=${encodeURIComponent(item.fileUrl || "")}&vdc=${encodeURIComponent(item.vdcId || "")}`
     );
     if (!d.success) throw new Error(d.error || "no stream");
     const v = $("#ntVideo");
