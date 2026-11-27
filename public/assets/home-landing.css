@@ -147,3 +147,36 @@
    still leaves every word readable (mid-strip is a fine place to be). */
 html[data-perf="lite"] .platform-card, html[data-perf="lite"] .nh-batch { transition: none; }
 html[data-perf="lite"] .platform-card:hover, html[data-perf="lite"] .nh-batch:hover { transform: none; }
+
+/* ---------- Pro Ultra landing finish ---------- */
+.nh-title .grad, .nh-title em {
+  background: var(--aurora);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.platforms-grid { perspective: 1200px; }
+.platform-card { overflow: hidden; isolation: isolate; }
+.platform-card::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 5px; z-index: 1;
+  background: var(--ink);
+}
+.platform-card[data-platform="pw"]::before { background: linear-gradient(90deg, #4c1d95, #7c3aed); }
+.platform-card[data-platform="allen"]::before { background: linear-gradient(90deg, #b45309, #f2b705); }
+.platform-card[data-platform="next-toppers"]::before { background: linear-gradient(90deg, #0f766e, #2dd4bf); }
+.platform-card[data-platform="vidyakul"]::before { background: linear-gradient(90deg, #4338ca, #818cf8); }
+.platform-card:hover { box-shadow: 0 30px 60px -18px rgba(28, 25, 23, 0.22); }
+.platform-logo { box-shadow: 0 16px 32px -10px rgba(28, 25, 23, 0.25), 0 0 0 6px var(--card-2); }
+.platform-card:hover .platform-logo { box-shadow: 0 20px 38px -10px rgba(28, 25, 23, 0.3), 0 0 0 8px var(--blue-soft); }
+.platform-open { box-shadow: 0 10px 22px -10px rgba(28, 25, 23, 0.5); }
+.nh-stats strong {
+  background: var(--aurora);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.nh-stats div { box-shadow: var(--lift-1); transition: transform 0.18s ease, box-shadow 0.18s ease; }
+.nh-stats div:hover { transform: translateY(-3px); box-shadow: var(--lift-2); }
+.platform-chip { transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease; }
+.platform-chip:hover { transform: translateY(-1px); }
+.platform-chip.on { background: var(--aurora); color: #fff; box-shadow: 0 8px 18px -8px rgba(228, 87, 46, 0.7); }
+@media (prefers-reduced-motion: reduce) {
+  .nh-stats div, .platform-chip { transition: none; }
+  .nh-stats div:hover, .platform-chip:hover { transform: none; }
+}

@@ -1,35 +1,75 @@
-/* Vidyakul native platform (built behind the Coming Soon park;
-   becomes the live page styles at launch). */
-.vk-hero { padding: 28px 0 8px; }
-.vk-hero-brand { display: flex; gap: 18px; align-items: center; }
-.vk-hero-brand img { border-radius: 18px; }
-.vk-search { display: flex; gap: 8px; margin: 18px 0 6px; max-width: 560px; }
-.vk-search input { flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line, #234); background: var(--card, #0e2120); color: inherit; }
-.vk-search button, .vk-more, .vk-watch { padding: 12px 18px; border-radius: 12px; border: 0; background: #00d9a5; color: #04241c; font-weight: 700; cursor: pointer; }
-.vk-crumbs { margin: 14px 0; font-size: 14px; opacity: .85; }
-.vk-crumbs a { color: #00d9a5; }
-.vk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
-.vk-card { display: block; padding: 14px; border-radius: 16px; background: var(--card, #0e2120); border: 1px solid var(--line, #234); text-decoration: none; color: inherit; }
-.vk-card img { width: 100%; height: 130px; object-fit: cover; border-radius: 10px; }
-.vk-card h3 { margin: 10px 0 4px; font-size: 17px; }
-.vk-card p { opacity: .8; font-size: 13px; }
-.vk-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 12px; }
-.vk-meta span { padding: 3px 8px; border-radius: 999px; background: rgba(0, 217, 165, .12); }
-.vk-cta { display: inline-block; margin-top: 10px; color: #00d9a5; font-weight: 700; }
-.vk-batch-head { display: flex; gap: 18px; align-items: center; margin: 12px 0; }
-.vk-batch-head img { width: 120px; height: 120px; object-fit: cover; border-radius: 16px; }
-.vk-h { margin: 18px 0 8px; }
-.vk-tabs { display: flex; gap: 8px; margin: 10px 0 16px; }
-.vk-tabs a { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line, #234); text-decoration: none; color: inherit; }
-.vk-tabs a.on { background: #00d9a5; color: #04241c; font-weight: 700; }
+/* Vidyakul native platform — Pro Ultra finish.
+   Same design language as the rest of ArsVibe: paper surfaces,
+   hairline rules, indigo brand gradient, daylight shadows. */
+.vk-hero { padding: 34px 0 10px; }
+.vk-hero-brand { display: flex; gap: 20px; align-items: center; }
+.vk-hero-brand img { border-radius: 22px; box-shadow: 0 16px 32px -12px rgba(67, 56, 202, 0.45), 0 0 0 6px var(--card-2); }
+.vk-hero-brand h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.02; margin: 0; }
+.vk-hero p { color: var(--ink-2); max-width: 560px; line-height: 1.65; }
+.vk-search { display: flex; gap: 8px; margin: 20px 0 6px; max-width: 580px; }
+.vk-search input {
+  flex: 1; padding: 13px 16px; border-radius: 999px; border: 1.5px solid var(--hair-2);
+  background: var(--card); color: var(--ink); font-size: 14.5px; box-shadow: var(--lift-1);
+}
+.vk-search input:focus { border-color: #4338ca; box-shadow: 0 0 0 4px rgba(67, 56, 202, 0.16); outline: none; }
+.vk-search button, .vk-more, .vk-watch {
+  padding: 12px 20px; border-radius: 999px; border: 0; cursor: pointer;
+  background: linear-gradient(120deg, #4338ca, #6d28d9); color: #fff; font-weight: 800;
+  box-shadow: 0 10px 22px -10px rgba(67, 56, 202, 0.65);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+.vk-search button:hover, .vk-more:hover, .vk-watch:hover { transform: translateY(-1.5px); filter: brightness(1.06); }
+.vk-search button:active, .vk-more:active, .vk-watch:active { transform: scale(0.98); }
+.vk-crumbs { margin: 16px 0 4px; font-size: 13.5px; color: var(--ink-3); }
+.vk-crumbs a { color: #4338ca; font-weight: 700; text-decoration: none; }
+.vk-crumbs a:hover { text-decoration: underline; }
+.vk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; margin: 18px 0; }
+.vk-card {
+  display: block; padding: 14px; border-radius: 20px; text-decoration: none; color: var(--ink);
+  background: var(--card); border: 1.5px solid var(--hair-2); box-shadow: var(--lift-1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.vk-card:hover { transform: translateY(-5px); box-shadow: var(--lift-3); border-color: #4338ca; }
+.vk-card img { width: 100%; height: 138px; object-fit: cover; border-radius: 13px; }
+.vk-card h3 { margin: 12px 0 4px; font-size: 16.5px; letter-spacing: -0.015em; }
+.vk-card p { color: var(--ink-3); font-size: 13px; margin: 0; line-height: 1.55; }
+.vk-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; font-size: 11.5px; font-weight: 700; }
+.vk-meta span { padding: 3px 9px; border-radius: 999px; background: rgba(67, 56, 202, 0.1); color: #4338ca; }
+.vk-cta { display: inline-block; margin-top: 12px; color: #4338ca; font-weight: 800; font-size: 13.5px; }
+.vk-batch-head { display: flex; gap: 20px; align-items: center; margin: 14px 0; background: var(--card); border: 1.5px solid var(--hair-2); border-radius: 22px; padding: 18px; box-shadow: var(--lift-1); }
+.vk-batch-head img { width: 118px; height: 118px; object-fit: cover; border-radius: 16px; }
+.vk-batch-head h2 { margin: 0 0 6px; }
+.vk-batch-head p { margin: 0; color: var(--ink-3); }
+.vk-h { margin: 20px 0 8px; letter-spacing: -0.02em; }
+.vk-tabs { display: inline-flex; gap: 4px; margin: 10px 0 18px; background: var(--card-2); border: 1px solid var(--hair-2); padding: 4px; border-radius: 999px; }
+.vk-tabs a { padding: 8px 18px; border-radius: 999px; text-decoration: none; color: var(--ink-3); font-weight: 700; font-size: 13.5px; transition: background 0.15s ease, color 0.15s ease; }
+.vk-tabs a.on { background: linear-gradient(120deg, #4338ca, #6d28d9); color: #fff; box-shadow: 0 8px 18px -8px rgba(67, 56, 202, 0.7); }
 .vk-list { display: grid; gap: 10px; }
-.vk-class { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: var(--card, #0e2120); border: 1px solid var(--line, #234); }
-.vk-class h3 { margin: 0 0 4px; font-size: 16px; }
-.vk-class p { margin: 0; opacity: .75; font-size: 13px; }
-.vk-msg { padding: 28px 0; opacity: .85; }
-.vk-more { margin: 8px 0 30px; }
-.vk-player { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; z-index: 60; }
+.vk-class {
+  display: flex; justify-content: space-between; gap: 14px; align-items: center;
+  padding: 16px; border-radius: 18px; background: var(--card);
+  border: 1.5px solid var(--hair-2); box-shadow: var(--lift-1);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.vk-class:hover { transform: translateY(-2px); box-shadow: var(--lift-2); border-color: #4338ca; }
+.vk-class h3 { margin: 0 0 4px; font-size: 15.5px; }
+.vk-class p { margin: 0; color: var(--ink-3); font-size: 13px; }
+.vk-watch { flex-shrink: 0; }
+.vk-msg { padding: 30px 0; color: var(--ink-3); }
+.vk-more { margin: 8px 0 34px; }
+.vk-player { position: fixed; inset: 0; background: rgba(15, 12, 30, 0.86); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 60; }
 .vk-player[hidden] { display: none; }
-.vk-player-box { width: min(920px, 94vw); background: #0e2120; border-radius: 18px; padding: 14px; position: relative; }
-.vk-player-box video { width: 100%; max-height: 70vh; background: #000; border-radius: 12px; }
-.vk-player-close { position: absolute; top: -14px; right: -14px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: #00d9a5; font-weight: 800; cursor: pointer; }
+.vk-player-box { width: min(940px, 94vw); background: var(--card); color: var(--ink); border-radius: 24px; padding: 16px; position: relative; box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.7); }
+.vk-player-box video { width: 100%; max-height: 70vh; background: #000; border-radius: 16px; }
+.vk-player-box h2 { margin: 12px 2px 2px; font-size: 18px; }
+.vk-player-box p { margin: 0 2px 4px; color: var(--ink-3); font-size: 13px; }
+.vk-player-close { position: absolute; top: -14px; right: -14px; width: 38px; height: 38px; border-radius: 50%; border: 0; background: linear-gradient(120deg, #4338ca, #6d28d9); color: #fff; font-weight: 800; cursor: pointer; box-shadow: 0 10px 22px -8px rgba(67, 56, 202, 0.8); }
+@media (max-width: 640px) {
+  .vk-hero-brand { flex-direction: column; text-align: center; }
+  .vk-batch-head { flex-direction: column; text-align: center; }
+  .vk-class { flex-direction: column; align-items: stretch; text-align: left; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vk-card, .vk-class, .vk-search button, .vk-more, .vk-watch { transition: none; }
+  .vk-card:hover, .vk-class:hover { transform: none; }
+}

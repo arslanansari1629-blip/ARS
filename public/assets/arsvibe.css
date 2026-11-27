@@ -12012,3 +12012,140 @@ html[data-perf="lite"] *, html[data-perf="balanced"] * {
 html[data-perf="lite"] *, html.page-hidden *, html.page-hidden *::before, html.page-hidden *::after {
   animation-play-state: paused !important;
 }
+
+/* ==========================================================================
+   Pro Ultra (2026 refresh) — the professional finish layer.
+   Loaded last on purpose: it refines the blueprint system without
+   renaming a single token or class, so every page, platform and the
+   player inherit it at once. Depth here is still earned (rules,
+   hairlines, soft daylight shadows) — just with modern geometry:
+   larger radii, glass top bar, gradient CTAs, springy hovers.
+   Content never depends on any of this to be visible.
+   ========================================================================== */
+
+/* ---------- type & text polish ---------- */
+h1, h2, h3 { letter-spacing: -0.022em; text-wrap: balance; }
+p { text-wrap: pretty; }
+::selection { background: var(--blue); color: #fff; }
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 6px; }
+
+/* ---------- scrollbars ---------- */
+html { scrollbar-width: thin; scrollbar-color: var(--ink-4) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--ink-4); border-radius: 8px; border: 2px solid var(--paper); }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- glass top bar ---------- */
+.nav {
+  backdrop-filter: saturate(1.5) blur(14px);
+  -webkit-backdrop-filter: saturate(1.5) blur(14px);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  border-bottom: 1px solid var(--hair);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 12px 32px -22px rgba(23, 25, 60, 0.35);
+}
+.brand { letter-spacing: -0.02em; }
+.brand-img { border-radius: 9px; box-shadow: var(--lift-1); }
+.nav-links a {
+  border-radius: var(--r-pill);
+  padding: 7px 13px;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease);
+}
+.nav-links a:hover { background: var(--blue-soft); color: var(--blue-ink); }
+.nav-links a.active, .nav-links a[aria-current="page"] {
+  background: var(--ink); color: var(--paper);
+}
+
+/* ---------- buttons: gradient primary, tactile states ---------- */
+.btn {
+  border-radius: var(--r-pill);
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  transition: transform 0.16s var(--ease), box-shadow 0.16s var(--ease), background 0.16s var(--ease), filter 0.16s var(--ease);
+}
+.btn-primary {
+  background: var(--aurora);
+  color: #fff;
+  border: 1px solid rgba(188, 63, 20, 0.35);
+  box-shadow: 0 10px 24px -12px rgba(228, 87, 46, 0.65), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+}
+.btn-primary:hover { transform: translateY(-1.5px); filter: brightness(1.05); box-shadow: 0 16px 30px -12px rgba(228, 87, 46, 0.7), 0 1px 0 rgba(255, 255, 255, 0.4) inset; }
+.btn-primary:active { transform: translateY(0) scale(0.985); }
+.btn-ghost, .btn-secondary {
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+  border: 1px solid var(--hair-2);
+  box-shadow: var(--lift-1);
+}
+.btn-ghost:hover, .btn-secondary:hover { transform: translateY(-1.5px); box-shadow: var(--lift-2); border-color: var(--rule-2); }
+
+/* ---------- forms: quiet fields, loud focus ---------- */
+input, select, textarea {
+  border-radius: 12px;
+  transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease), background 0.16s var(--ease);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px var(--blue-soft);
+}
+input::placeholder, textarea::placeholder { color: var(--ink-4); }
+
+/* ---------- cards & catalogue surfaces ---------- */
+.batch-card, .card, .allen-card, .nt-card, .subject-card, .chapter-card {
+  border-radius: 18px;
+  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+.batch-card:hover, .card:hover, .allen-card:hover, .nt-card:hover, .subject-card:hover, .chapter-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--lift-3);
+  border-color: var(--rule-2);
+}
+.batch-thumb, .card img, .allen-card img { border-radius: 12px; }
+
+/* Chips, pills, tabs */
+.chip, .pill, .tab, .filter-chip {
+  border-radius: var(--r-pill);
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.chip:hover, .pill:hover, .tab:hover, .filter-chip:hover { transform: translateY(-1px); border-color: var(--rule-2); }
+
+/* Eyebrow / kicker labels read like a spec sheet */
+.eyebrow {
+  letter-spacing: 0.18em;
+  font-weight: 800;
+}
+
+/* Gradient display text + hero numbers */
+.grad {
+  background: var(--aurora);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Tables (dashboard, downloads, admin) */
+table { border-collapse: separate; border-spacing: 0; }
+th { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+tbody tr { transition: background 0.12s var(--ease); }
+tbody tr:hover { background: var(--blue-soft); }
+
+/* Dialogs & sheets float like real product UI */
+dialog, .modal, .sheet {
+  border-radius: 22px;
+  border: 1px solid var(--hair-2);
+  box-shadow: var(--lift-3);
+}
+
+/* Skeleton shimmer is decoration only — under it, layout already exists */
+.skeleton {
+  background: linear-gradient(100deg, var(--card-2) 40%, var(--card) 50%, var(--card-2) 60%);
+  background-size: 200% 100%;
+  border-radius: 10px;
+}
+
+/* Motion is garnish: reduced-motion and lite tiers keep it calm */
+@media (prefers-reduced-motion: reduce) {
+  .btn, .batch-card, .card, .nav-links a, .chip, .pill, .tab { transition: none; }
+  .btn:hover, .batch-card:hover, .card:hover { transform: none; }
+}
+html[data-perf="lite"] .btn:hover, html[data-perf="lite"] .batch-card:hover, html[data-perf="lite"] .card:hover { transform: none; }
