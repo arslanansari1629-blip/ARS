@@ -310,15 +310,15 @@ test("the Allen player has the Fullscreen Fit Engine: device-detecting auto-fit 
   assert.match(css, /100dvh/, "pseudo-fullscreen must use the dynamic viewport");
 
   const sw = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
-  assert.match(sw, /arsvibe-v40/, "cached-asset changes must bump the SW version");
+  assert.match(sw, /arsvibe-v41/, "cached-asset changes must bump the SW version");
 });
 
 test("the Allen page self-heals: fault-isolated wiring, versioned assets, boot watchdog", async () => {
   const page = await readFile(new URL("../public/allen.html", import.meta.url), "utf8");
   // Version-stamped assets defeat a stale worker's cache-first assets:
   // the query is part of the cache key, so ?v= is a guaranteed miss.
-  assert.match(page, /allen\.js\?v=40/, "allen.js must be version-stamped");
-  assert.match(page, /allen\.css\?v=40/, "allen.css must be version-stamped");
+  assert.match(page, /allen\.js\?v=41/, "allen.js must be version-stamped");
+  assert.match(page, /allen\.css\?v=41/, "allen.css must be version-stamped");
   // The watchdog is inline + classic (module failure cannot silence it)
   // and purges caches/workers exactly once per session.
   assert.match(page, /Boot watchdog/, "boot watchdog is missing");
@@ -330,6 +330,24 @@ test("the Allen page self-heals: fault-isolated wiring, versioned assets, boot w
   // Player wiring can throw without taking the catalogue down with it.
   assert.match(script, /wire\(wirePlayer\)/, "player wiring must be fault-isolated");
   assert.match(script, /loadCatalogue\(\)\.catch/, "catalogue load must carry its own failure path");
+});
+
+test("Allen content can never be hidden by its own entrance animation (white-grid regression)", async () => {
+  const css = await readFile(new URL("../public/assets/allen.css", import.meta.url), "utf8");
+  // The perf engine pauses animations on lite devices; cards that
+  // start at opacity:0 (allenRise, fill both) froze invisible. Where
+  // animations are throttled, choreography is removed, not paused.
+  assert.match(css, /html\[data-perf="lite"\] \.allen-card[^}]*animation: none !important/s, "lite tier must not pause cards at opacity 0");
+  assert.match(css, /html\.page-hidden \.allen-card[^}]*opacity: 1 !important/s, "hidden-tab freeze must not stick to a visible grid");
+  // content-visibility on animated cards left blank tiles on mobile.
+  assert.match(css, /#allenGrid > \*[^}]*content-visibility: visible/s, "Allen grid must render directly");
+
+  const script = await readFile(new URL("../public/assets/allen.js", import.meta.url), "utf8");
+  // The grid renders before any decorative painter gets a chance to throw.
+  const load = script.slice(script.indexOf("async function loadCatalogue"));
+  assert.ok(load.indexOf("renderGrid()") < load.indexOf("paintStats()"), "catalogue must render before hero stats paint");
+  assert.match(load, /try \{\s*paintStats\(\)/, "stats painting must be fault-isolated");
+  assert.match(load, /try \{\s*paintContinue\(\)/, "continue painting must be fault-isolated");
 });
 
 test("view=play never consumes the token — it only hands back the proxy URL", async () => {

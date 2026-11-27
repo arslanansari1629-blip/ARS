@@ -560,3 +560,29 @@ body.allen-pseudo-fs { overflow: hidden !important; }
 @media (pointer: coarse) {
   #allenFull { min-width: 48px; min-height: 40px; font-size: 17px; }
 }
+
+/* ---------- v9: visibility rescue ----------
+   The white-grid bug, root-caused. Entrance choreography (allenRise,
+   fill both) starts every card at opacity:0 and relies on the
+   animation running to reveal it. The Adaptive Performance Engine
+   pauses ALL animations on lite devices (and hidden tabs) — so on
+   exactly the phones that needed help, the cards froze at opacity 0
+   forever: hero and stats painted, grid stayed white. Entrance
+   animation must never be the only thing making content visible:
+   wherever animations are throttled, the choreography is removed
+   outright and the content simply IS there. */
+html[data-perf="lite"] .allen-card,
+html[data-perf="lite"] .allen-subject,
+html[data-perf="lite"] .allen-row,
+html[data-perf="lite"] .allen-continue .cw,
+html.page-hidden .allen-card,
+html.page-hidden .allen-subject,
+html.page-hidden .allen-row,
+html.page-hidden .allen-continue .cw {
+  animation: none !important;
+  opacity: 1 !important;
+}
+/* content-visibility on 500 animated, transforming cards left blank
+   tiles in several mobile engines. The Allen grids render directly;
+   the catalogue is paginated by the student's eyes, not the GPU. */
+#allenGrid > *, .allen-subject-grid > * { content-visibility: visible; }

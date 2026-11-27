@@ -834,6 +834,12 @@ mount();
     // Nothing animates for an audience of zero.
     const onVis = () => rootEl.classList.toggle("page-hidden", document.hidden);
     document.addEventListener("visibilitychange", onVis);
+    // Belt and braces: a missed visibilitychange (some webviews drop
+    // it around prerender activation) must never leave the class —
+    // and its animation freeze — stuck on a page being looked at.
+    const unhide = () => rootEl.classList.remove("page-hidden");
+    window.addEventListener("pageshow", unhide);
+    window.addEventListener("focus", unhide);
     onVis();
     // Idle warm-up (strong devices, fast networks only): the
     // catalogue JSON and the heaviest style asset will be wanted

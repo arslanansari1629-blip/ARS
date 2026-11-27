@@ -189,9 +189,27 @@ async function loadCatalogue() {
   );
   const out = await api("/api/allen?view=batches");
   all = Array.isArray(out.items) ? out.items : [];
-  paintStats();
-  paintContinue();
-  renderGrid();
+  // Catalogue FIRST, cosmetics after, each in its own fault cell.
+  // The hero stats once painted happily (517! 253!) while a throw in
+  // a later painter left the grid white — a student reads that as
+  // "the site is broken", and they are right. The grid is the page;
+  // nothing decorative is allowed to stand in front of it any more.
+  try {
+    renderGrid();
+  } catch (err) {
+    reportStage("render", err?.message || String(err));
+    $("#allenStatus").textContent = "Batches load ho gaye lekin list ban nahi payi — Retry dabao.";
+  }
+  try {
+    paintStats();
+  } catch {
+    /* the numbers are decoration */
+  }
+  try {
+    paintContinue();
+  } catch {
+    /* continue-watching is decoration */
+  }
 }
 
 /* ---------------- drill-down ---------------- */
