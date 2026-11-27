@@ -246,6 +246,10 @@
     {
       "source": "/api/nexttopper",
       "destination": "/api/batches?action=nexttopper"
+    },
+    {
+      "source": "/api/vidyakul",
+      "destination": "/api/batches?action=vidyakul"
     }
   ],
   "crons": [

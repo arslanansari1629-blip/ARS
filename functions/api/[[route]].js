@@ -43,6 +43,7 @@ const ALIASES = {
   allen: ["batches", "allen"],
   // So does the Next Toppers platform's.
   nexttopper: ["batches", "nexttopper"],
+  vidyakul: ["batches", "vidyakul"],
 };
 
 function resolveRoute(url) {

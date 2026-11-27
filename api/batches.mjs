@@ -12,6 +12,7 @@ import {
 } from "../lib/catalog.mjs";
 import { allenApi } from "../lib/allen.mjs";
 import { nextTopperApi } from "../lib/nexttopper.mjs";
+import { vidyakulApi } from "../lib/vidyakul.mjs";
 
 /**
  * GET /api/batches?page=1&pageSize=20   → the complete catalogue
@@ -69,6 +70,7 @@ export default async function handler(req, res) {
   // cost a thirteenth serverless function on the Hobby plan.
   if (allParams.action === "allen") return allenApi(req, res, allParams);
   if (allParams.action === "nexttopper") return nextTopperApi(req, res, allParams);
+  if (allParams.action === "vidyakul") return vidyakulApi(req, res, allParams);
 
   const { page, search, q, pageSize, lang, price, sort, facets } = allParams;
 
