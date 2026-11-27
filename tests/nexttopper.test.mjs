@@ -137,9 +137,12 @@ test("batches view merges batches_latest.json — where course 176 lives — ahe
     const out = await call({ view: "batches" });
     assert.equal(out.body.success, true);
     const ids = out.body.items.map((c) => c.id);
-    assert.deepEqual(ids, ["176", "264", "62"]);
+    assert.deepEqual(ids.slice(0, 3), ["176", "264", "62"]);
     assert.equal(out.body.items[0].class, "Class 10");
     assert.equal(out.body.items[2].archive, true);
+    // The id sweep's unlisted courses ride along (Drona JEE, id 161).
+    assert.ok(ids.includes("161"), "sweep-discovered courses are missing");
+    assert.equal(normalizeNtCourse({ id: 89, title: "Commerce11th - NIRBHAY" }).class, "Class 11");
   } finally {
     globalThis.fetch = realFetch;
     resetNtCache();

@@ -49,7 +49,7 @@ function cardHtml(c) {
     ${c.thumbnail ? `<img class="nt-thumb" src="${esc(c.thumbnail)}" alt="" loading="lazy" />` : ""}
     <span class="nt-kind">${esc(c.class)} · Next Toppers</span>
     <strong>${esc(c.title)}</strong>
-    <span class="nt-meta">${c.archive ? "2025-26 Archive · " : ""}Lectures · Notes · Tests</span>
+    <span class="nt-meta">${c.archive ? "2025-26 Archive · " : c.discovered ? "More batches · " : ""}Lectures · Notes · Tests</span>
     <button class="nt-save${isSaved ? " on" : ""}" data-save="${esc(c.id)}" type="button">${isSaved ? "★ Saved" : "☆ Save"}</button>
   </article>`;
 }
@@ -210,6 +210,10 @@ async function openCourse(id) {
       el.textContent = desc.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       if (el.textContent) el.hidden = false;
       if (d.course.title) $("#ntCourseTitle").textContent = d.course.title;
+      if (d.course.thumbnail && thumb.hidden) {
+        thumb.src = d.course.thumbnail;
+        thumb.hidden = false;
+      }
     }
   } catch {
     /* overview is garnish */
