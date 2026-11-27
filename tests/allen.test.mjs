@@ -273,10 +273,14 @@ test("view=audit names the batches whose chain breaks, stage by stage", async ()
         { batch_id: "bt_good", batch_name: "GOOD-1", course_id: "cr_1", course_name: "Good", stream: "JEE Advanced" },
         { batch_id: "bt_nosub", batch_name: "NOSUB-1", course_id: "cr_2", course_name: "No Subjects", stream: "NEET" },
         { batch_id: "bt_nolec", batch_name: "NOLEC-1", course_id: "cr_3", course_name: "No Lectures", stream: "JEE Advanced" },
+        { batch_id: "bt_empty", batch_name: "EMPTY-1", course_id: "cr_4", course_name: "Empty", stream: "NEET" },
+        { batch_id: "bt_wall", batch_name: "WALL-1", course_id: "cr_5", course_name: "Walled", stream: "NEET" },
       ]);
     }
     if (u.includes("/Allen/api/subjects")) {
       if (u.includes("bt_nosub")) return json({ success: false }, 404);
+      if (u.includes("bt_empty")) return json({ success: true, count: 0, data: [] });
+      if (u.includes("bt_wall")) return json({ success: false }, 401);
       return json({ success: true, data: [{ subject_id: "984", name: "Chemistry", taxonomy_id: "tax1" }] });
     }
     if (u.includes("/Allen/api/topics")) {
@@ -291,10 +295,23 @@ test("view=audit names the batches whose chain breaks, stage by stage", async ()
   try {
     const shallow = await callBatches("action=allen&view=audit&limit=20");
     const sbody = await shallow.json();
-    assert.equal(sbody.total, 3);
+    assert.equal(sbody.total, 5);
     assert.equal(sbody.okCount, 2, "subjects-level audit must pass the two batches that answer subjects");
-    assert.deepEqual(sbody.bad.map((b) => b.code), ["NOSUB-1"]);
+    assert.deepEqual(sbody.bad.map((b) => b.code), ["NOSUB-1", "EMPTY-1"]);
     assert.equal(sbody.bad[0].stage, "subjects");
+    // A 200 with zero rows is a truly empty batch (bad, subjects
+    // stage, said plainly) — while a 401 is the rate-limit wall and
+    // must land in `limited` (unknown), never in `bad`.
+    assert.match(sbody.bad[1].error, /no subjects/i);
+    assert.deepEqual(sbody.limited.map((b) => b.code), ["WALL-1"]);
+    assert.equal(sbody.limitedCount, 1);
+
+    // The subjects view itself must flag the empty answer so the
+    // client can say "empty batch" instead of looping on Retry.
+    const emptyRes = await callBatches("action=allen&view=subjects&batch=bt_empty&course=cr_4");
+    const emptyBody = await emptyRes.json();
+    assert.equal(emptyBody.empty, true);
+    assert.equal(emptyBody.success, false);
 
     const deep = await callBatches("action=allen&view=audit&limit=8&deep=1");
     const dbody = await deep.json();
@@ -356,14 +373,14 @@ test("the Allen player has the Fullscreen Fit Engine: device-detecting auto-fit 
   assert.match(css, /100dvh/, "pseudo-fullscreen must use the dynamic viewport");
 
   const sw = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
-  assert.match(sw, /arsvibe-v43/, "cached-asset changes must bump the SW version");
+  assert.match(sw, /arsvibe-v44/, "cached-asset changes must bump the SW version");
 });
 
 test("the Allen page self-heals: fault-isolated wiring, versioned assets, boot watchdog", async () => {
   const page = await readFile(new URL("../public/allen.html", import.meta.url), "utf8");
   // Version-stamped assets defeat a stale worker's cache-first assets:
   // the query is part of the cache key, so ?v= is a guaranteed miss.
-  assert.match(page, /allen\.js\?v=41/, "allen.js must be version-stamped");
+  assert.match(page, /allen\.js\?v=42/, "allen.js must be version-stamped");
   assert.match(page, /allen\.css\?v=41/, "allen.css must be version-stamped");
   // The watchdog is inline + classic (module failure cannot silence it)
   // and purges caches/workers exactly once per session.

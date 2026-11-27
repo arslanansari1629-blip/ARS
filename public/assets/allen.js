@@ -227,15 +227,25 @@ async function openBatch(batch) {
   const subjectsUrl = `/api/allen?view=subjects&batch=${encodeURIComponent(batch.batchId)}&course=${encodeURIComponent(batch.courseId)}`;
   let out = await api(subjectsUrl);
   let subjects = Array.isArray(out.items) ? out.items : [];
-  if (!subjects.length) {
+  if (!subjects.length && !out.empty) {
     // One quiet retry before saying anything: upstream blips and a
     // stale cached page both look exactly like "no subjects" once.
+    // (An explicit `empty` answer is NOT retried — the upstream has
+    // already told us this batch lists nothing, and a retry would
+    // tell the student the same lie twice.)
     await new Promise((r) => setTimeout(r, 700));
     out = await api(subjectsUrl);
     subjects = Array.isArray(out.items) ? out.items : [];
   }
   const box = $("#allenSubjects");
   if (!subjects.length) {
+    if (out.empty) {
+      // The honest answer for most of the catalogue: the upstream
+      // itself lists no subjects for this batch, so no retry can
+      // conjure content. Say so plainly and point back to the list.
+      box.innerHTML = `<p class="tiny dim">Is batch ke liye upstream par abhi koi subject list nahi hai — ye batch khaali hai, isme kholne ko kuch nahi. Koi dusra batch chun lo.</p>`;
+      return;
+    }
     box.innerHTML = `<p class="tiny dim">Subjects load nahi ho paye${out.status ? ` (upstream status ${out.status})` : ""} — network blip ho sakta hai. <button class="allen-btn ghost" id="allenSubjectsRetry" type="button">Retry</button></p>`;
     $("#allenSubjectsRetry")?.addEventListener("click", () => openBatch(batch));
     return;
