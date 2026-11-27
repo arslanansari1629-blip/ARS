@@ -149,6 +149,24 @@ test("batches view merges batches_latest.json — where course 176 lives — ahe
   }
 });
 
+test("batches survive a dead upstream: the built-in rail keeps the catalogue whole", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("DNS points to prohibited IP"); };
+  try {
+    resetNtCache();
+    const out = await call({ view: "batches" });
+    assert.equal(out.body.success, true);
+    assert.ok(out.body.total >= 90, `catalogue collapsed to ${out.body.total}`);
+    const aarambh = out.body.items.find((c) => c.id === "176");
+    assert.ok(aarambh, "course 176 missing while upstream is down");
+    assert.match(aarambh.thumbnail, /cloudfront\.net/, "rail thumbnails must ride along");
+    assert.ok(out.body.items.some((c) => c.id === "161"), "sweep courses must still merge");
+  } finally {
+    globalThis.fetch = realFetch;
+    resetNtCache();
+  }
+});
+
 test("content view reports a truly empty folder as empty, not an error to retry", async () => {
   const realFetch = globalThis.fetch;
   globalThis.fetch = async () => ({
