@@ -31,7 +31,7 @@
    module with no way to notice: the deploy succeeds, the file on the server is
    new, and the browser never asks for it again. That is what "I fixed it but you
    still see the old behaviour" looks like — twice, in this project's history. */
-const VERSION = "arsvibe-v52";
+const VERSION = "arsvibe-v53";
 const SHELL_CACHE = `${VERSION}-shell`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const FILE_CACHE = `${VERSION}-files`;
@@ -58,11 +58,11 @@ const SHELL_ASSETS = [
   // startup budget downloading the player library itself.
   "/assets/vendor/hls.min.js",
   "/assets/vendor/dash.all.min.js",
-  // The dedicated Next Toppers player + the Vidyakul platform frame.
+  // The dedicated Next Toppers player + the native Vidyakul client.
   "/assets/ntwatch.js",
   "/assets/ntwatch.css",
-  "/assets/vidyakul.js",
-  "/assets/vidyakul.css",
+  "/assets/vidyakul-native.js",
+  "/assets/vidyakul-native.css",
   "/assets/logo.svg",
   "/assets/icon.svg",
   // The fallback page has to be here, not merely cached when someone happens to

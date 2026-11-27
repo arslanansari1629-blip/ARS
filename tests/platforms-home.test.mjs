@@ -72,20 +72,19 @@ test("the sidebar lives on the PW platform page, not the front door, and the NT 
   assert.ok(w > 0 && w === h, `NT logo must be square, got ${w}x${h}`);
 });
 
-test("Vidyakul is parked in Coming Soon and its site cannot be opened", async () => {
+test("Vidyakul is live: a linked landing card and a native platform page", async () => {
   const page = await read("public/index.html");
-  assert.match(page, /data-platform="vidyakul"/, "Vidyakul card is missing");
-  assert.match(page, /data-status="soon"/, "Vidyakul must be marked soon, not live");
-  assert.doesNotMatch(page, /<a[^>]*data-platform="vidyakul"/, "the parked Vidyakul card must not be a link");
+  assert.match(page, /<a[^>]*href="\/vidyakul"[^>]*data-platform="vidyakul"/, "Vidyakul card must link to the platform");
+  assert.match(page, /data-status="live" data-platform="vidyakul"|data-platform="vidyakul"/, "Vidyakul card is missing");
+  assert.doesNotMatch(page, /data-status="soon" data-platform="vidyakul"/, "Vidyakul must no longer be marked soon");
   assert.match(page, /\/assets\/platforms\/vidyakul\.jpg/, "Vidyakul logo must be a local asset");
   await access(new URL("../public/assets/platforms/vidyakul.jpg", import.meta.url));
-  // The page itself is a Coming Soon notice — no stage, no mirror.
+  // The platform page is the native client — catalogue view + own
+  // player, never an embedded mirror of the upstream site.
   const vk = await read("public/vidyakul.html");
-  assert.match(vk, /Coming Soon/, "/vidyakul must say Coming Soon");
-  assert.doesNotMatch(vk, /vkFrame|vidyakul-app|<iframe/, "the parked page must not embed the platform");
-  // And the mirror route is shut at the edge: 410, nobody opens it.
-  const worker = await read("cloudflare/worker.js");
-  assert.match(worker, /status: 410/, "the /vidyakul-app route must answer 410 while parked");
+  assert.match(vk, /id="vkView"/, "/vidyakul must render the native catalogue");
+  assert.match(vk, /vidyakul-native\.js/, "/vidyakul must load the native client");
+  assert.doesNotMatch(vk, /Coming Soon|vkFrame|vidyakul-app|<iframe/, "the live page must not be parked or embed the mirror");
 });
 
 test("landing content never depends on animation or JS to be visible, and counts/filter are garnish", async () => {

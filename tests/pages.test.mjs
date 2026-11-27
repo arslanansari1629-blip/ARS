@@ -140,11 +140,12 @@ test("home page is the landing: hero copy and two platform cards, no catalogue g
   assert.match(doc.title, /ArsVibe/i);
   assert.match(doc.body.textContent.replace(/\s+/g, " "), /Stop paying\s?for courses/i);
   const cards = doc.querySelectorAll("#platformsGrid .platform-card");
-  assert.equal(cards.length, 3, `expected 3 platform cards, got ${cards.length}`);
+  assert.equal(cards.length, 4, `expected 4 platform cards, got ${cards.length}`);
   assert.match(cards[0].textContent, /Physics Wallah/);
   assert.equal(cards[0].getAttribute("href"), "/batches.html");
-  assert.match(cards[1].textContent, /Allen/);
   assert.equal(cards[1].getAttribute("href"), "/allen.html");
+  assert.match(cards[3].textContent, /Vidyakul/);
+  assert.equal(cards[3].getAttribute("href"), "/vidyakul");
   // The PW catalogue (14 201 batches) now lives on its own platform
   // page; the landing only carries the count, not the grid.
   assert.match(doc.getElementById("platformAllenCount").textContent, /517/);

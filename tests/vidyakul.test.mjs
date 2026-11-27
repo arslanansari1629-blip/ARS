@@ -34,10 +34,10 @@ test("Vidyakul native views are dispatched before probes", async () => {
   assert.match(src, /videoUrl/, "videoUrl extraction missing");
 });
 
-test("Vidyakul stays parked while the native build is prepared", async () => {
+test("Vidyakul page is the live native client, not an embed", async () => {
   const page = await read("public/vidyakul.html");
-  assert.match(page, /Coming Soon/, "/vidyakul must remain Coming Soon until launch");
-  const ui = await read("public/vidyakul-ui.html");
-  assert.match(ui, /vidyakul-native\.js/, "prepared UI must use the native client");
-  assert.doesNotMatch(ui, /<iframe/, "native UI must not embed the upstream");
+  assert.match(page, /vidyakul-native\.js/, "live page must use the native client");
+  assert.match(page, /id="vkView"/, "live page must have the catalogue view");
+  assert.match(page, /id="vkVideo"/, "live page must have its own player");
+  assert.doesNotMatch(page, /<iframe|vidyakul-app/, "native UI must not embed the upstream");
 });
