@@ -50,6 +50,27 @@ test("Next Toppers is a third LIVE platform card once its platform shipped", asy
   assert.match(js, /\/api\/nexttopper\?view=batches/, "NT count must come from its live catalogue");
 });
 
+test("the sidebar lives on the PW platform page, not the front door, and the NT logo is square", async () => {
+  const shell = await read("public/assets/shell.mjs");
+  assert.match(shell, /page !== "home"/, "the shell must skip the sidebar on the home page");
+  assert.match(shell, /no-shell/, "home must be marked sidebar-free");
+  const pw = await read("public/batches.html");
+  assert.match(pw, /data-page="batches"/, "PW page identity missing");
+  assert.match(pw, /\/assets\/shell\.mjs/, "PW platform page must load the shell (and its sidebar)");
+  // The NT logo asset is a square canvas (the wide banner used to be
+  // centre-cropped into the square platform slot and lose its edges).
+  const logo = await readFile(new URL("../public/assets/platforms/next-toppers.jpg", import.meta.url));
+  let w = 0, h = 0;
+  for (let i = 2; i < logo.length - 9; i++) {
+    if (logo[i] === 0xff && (logo[i + 1] === 0xc0 || logo[i + 1] === 0xc2)) {
+      h = logo.readUInt16BE(i + 5);
+      w = logo.readUInt16BE(i + 7);
+      break;
+    }
+  }
+  assert.ok(w > 0 && w === h, `NT logo must be square, got ${w}x${h}`);
+});
+
 test("landing content never depends on animation or JS to be visible, and counts/filter are garnish", async () => {
   const css = await read("public/assets/home-landing.css");
   assert.doesNotMatch(css, /\.platform-card[^}]*opacity:\s*0/s, "platform cards must not start hidden (white-grid lesson)");

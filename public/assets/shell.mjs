@@ -628,9 +628,20 @@ function mount() {
   playSplash();
 
   buildExperience();
-  const aside = buildSidebar();
-  document.body.insertBefore(aside, document.body.firstChild);
-  document.body.classList.add("has-shell");
+  // The sidebar belongs to the app pages (PW platform first of all).
+  // The front door is a landing page, not a workspace: a permanent
+  // navigation rail there only eats the hero, so home renders
+  // full-width with just its top bar. Every other page — /batches
+  // (Physics Wallah), batch, Allen, Next Toppers, dashboard — keeps
+  // the shell exactly as before.
+  const withSidebar = page !== "home";
+  const aside = withSidebar ? buildSidebar() : null;
+  if (aside) {
+    document.body.insertBefore(aside, document.body.firstChild);
+    document.body.classList.add("has-shell");
+  } else {
+    document.body.classList.add("no-shell");
+  }
 
   // Collapsed rail: a preference, not a per-page state, so it survives
   // navigation. Read before paint-ish (the module runs at the end of the body).
@@ -679,13 +690,13 @@ function mount() {
 
   // Remember which groups the reader folded shut.
   const folded = getPrefs().sideFolded || [];
-  if (Array.isArray(folded) && folded.length) {
+  if (aside && Array.isArray(folded) && folded.length) {
     for (const key of folded) {
       const group = aside.querySelector(`details[data-group="${key}"]`);
       if (group) group.open = false;
     }
   }
-  aside.querySelectorAll("details.side-group").forEach((group) => {
+  aside?.querySelectorAll("details.side-group").forEach((group) => {
     group.addEventListener("toggle", () => {
       const closed = [...aside.querySelectorAll("details.side-group")]
         .filter((g) => !g.open)
