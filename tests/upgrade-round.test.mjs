@@ -88,11 +88,12 @@ test("advanced round: shortcuts sheet, scroll progress, net pill, install door",
   assert.match(shell, /beforeinstallprompt/);
 });
 
-test("advanced round: home live strip and player frame-step ship", () => {
-  const home = read("public/assets/home.js");
-  assert.match(home, /homeLive/);
-  assert.match(home, /today=1/);
-  assert.match(read("public/index.html"), /homeLiveSection/);
+test("advanced round: home live strip retired with the old home; player frame-step ships", () => {
+  // The home live strip belonged to the catalogue-home; the landing
+  // that replaced it shows live platform counts instead.
+  assert.doesNotMatch(read("public/index.html"), /homeLiveSection/);
+  const landing = read("public/assets/landing.js");
+  assert.match(landing, /\/api\/allen\?view=batches/, "landing counts must come from the live Allen catalogue");
   const plus = read("public/assets/player-plus.js");
   assert.match(plus, /1 \/ 30/);
 });

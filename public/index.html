@@ -3,53 +3,23 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Physics Wallah — ArsVibe | Live Batches, Notes, DPPs & Tests</title>
-<meta name="description" content="Browse every Physics Wallah batch, subject and chapter, read every class note and DPP PDF, and watch lectures in a clean, ad-free player." />
+<title>ArsVibe — Stop Paying for Courses | Physics Wallah + Allen, Free</title>
+<meta name="description" content="India's free learning hub: premium Physics Wallah and Allen batches, lectures, notes & DPPs — fully unlocked, no sign-up, no subscription. Just study." />
 <meta name="theme-color" content="#faf6ef" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="ArsVibe" />
-<meta property="og:title" content="ArsVibe — every Physics Wallah batch, notes & DPPs" />
-<meta property="og:description" content="Browse every PW batch, subject and chapter, read every class note and DPP PDF, and watch lectures in a clean, ad-free player." />
+<meta property="og:title" content="ArsVibe — Stop paying for courses" />
+<meta property="og:description" content="Physics Wallah + Allen batches, lectures and notes — fully unlocked. Free forever. No sign-up." />
 <meta property="og:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://arsvibe-pw-sepia.vercel.app/assets/og.png" />
-<link rel="modulepreload" href="/assets/app.js" />
-<link rel="modulepreload" href="/assets/data.js" />
-<link rel="modulepreload" href="/assets/client-api.js" />
-<link rel="modulepreload" href="/assets/open.js" />
-<link rel="preconnect" href="https://static.pw.live" crossorigin />
-<link rel="dns-prefetch" href="https://static.pw.live" />
 <link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="stylesheet" href="/assets/home-landing.css" />
 <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/assets/icon.png" />
 <link rel="manifest" href="/manifest.webmanifest" />
-<script>
-/* The front door's opening sheet, armed before the first paint so the catalogue
-   never flashes underneath it. Everything about it is reversible: open.js owns
-   the sheet, and this failsafe un-arms the page after 5s if that module never
-   arrives (old browser, blocked module, offline). */
-(function () {
-  try {
-    if (sessionStorage.getItem("arsvibe.open.played") === "1") return;
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (/[?&]open\b/.test(location.search)) return;
-    var root = document.documentElement;
-    root.classList.add("intro-armed");
-    // Failsafe: if open.js never arrives (old browser, blocked module, a thrown
-    // error), give the page back and take the empty shell away with it. The
-    // sheet must never be the reason the catalogue cannot be reached.
-    setTimeout(function () {
-      root.classList.remove("intro-armed");
-      var shell = document.getElementById("intro");
-      if (shell) shell.remove();
-    }, 5000);
-  } catch (e) {
-    /* no storage: straight to the catalogue */
-  }
-})();
-</script>
 <link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/" />
 <meta property="og:url" content="https://arsvibe-pw-sepia.vercel.app/" />
 <script type="application/ld+json">
@@ -59,25 +29,16 @@
     {
       "@type": "WebSite",
       "name": "ArsVibe",
-      "alternateName": "ArsVibe PW",
       "url": "https://arsvibe-pw-sepia.vercel.app/",
-      "description": "Browse every Physics Wallah batch, subject and chapter, read every class note and DPP PDF, and watch lectures in a clean, ad-free player.",
-      "inLanguage": "en-IN",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": {
-          "@type": "EntryPoint",
-          "urlTemplate": "https://arsvibe-pw-sepia.vercel.app/batches?q={search_term_string}"
-        },
-        "query-input": "required name=search_term_string"
-      }
+      "description": "India's free learning hub: Physics Wallah and Allen batches, lectures, notes and DPPs — fully unlocked, no sign-up.",
+      "inLanguage": "en-IN"
     },
     {
       "@type": "EducationalOrganization",
       "name": "ArsVibe",
       "url": "https://arsvibe-pw-sepia.vercel.app/",
       "logo": "https://arsvibe-pw-sepia.vercel.app/assets/icon-512.png",
-      "description": "An open, free viewer for the Physics Wallah catalogue: batches, chapters, lectures, class notes and daily practice problems."
+      "description": "An open, free learning hub for Physics Wallah and Allen: batches, chapters, lectures, class notes and daily practice problems."
     }
   ]
 }
@@ -90,101 +51,67 @@
   <div class="shell nav-inner">
     <a class="brand" href="/">
       <img class="brand-img" src="/assets/logo.svg" alt="ArsVibe" width="30" height="30" />
-      <span>ArsVibe<small>Physics Wallah</small></span>
+      <span>ArsVibe<small>free learning hub</small></span>
     </a>
     <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navLinks">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
     <nav class="nav-links" id="navLinks">
       <a href="/" data-page="home">Home</a>
-      <a href="/open" data-page="open">Opening</a>
-      <a href="/batches.html" data-page="batches">Batches</a>
-      <a href="/batches.html#dpp-tests" data-page="dpp-tests">DPP Tests</a>
-      <a href="/leaderboard.html" data-page="leaderboard">Leaderboard</a>
-      <a href="/favourites.html" data-page="favourites">Favourites</a>
-      <a href="/library.html" data-page="library">My Library</a>
-      <a href="/downloads.html" data-page="downloads">Downloads</a>
+      <a href="/batches.html" data-page="batches">Physics Wallah</a>
+      <a href="/allen.html" data-page="allen">Allen</a>
       <a href="/dashboard.html" data-page="dashboard">Dashboard</a>
+      <a href="/downloads.html" data-page="downloads">Downloads</a>
     </nav>
     <div class="nav-actions" id="sessionChip"></div>
   </div>
 </header>
 
-<div class="open open-intro open-intro-pending" id="intro" aria-hidden="true">
-  <div class="open-sheet" id="introSheet">
-    <div class="open-grid">Loading the opening sheet…</div>
-  </div>
+<!-- Scrolling tickers, NextHope-style: pure decoration over real claims. -->
+<div class="nh-tickers" aria-hidden="true">
+  <div class="nh-ticker nh-ticker-a"><div class="nh-track"><span>FREE COURSES · NO SIGNUP · FREE COURSES · NO SIGNUP · FREE COURSES · NO SIGNUP · FREE COURSES · NO SIGNUP ·&nbsp;</span><span>FREE COURSES · NO SIGNUP · FREE COURSES · NO SIGNUP · FREE COURSES · NO SIGNUP · FREE COURSES · NO SIGNUP ·&nbsp;</span></div></div>
+  <div class="nh-ticker nh-ticker-b"><div class="nh-track rev"><span>JEE · NEET · BOARDS · JEE · NEET · BOARDS · JEE · NEET · BOARDS · JEE · NEET · BOARDS ·&nbsp;</span><span>JEE · NEET · BOARDS · JEE · NEET · BOARDS · JEE · NEET · BOARDS · JEE · NEET · BOARDS ·&nbsp;</span></div></div>
+  <div class="nh-ticker nh-ticker-c"><div class="nh-track"><span>PHYSICS WALLAH · ALLEN · PREMIUM BATCHES · UNLOCKED · PHYSICS WALLAH · ALLEN · PREMIUM BATCHES · UNLOCKED ·&nbsp;</span><span>PHYSICS WALLAH · ALLEN · PREMIUM BATCHES · UNLOCKED · PHYSICS WALLAH · ALLEN · PREMIUM BATCHES · UNLOCKED ·&nbsp;</span></div></div>
 </div>
 
 <main id="main">
-  <section class="hero">
-    <div class="shell hero-grid">
-      <div class="hero-copy">
-        <span class="eyebrow">
-          <span class="dot"></span> Live catalogue · synced from ArsVibe PW
-        </span>
-        <h1 class="hero-title">
-          Every <span class="gradient-text">Physics Wallah</span> batch,<br />
-          notes &amp; DPPs in one place.
-        </h1>
-        <p class="hero-sub">
-          Search 14,000+ Physics Wallah batches, open any subject and chapter, read every
-          class note and DPP PDF in a clean, ad-free reader, and watch the lecture in the
-          built-in player. Lectures that are still live, or whose recording Physics Wallah
-          has not published yet, say so instead of failing.
-        </p>
-
-        <form class="hero-search" id="heroSearch" autocomplete="off">
-          <div class="search">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-            <input class="input" id="heroSearchInput" type="search" placeholder="Search a batch — e.g. Arjuna JEE 2027, Yakeen, Udaan…" />
-          </div>
-          <button class="btn btn-ghost" id="voiceSearchBtn" type="button" title="Voice search" hidden>🎙</button>
-          <button class="btn btn-primary" type="submit">Search</button>
-        </form>
-        <div class="search-results hide" id="heroSearchResults"></div>
-
-        <div class="hero-stats" id="heroStats">
-          <div><strong>14,000+</strong><span>batches</span></div>
-          <div><strong id="statSubjects">—</strong><span>subjects</span></div>
-          <div><strong>Notes</strong><span>&amp; DPP PDFs</span></div>
-          <div><strong>5,800+</strong><span>free batches</span></div>
-        </div>
-        <div class="hero-cta">
-          <a class="btn btn-primary" href="#platforms">Choose Platform</a>
-          <a class="btn btn-ghost" href="/allen.html">Allen batches →</a>
-        </div>
+  <section class="nh-hero">
+    <div class="shell nh-hero-inner">
+      <span class="eyebrow"><span class="dot"></span> India's free learning hub</span>
+      <h1 class="nh-title">Stop paying<br />for <span class="gradient-text">courses.</span></h1>
+      <p class="nh-sub">
+        Premium batches, lectures and notes from <strong>Physics Wallah</strong> and
+        <strong>Allen</strong> — fully unlocked. Free forever. No sign-up.
+        No subscription. Just study.
+      </p>
+      <div class="nh-cta">
+        <a class="btn btn-primary" href="#platforms">Choose Platform</a>
+        <a class="btn btn-ghost" href="/batches.html">Browse PW batches</a>
+      </div>
+      <div class="nh-proof">
+        <span class="nh-avatars" aria-hidden="true"><i>A</i><i>R</i><i>S</i><i>V</i><i>+</i></span>
+        <span><strong id="nhLiveCount">14,000+</strong> batches live right now — JEE · NEET · Boards</span>
       </div>
 
-      <div class="hero-art" aria-hidden="true">
-        <div class="glass hero-card hero-card-main">
-          <div class="hero-card-head">
-            <img src="/assets/icon.svg" alt="" width="34" height="34" />
-            <div>
-              <strong>Arjuna JEE 2027</strong>
-              <span class="tiny muted">For IIT-JEE Aspirants · Hinglish</span>
-            </div>
-          </div>
-          <div class="hero-progress"><span class="p-68"></span></div>
-          <div class="hero-lines">
-            <span class="tiny dim">Physics · Ch 04 Motion in a Straight Line</span>
-            <span class="tiny dim">Chemistry · Class Notes PDF</span>
-            <span class="tiny dim">Maths · DPP 07 with solutions</span>
-          </div>
-        </div>
-        <div class="glass hero-chip chip-1">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h5"/></svg>
-          Notes &amp; DPPs
-        </div>
-        <div class="glass hero-chip chip-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h11l5 5v11H4z"/><path d="M15 4v5h5"/><path d="M8 13h8M8 17h5"/></svg>
-          Chapter-wise PDFs
-        </div>
-        <div class="glass hero-chip chip-3">
-          <span class="pulse"></span> Free access
-        </div>
-        <div class="orb orb-a"></div>
-        <div class="orb orb-b"></div>
+      <div class="nh-preview" aria-label="Popular right now">
+        <a class="nh-batch" href="/batches.html?q=Arjuna%20JEE">
+          <span class="nh-batch-tag">Physics Wallah</span>
+          <strong>Arjuna JEE — Complete</strong>
+          <span class="tiny dim">Class 11 · JEE Main + Advanced</span>
+          <span class="nh-free">Free</span>
+        </a>
+        <a class="nh-batch" href="/allen.html">
+          <span class="nh-batch-tag allen">Allen</span>
+          <strong>Leader — JEE (Main + Adv)</strong>
+          <span class="tiny dim">Class 12 Plus · English</span>
+          <span class="nh-free">Free</span>
+        </a>
+        <a class="nh-batch" href="/batches.html?q=Yakeen%20NEET">
+          <span class="nh-batch-tag">Physics Wallah</span>
+          <strong>Yakeen NEET — Complete</strong>
+          <span class="tiny dim">NEET · Physics, Chemistry, Bio</span>
+          <span class="nh-free">Free</span>
+        </a>
       </div>
     </div>
   </section>
@@ -194,7 +121,7 @@
       <div class="platforms-head">
         <span class="eyebrow"><span class="dot"></span> Select ecosystem</span>
         <h2>Choose Platform</h2>
-        <p class="dim">Pick your preferred learning ecosystem — every batch unlocked, lectures, notes &amp; DPPs, in the ArsVibe player. Do platform live hain, dono ek click door.</p>
+        <p class="dim">Pick your preferred learning ecosystem — every batch unlocked, every note free. Platform chuno, padhai shuru.</p>
         <div class="platforms-chips" role="tablist" aria-label="Filter platforms">
           <button type="button" class="platform-chip on" data-pfilter="all">All</button>
           <button type="button" class="platform-chip" data-pfilter="live"><span class="pulse"></span> Live</button>
@@ -223,151 +150,38 @@
           </span>
         </a>
       </div>
-    </div>
-  </section>
 
-  <section class="section hub-section" id="hubSection" hidden>
-    <div class="shell">
-      <div class="card hub-card">
-        <div class="hub-item"><span class="hub-emoji">🔥</span><div><strong id="hubStreak">0 day streak</strong><span class="tiny dim" id="hubStreakNote">Mark a DPP to light it</span></div></div>
-        <div class="hub-item"><span class="hub-emoji">⭐</span><div><strong id="hubXp">0 XP</strong><span class="tiny dim" id="hubLevel">Level 1</span></div><div class="hub-bar"><i id="hubBarFill"></i></div></div>
-        <div class="hub-item"><span class="hub-emoji">▶️</span><div><strong id="hubProgress">Nothing in progress</strong><span class="tiny dim">Lectures you have started</span></div></div>
-        <a class="btn btn-primary btn-sm" href="/dashboard.html">Open dashboard</a>
+      <div class="nh-stats">
+        <div><strong id="nhStatPw">14,000+</strong><span>PW batches unlocked</span></div>
+        <div><strong id="nhStatAllen">517</strong><span>Allen batches live</span></div>
+        <div><strong>2</strong><span>platforms, one hub</span></div>
+        <div><strong>₹0</strong><span>cost forever</span></div>
       </div>
     </div>
   </section>
 
-  <section class="section" id="homeLiveSection" hidden>
+  <section class="section nh-mindset">
     <div class="shell">
-      <div class="row between section-head">
+      <span class="eyebrow">Thought protocol online</span>
+      <h2>Recode your mindset</h2>
+      <p class="dim">No noise. No limits. Only the next version of you.</p>
+      <div class="nh-sys-grid">
+        <article class="nh-sys"><span>SYS::01</span><p>Discipline beats motivation when motivation goes offline.</p><b>01</b></article>
+        <article class="nh-sys"><span>SYS::02</span><p>Your future is compiled from the work you execute today.</p><b>02</b></article>
+        <article class="nh-sys"><span>SYS::03</span><p>Learn. Adapt. Repeat. Until impossible returns false.</p><b>03</b></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section nh-notice">
+    <div class="shell">
+      <div class="nh-notice-card">
         <div>
-          <span class="eyebrow"><span class="dot"></span> Live &amp; today</span>
-          <h2>Your classes today</h2>
+          <span class="eyebrow">Urgent notice</span>
+          <h3>Links badalte rehte hain</h3>
+          <p class="dim">Upstream platforms kabhi bhi naye batches drop karte hain ya purane hatate hain. ArsVibe catalogue live sync hota hai — jo aaj hai, wahi dikhta hai. Is page ko bookmark kar lo, taaki hamesha sahi jagah pahuncho.</p>
         </div>
-        <a class="btn btn-ghost btn-sm" href="/live.html">All live classes</a>
-      </div>
-      <div class="home-live-grid" id="homeLiveGrid"></div>
-    </div>
-  </section>
-
-  <section class="section" id="recoSection" hidden>
-    <div class="shell">
-      <div class="section-head">
-        <span class="eyebrow">Picked for you</span>
-        <h2>Because of what you study</h2>
-      </div>
-      <div class="grid grid-batches" id="recoGrid"></div>
-    </div>
-  </section>
-
-  <section class="section" id="goals">
-    <div class="shell">
-      <div class="section-head">
-        <span class="eyebrow">Start with your goal</span>
-        <h2>What are you preparing for?</h2>
-      </div>
-      <div class="goal-grid" id="goalGrid"></div>
-    </div>
-  </section>
-
-  <section class="section" id="continueSection" hidden>
-    <div class="shell">
-      <div class="row between section-head">
-        <div>
-          <span class="eyebrow">Pick up where you left off</span>
-          <h2>Continue watching</h2>
-        </div>
-        <a class="btn btn-ghost btn-sm" href="/dashboard.html">Your dashboard</a>
-      </div>
-      <div class="resume-rail" id="continueRail"></div>
-    </div>
-  </section>
-
-  <section class="section" id="trending">
-    <div class="shell">
-      <div class="row between section-head">
-        <div>
-          <span class="eyebrow">Trending now</span>
-          <h2>Popular batches this week</h2>
-        </div>
-        <a class="btn btn-ghost btn-sm" href="/batches.html">All batches
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </a>
-      </div>
-      <div class="grid grid-batches" id="trendingGrid"></div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="shell feature-grid">
-      <article class="card feature">
-        <div class="feature-icon purple">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg>
-        </div>
-        <h3>Live &amp; recorded batches</h3>
-        <p class="muted tiny">Every PW batch with its subjects, chapters and lecture list — exactly as the source publishes them.</p>
-      </article>
-      <article class="card feature">
-        <div class="feature-icon teal">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h6M9 16h4"/></svg>
-        </div>
-        <h3>Class notes as PDF</h3>
-        <p class="muted tiny">Handwritten notes, formula sheets and revision PDFs open inline with a built-in reader.</p>
-      </article>
-      <article class="card feature">
-        <div class="feature-icon amber">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7"/></svg>
-        </div>
-        <h3>Daily practice problems</h3>
-        <p class="muted tiny">DPP sheets and solution PDFs are attached to the lecture they belong to.</p>
-      </article>
-      <article class="card feature">
-        <div class="feature-icon blue">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        </div>
-        <h3>Notes that work offline</h3>
-        <p class="muted tiny">Keep any PDF with one tap and read it later — no ads, no pop-ups, no account.</p>
-      </article>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="shell">
-      <div class="row between section-head">
-        <div>
-          <span class="eyebrow">Catalogue</span>
-          <h2>Browse the full PW library</h2>
-        </div>
-      </div>
-      <div class="grid grid-batches" id="catalogGrid"></div>
-      <div class="row center mt-5">
-        <a class="btn btn-primary" href="/batches.html">Open all batches</a>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="recentSection" hidden>
-    <div class="shell">
-      <div class="section-head">
-        <span class="eyebrow">Continue</span>
-        <h2>Recently opened</h2>
-      </div>
-      <div class="grid grid-batches" id="recentGrid"></div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="shell">
-      <div class="glass cta-banner">
-        <div>
-          <span class="eyebrow">Community</span>
-          <h2>Study together, stay ahead.</h2>
-          <p class="muted">Announcements, doubt solving and daily study wins with the ArsVibe circles.</p>
-        </div>
-        <div class="row">
-          <a class="btn btn-primary" href="https://t.me/ArsVibe_Main" target="_blank" rel="noopener">Join main channel</a>
-          <a class="btn btn-ghost" href="https://t.me/ArsVibe_Main_Group" target="_blank" rel="noopener">Discussion group</a>
-        </div>
+        <a class="btn btn-primary" href="/dashboard.html">Continue to website</a>
       </div>
     </div>
   </section>
@@ -376,22 +190,21 @@
 <footer class="footer">
   <div class="shell footer-inner">
     <div>
-      <strong>ArsVibe PW</strong> · free &amp; open learning ·
-      <span class="dim">data streamed live from the ArsVibe PW catalogue</span>
+      <strong>ArsVibe</strong> · free &amp; open learning ·
+      <span class="dim">Physics Wallah + Allen, streamed live</span>
     </div>
     <div class="row">
-      <a href="/batches.html">Batches</a>
-      <a href="/favourites.html">Favourites</a>
-      <a href="/library.html">Library</a>
+      <a href="/batches.html">Physics Wallah</a>
+      <a href="/allen.html">Allen</a>
+      <a href="/dashboard.html">Dashboard</a>
     </div>
   </div>
 </footer>
 
-<script type="module" src="/assets/home.js"></script>
-<script type="module" src="/assets/open.js"></script>
+<script type="module" src="/assets/landing.js"></script>
 <script type="module" src="/assets/shell.mjs"></script>
 <script type="module" src="/assets/ui.js"></script>
-  <script type="module" src="/assets/telemetry.js"></script>
-  <script type="module" src="/assets/offline-boot.js"></script>
+<script type="module" src="/assets/telemetry.js"></script>
+<script type="module" src="/assets/offline-boot.js"></script>
 </body>
 </html>

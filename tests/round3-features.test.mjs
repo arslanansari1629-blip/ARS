@@ -32,13 +32,14 @@ test("focus timer and hover prefetch ship site-wide", async () => {
   assert.match(ui, /rel = "prefetch"|rel="prefetch"|"prefetch"/, "hover prefetch missing");
 });
 
-test("home: study hub, recommendations, voice search", async () => {
+test("home: study hub, recommendations and voice search retired with the old home", async () => {
   const html = await read("public/index.html");
-  assert.match(html, /id="hubSection"/);
-  assert.match(html, /id="recoSection"/);
-  assert.match(html, /id="voiceSearchBtn"/);
-  const home = await read("public/assets/home.js");
-  assert.match(home, /progress\(\)/, "hub must read the real progress store");
-  assert.match(home, /searchBatches\(goal\)/, "recommendations must search the catalogue");
-  assert.match(home, /SpeechRecognition/, "voice search must use the speech API");
+  // The landing's job is platform selection; personalisation lives on
+  // the dashboard. These sections (and the module that fed them) are
+  // gone from the front door on purpose.
+  assert.doesNotMatch(html, /id="hubSection"/);
+  assert.doesNotMatch(html, /id="recoSection"/);
+  assert.doesNotMatch(html, /id="voiceSearchBtn"/);
+  assert.doesNotMatch(html, /home\.js/, "the retired home module must not load");
+  assert.match(html, /Choose Platform/, "what replaced them is the platform picker");
 });

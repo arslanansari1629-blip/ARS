@@ -232,16 +232,18 @@ test("the exit removes its own listeners, so the catalogue keeps its keys", asyn
   window.close();
 });
 
-test("the front door plays the sheet once per session, never twice", async () => {
+test("the front door no longer plays a sheet: the landing paints directly", async () => {
   const html = await (await REAL_FETCH(`${BASE}/`)).text();
 
-  // Arming is in <head>, before the hero can paint: an intro that appears after
-  // the page is already visible is worse than none.
+  // The NextHope-style landing replaced the catalogue-home, and with
+  // it the opening-sheet ceremony on the front door: nothing arms,
+  // nothing hides the page, the platform picker is simply there.
+  // (/open keeps the sheet as its own page; those tests stand.)
   const head = html.slice(0, html.indexOf("</head>"));
-  assert.match(head, /intro-armed/, "the front door does not arm the sheet before paint");
-  assert.match(head, /arsvibe\.open\.played/, "the session flag is not set before paint");
-  // And it is a failsafe, not a promise: the class comes off on its own.
-  assert.match(head, /setTimeout[\s\S]{0,200}remove\("intro-armed"\)/, "there is no failsafe");
+  assert.doesNotMatch(head, /intro-armed/, "the front door must not arm a sheet before paint");
+  assert.doesNotMatch(html, /id="intro"/, "the front door must not carry a sheet mount");
+  assert.doesNotMatch(html, /open\.js/, "the front door must not load the sheet module");
+  assert.match(html, /id="platforms"/, "what the front door shows instead is the platform picker");
 
   // The catalogue is only hidden while that class is on. The rule that shows it
   // again is what keeps a failed module from hiding the site.
@@ -276,39 +278,19 @@ test("the front door plays the sheet once per session, never twice", async () =>
   assert.match(js, /shell\.remove\(\)/, "the overlay is never taken out of the page");
 });
 
-test("the front door mounts the sheet over the catalogue, then takes it away", async () => {
-  // This is the mounting that matters: the same sheet as /open, laid over the
-  // live home page, lifted without a navigation so the catalogue keeps its
-  // scroll and its rendered cards.
+test("the front door serves the landing with no sheet over it", async () => {
+  // What replaced the mounting: the front door IS the platform picker.
+  // No overlay, no arming class, nothing between a student and the
+  // two platform cards.
   const dom = await load("/");
   const { window } = dom;
   const doc = window.document;
-  const root = doc.documentElement;
 
-  // The inline failsafe does not run in jsdom (runScripts is off), so arm the
-  // page by hand exactly as that script would.
-  root.classList.add("intro-armed");
-
-  await run(dom, "/assets/open.js");
-  await new Promise((r) => setTimeout(r, 700));
-
-  const intro = doc.getElementById("intro");
-  assert.ok(intro, "the front door mounted no sheet");
-  assert.ok(intro.querySelector(".open-sheet"), "the overlay is not the sheet");
-  assert.ok(intro.querySelector("#openGo"), "the overlay has no way out");
-  assert.equal(root.classList.contains("open-js"), true, "the overlay never armed its beats");
-
-  // Leaving: the way out works immediately, the page is given back, and the
-  // sheet is removed rather than left as an invisible layer over the hero.
-  intro.querySelector("#openGo").click();
-  await new Promise((r) => setTimeout(r, 900));
-
-  assert.equal(doc.getElementById("intro"), null, "the sheet stayed in the page");
-  assert.equal(root.classList.contains("intro-armed"), false, "the page was never handed back");
-  assert.equal(window.sessionStorage.getItem("arsvibe.open.played"), "1", "the visit was not marked");
-
-  // And the catalogue it was covering is still there, untouched.
-  assert.match(doc.body.textContent, /Every Physics Wallah batch/);
+  assert.equal(doc.getElementById("intro"), null, "the front door carries a sheet mount");
+  assert.equal(doc.documentElement.classList.contains("intro-armed"), false, "the page starts hidden");
+  assert.ok(doc.getElementById("platformsGrid"), "the platform picker is missing");
+  assert.equal(doc.querySelectorAll("#platformsGrid .platform-card").length, 2, "both platforms must be offered");
+  assert.match(doc.body.textContent, /Stop paying/);
   window.close();
 });
 

@@ -1,0 +1,134 @@
+/* =========================================================================
+   Home landing (NextHope-style): tickers, hero, platform picker, stats.
+   Design rule carried over from the Allen white-grid bug: NOTHING here
+   depends on an animation or on JS to be visible. Motion decorates;
+   content simply is. On lite tier / hidden tabs the tickers pause —
+   paused mid-strip still reads perfectly, unlike a card frozen at
+   opacity 0.
+   ========================================================================= */
+
+/* ---------- tickers ---------- */
+.nh-tickers { overflow: hidden; border-block: 1px solid var(--rule); }
+.nh-ticker { overflow: hidden; white-space: nowrap; padding: 7px 0; font-size: 11px; font-weight: 850; letter-spacing: 0.22em; }
+.nh-ticker-a { background: var(--ink); color: #faf6ef; }
+.nh-ticker-b { background: var(--card-2); color: var(--ink-3); }
+.nh-ticker-c { background: #4c1d95; color: #ede9fe; }
+.nh-track { display: inline-flex; animation: nhMarquee 36s linear infinite; will-change: transform; }
+.nh-track.rev { animation-direction: reverse; }
+.nh-track span { padding-right: 8px; }
+@keyframes nhMarquee { to { transform: translateX(-50%); } }
+.nh-tickers:hover .nh-track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .nh-track { animation: none; } }
+
+/* ---------- hero ---------- */
+.nh-hero { padding: 56px 0 30px; text-align: center; }
+.nh-hero-inner { display: flex; flex-direction: column; align-items: center; }
+.nh-title { font-size: clamp(42px, 8vw, 84px); line-height: 0.98; letter-spacing: -0.035em; margin: 14px 0 16px; font-weight: 900; }
+.nh-sub { max-width: 560px; margin: 0; font-size: 16.5px; line-height: 1.65; color: var(--ink-2); }
+.nh-cta { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 24px; }
+.nh-proof { display: flex; align-items: center; gap: 10px; margin-top: 20px; font-size: 13px; color: var(--ink-3); }
+.nh-proof strong { color: var(--ink); }
+.nh-avatars { display: inline-flex; }
+.nh-avatars i {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-style: normal; font-size: 10px; font-weight: 850; color: #fff;
+  border: 2px solid var(--bg, #faf6ef); margin-left: -7px;
+}
+.nh-avatars i:first-child { margin-left: 0; }
+.nh-avatars i:nth-child(1) { background: #4c1d95; }
+.nh-avatars i:nth-child(2) { background: #1d4ed8; }
+.nh-avatars i:nth-child(3) { background: #b45309; }
+.nh-avatars i:nth-child(4) { background: #047857; }
+.nh-avatars i:nth-child(5) { background: var(--ink); }
+
+.nh-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; width: 100%; max-width: 860px; margin-top: 34px; text-align: left; }
+.nh-batch {
+  position: relative; display: flex; flex-direction: column; gap: 4px; padding: 16px 18px;
+  background: var(--card); border: 1.5px solid var(--rule); border-radius: 18px; text-decoration: none; color: var(--ink);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.nh-batch:hover { transform: translateY(-4px); border-color: #c2d6fa; box-shadow: 0 18px 34px rgba(28, 25, 23, 0.10); }
+.nh-batch strong { font-size: 14.5px; letter-spacing: -0.01em; }
+.nh-batch-tag { font-size: 10px; font-weight: 850; letter-spacing: 0.12em; text-transform: uppercase; color: #4c1d95; }
+.nh-batch-tag.allen { color: #b45309; }
+.nh-free { position: absolute; top: 12px; right: 12px; font-size: 10.5px; font-weight: 850; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px; padding: 3px 8px; }
+
+/* ---------- platform picker ---------- */
+.platforms-section { padding-top: 10px; }
+.platforms-head { text-align: center; max-width: 640px; margin: 0 auto 8px; }
+.platforms-head h2 { margin: 6px 0 8px; }
+.platforms-head p { margin: 0 auto; line-height: 1.6; }
+.platforms-chips { display: inline-flex; gap: 8px; margin-top: 16px; background: var(--card-2); border: 1px solid var(--rule); border-radius: 999px; padding: 4px; }
+.platform-chip { border: 0; background: transparent; padding: 7px 16px; border-radius: 999px; font-weight: 700; font-size: 13px; color: var(--ink-3); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+.platform-chip.on { background: var(--ink); color: #fff; }
+.platforms-count { text-align: center; margin: 14px 0 16px; }
+.platforms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 420px)); justify-content: center; gap: 20px; }
+.platform-card {
+  position: relative; display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 8px; padding: 34px 26px 26px; border-radius: 26px; text-decoration: none;
+  background: var(--card); border: 1.5px solid var(--rule); color: var(--ink);
+  box-shadow: 0 10px 30px rgba(28, 25, 23, 0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.platform-card:hover { transform: translateY(-6px); box-shadow: 0 26px 48px rgba(28, 25, 23, 0.13); }
+.platform-card[data-platform="pw"]:hover { border-color: #4c1d95; }
+.platform-card[data-platform="allen"]:hover { border-color: #f2b705; }
+.platform-card.hide { display: none; }
+.platform-live {
+  position: absolute; top: 14px; right: 14px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 850; letter-spacing: 0.12em; color: #047857;
+  background: #ecfdf5; border: 1px solid #a7f3d0; padding: 4px 9px; border-radius: 999px;
+}
+.platform-logo {
+  width: 118px; height: 118px; border-radius: 30px; display: grid; place-items: center;
+  background: #fff; border: 1px solid var(--rule); overflow: hidden;
+  box-shadow: 0 12px 26px rgba(28, 25, 23, 0.10);
+}
+.platform-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.platform-name { font-size: 23px; font-weight: 850; letter-spacing: -0.02em; margin-top: 6px; }
+.platform-tag { font-size: 13.5px; color: var(--ink-3); line-height: 1.6; max-width: 320px; }
+.platform-meta { font-size: 12.5px; color: var(--ink-2); }
+.platform-meta b { color: var(--ink); font-size: 14px; }
+.platform-open {
+  margin-top: 10px; display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 13.5px;
+  padding: 10px 18px; border-radius: 999px; color: #fff; background: var(--ink);
+  transition: gap 0.15s ease, background 0.15s ease;
+}
+.platform-card:hover .platform-open { gap: 12px; }
+.platform-card[data-platform="pw"]:hover .platform-open { background: #4c1d95; }
+.platform-card[data-platform="allen"]:hover .platform-open { background: #1d4ed8; }
+@media (max-width: 640px) {
+  .platform-logo { width: 96px; height: 96px; border-radius: 24px; }
+  .platform-card { padding: 28px 18px 22px; }
+  .nh-hero { padding-top: 38px; }
+}
+
+/* ---------- stats strip ---------- */
+.nh-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px;
+  max-width: 860px; margin: 34px auto 4px; text-align: center;
+}
+.nh-stats div { background: var(--card); border: 1px solid var(--rule); border-radius: 18px; padding: 18px 10px; }
+.nh-stats strong { display: block; font-size: 26px; letter-spacing: -0.02em; }
+.nh-stats span { font-size: 11.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+
+/* ---------- mindset + notice ---------- */
+.nh-mindset { text-align: center; }
+.nh-mindset h2 { margin: 6px 0 8px; }
+.nh-sys-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; max-width: 860px; margin: 22px auto 0; text-align: left; }
+.nh-sys { position: relative; background: var(--ink); color: #faf6ef; border-radius: 18px; padding: 20px; overflow: hidden; }
+.nh-sys span { font-size: 10.5px; font-weight: 850; letter-spacing: 0.16em; color: #fbbf24; }
+.nh-sys p { margin: 10px 0 0; line-height: 1.6; font-size: 14.5px; }
+.nh-sys b { position: absolute; right: 10px; bottom: -8px; font-size: 52px; opacity: 0.14; }
+.nh-notice-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+  background: var(--card); border: 1.5px dashed #f59e0b; border-radius: 22px; padding: 24px 26px;
+  max-width: 860px; margin: 0 auto;
+}
+.nh-notice-card h3 { margin: 6px 0; }
+.nh-notice-card p { margin: 0; max-width: 560px; line-height: 1.6; }
+
+/* Perf tiers: hover lift is garnish on lite; tickers pausing there
+   still leaves every word readable (mid-strip is a fine place to be). */
+html[data-perf="lite"] .platform-card, html[data-perf="lite"] .nh-batch { transition: none; }
+html[data-perf="lite"] .platform-card:hover, html[data-perf="lite"] .nh-batch:hover { transform: none; }

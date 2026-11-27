@@ -26,14 +26,17 @@ test("accent themes: token overrides in CSS, picker + persistence in ui.js", asy
   assert.match(ui, /setPref\("accent"/, "picking an accent does not persist it");
 });
 
-test("home: goal signposts and a continue-watching rail", async () => {
+test("home: the landing is a platform picker (goal/continue moved off the front door)", async () => {
   const html = await read("public/index.html");
-  assert.match(html, /id="goalGrid"/);
-  assert.match(html, /id="continueSection"/);
-  assert.match(html, /id="continueRail"/);
-  const home = await read("public/assets/home.js");
-  assert.match(home, /\/batches\.html\?q=/, "goal tiles must ride the catalogue search");
-  assert.match(home, /pos:\$\{l\.id\}/, "the rail must read the player's own position keys");
+  // The NextHope-style landing replaced the catalogue-home: goal tiles
+  // and the continue rail live where they belong now (batches carries
+  // the goal chips; the dashboard carries progress), and the front
+  // door's only job is sending a student to a platform.
+  assert.doesNotMatch(html, /id="goalGrid"/, "goal grid must stay off the landing");
+  assert.doesNotMatch(html, /id="continueRail"/, "continue rail must stay off the landing");
+  assert.match(html, /id="platforms"/, "the platform picker is the home page now");
+  assert.match(html, /href="\/batches\.html"/, "PW platform must be one click from home");
+  assert.match(html, /href="\/allen\.html"/, "Allen platform must be one click from home");
 });
 
 test("batches: goal chips ride ?q=, instruments ride ui.js", async () => {

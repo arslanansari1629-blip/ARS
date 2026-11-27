@@ -135,17 +135,19 @@ async function render(
   return { dom, doc: window.document, window };
 }
 
-test("home page renders live catalogue cards and hero copy", async () => {
-  const { doc, dom } = await render("/", { waitForSelector: "#trendingGrid .batch-card" });
-  assert.match(doc.title, /Physics Wallah/i);
-  const cards = doc.querySelectorAll("#trendingGrid .batch-card");
-  assert.ok(cards.length >= 2, `expected catalogue cards, got ${cards.length}`);
-  assert.match(cards[0].textContent, /Arjuna JEE 2027/);
-  assert.match(doc.body.textContent.replace(/\s+/g, " "), /Every Physics Wallah batch/i);
-  assert.match(doc.body.textContent, /Lakshya JEE 2027/);
-  // The complete catalogue (14 201 batches) is the whole point of shipping the
-  // list locally — the source site's own search only sees 13 631.
-  assert.match(doc.getElementById("statSubjects").textContent, /14,201/);
+test("home page is the landing: hero copy and two platform cards, no catalogue grid", async () => {
+  const { doc, dom } = await render("/", { waitForSelector: "#platformsGrid .platform-card" });
+  assert.match(doc.title, /ArsVibe/i);
+  assert.match(doc.body.textContent.replace(/\s+/g, " "), /Stop paying\s?for courses/i);
+  const cards = doc.querySelectorAll("#platformsGrid .platform-card");
+  assert.equal(cards.length, 2, `expected 2 platform cards, got ${cards.length}`);
+  assert.match(cards[0].textContent, /Physics Wallah/);
+  assert.equal(cards[0].getAttribute("href"), "/batches.html");
+  assert.match(cards[1].textContent, /Allen/);
+  assert.equal(cards[1].getAttribute("href"), "/allen.html");
+  // The PW catalogue (14 201 batches) now lives on its own platform
+  // page; the landing only carries the count, not the grid.
+  assert.match(doc.getElementById("platformAllenCount").textContent, /517/);
   dom.window.close();
 });
 
