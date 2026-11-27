@@ -1,0 +1,35 @@
+/* Vidyakul native platform (built behind the Coming Soon park;
+   becomes the live page styles at launch). */
+.vk-hero { padding: 28px 0 8px; }
+.vk-hero-brand { display: flex; gap: 18px; align-items: center; }
+.vk-hero-brand img { border-radius: 18px; }
+.vk-search { display: flex; gap: 8px; margin: 18px 0 6px; max-width: 560px; }
+.vk-search input { flex: 1; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line, #234); background: var(--card, #0e2120); color: inherit; }
+.vk-search button, .vk-more, .vk-watch { padding: 12px 18px; border-radius: 12px; border: 0; background: #00d9a5; color: #04241c; font-weight: 700; cursor: pointer; }
+.vk-crumbs { margin: 14px 0; font-size: 14px; opacity: .85; }
+.vk-crumbs a { color: #00d9a5; }
+.vk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin: 16px 0; }
+.vk-card { display: block; padding: 14px; border-radius: 16px; background: var(--card, #0e2120); border: 1px solid var(--line, #234); text-decoration: none; color: inherit; }
+.vk-card img { width: 100%; height: 130px; object-fit: cover; border-radius: 10px; }
+.vk-card h3 { margin: 10px 0 4px; font-size: 17px; }
+.vk-card p { opacity: .8; font-size: 13px; }
+.vk-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; font-size: 12px; }
+.vk-meta span { padding: 3px 8px; border-radius: 999px; background: rgba(0, 217, 165, .12); }
+.vk-cta { display: inline-block; margin-top: 10px; color: #00d9a5; font-weight: 700; }
+.vk-batch-head { display: flex; gap: 18px; align-items: center; margin: 12px 0; }
+.vk-batch-head img { width: 120px; height: 120px; object-fit: cover; border-radius: 16px; }
+.vk-h { margin: 18px 0 8px; }
+.vk-tabs { display: flex; gap: 8px; margin: 10px 0 16px; }
+.vk-tabs a { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line, #234); text-decoration: none; color: inherit; }
+.vk-tabs a.on { background: #00d9a5; color: #04241c; font-weight: 700; }
+.vk-list { display: grid; gap: 10px; }
+.vk-class { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 14px; border-radius: 14px; background: var(--card, #0e2120); border: 1px solid var(--line, #234); }
+.vk-class h3 { margin: 0 0 4px; font-size: 16px; }
+.vk-class p { margin: 0; opacity: .75; font-size: 13px; }
+.vk-msg { padding: 28px 0; opacity: .85; }
+.vk-more { margin: 8px 0 30px; }
+.vk-player { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: flex; align-items: center; justify-content: center; z-index: 60; }
+.vk-player[hidden] { display: none; }
+.vk-player-box { width: min(920px, 94vw); background: #0e2120; border-radius: 18px; padding: 14px; position: relative; }
+.vk-player-box video { width: 100%; max-height: 70vh; background: #000; border-radius: 12px; }
+.vk-player-close { position: absolute; top: -14px; right: -14px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: #00d9a5; font-weight: 800; cursor: pointer; }
