@@ -344,3 +344,46 @@ document.addEventListener("click", (e) => {
 
 loadCatalog();
 renderRecent();
+
+/* ---- Choose Platform: chip filter + live counts ----------------
+   The cards are plain anchors, so the platforms open even if this
+   module never runs; everything here is garnish. Counts are asked
+   once, quietly, and any failure leaves the printed fallback. */
+(() => {
+  const grid = document.querySelector("#platformsGrid");
+  if (!grid) return;
+  const chips = [...document.querySelectorAll("[data-pfilter]")];
+  const cards = [...grid.querySelectorAll(".platform-card")];
+  const countEl = document.querySelector("#platformCount");
+  const paintCount = () => {
+    const n = cards.filter((c) => !c.classList.contains("hide")).length;
+    if (countEl) countEl.textContent = String(n);
+  };
+  chips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      chips.forEach((c) => c.classList.toggle("on", c === chip));
+      const f = chip.dataset.pfilter;
+      cards.forEach((card) => {
+        card.classList.toggle("hide", f !== "all" && card.dataset.status !== f);
+      });
+      paintCount();
+    });
+  });
+  const fmt = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "")}k+` : String(n));
+  fetch("/api/batches?facets=1", { headers: { Accept: "application/json" } })
+    .then((r) => r.json())
+    .then((d) => {
+      const total = d?.prices?.total || d?.total || 0;
+      const el = document.querySelector("#platformPwCount");
+      if (el && total > 0) el.textContent = fmt(total);
+    })
+    .catch(() => {});
+  fetch("/api/allen?view=batches", { headers: { Accept: "application/json" } })
+    .then((r) => r.json())
+    .then((d) => {
+      const total = d?.total || (Array.isArray(d?.items) ? d.items.length : 0);
+      const el = document.querySelector("#platformAllenCount");
+      if (el && total > 0) el.textContent = String(total);
+    })
+    .catch(() => {});
+})();
