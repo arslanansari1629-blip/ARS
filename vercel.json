@@ -250,6 +250,10 @@
     {
       "source": "/api/vidyakul",
       "destination": "/api/batches?action=vidyakul"
+    },
+    {
+      "source": "/api/selectionway",
+      "destination": "/api/batches?action=selectionway"
     }
   ],
   "crons": [

@@ -13,6 +13,7 @@ import {
 import { allenApi } from "../lib/allen.mjs";
 import { nextTopperApi } from "../lib/nexttopper.mjs";
 import { vidyakulApi } from "../lib/vidyakul.mjs";
+import { selectionWayApi } from "../lib/selectionway.mjs";
 
 /**
  * GET /api/batches?page=1&pageSize=20   → the complete catalogue
@@ -71,6 +72,7 @@ export default async function handler(req, res) {
   if (allParams.action === "allen") return allenApi(req, res, allParams);
   if (allParams.action === "nexttopper") return nextTopperApi(req, res, allParams);
   if (allParams.action === "vidyakul") return vidyakulApi(req, res, allParams);
+  if (allParams.action === "selectionway") return selectionWayApi(req, res, allParams);
 
   const { page, search, q, pageSize, lang, price, sort, facets } = allParams;
 
