@@ -87,6 +87,24 @@ test("Vidyakul is live: a linked landing card and a native platform page", async
   assert.doesNotMatch(vk, /Coming Soon|vkFrame|vidyakul-app|<iframe/, "the live page must not be parked or embed the mirror");
 });
 
+test("Coming Soon section: logo cards with a working platform selection", async () => {
+  const page = await read("public/index.html");
+  assert.match(page, /id="comingSoon"/, "coming-soon section is missing");
+  assert.match(page, /id="soonGrid"/, "selection grid is missing");
+  for (const [slug, logo] of [["Unacademy", "Unacademy.png"], ["vedantu", "vedantu.jpg"], ["byjus", "byjus.png"], ["aakash", "aakash.gif"]]) {
+    assert.match(page, new RegExp(`data-soon="${slug}"`), `${slug} selectable card is missing`);
+    assert.match(page, new RegExp(`/assets/platforms/${logo.replace(".", "\\.")}`), `${slug} logo must be a local asset`);
+    await access(new URL(`../public/assets/platforms/${logo}`, import.meta.url));
+  }
+  assert.match(page, /id="soonStatus"/, "selection status line is missing");
+  const js = await read("public/assets/landing.js");
+  assert.match(js, /ars:soon:selected/, "selection must persist on the device");
+  assert.match(js, /data-soon/, "selection wiring is missing");
+  const css = await read("public/assets/home-landing.css");
+  assert.match(css, /\.soon-card\.selected/, "selected card state missing");
+  assert.match(css, /\.soon-logo img\s*\{[^}]*object-fit: contain/, "logos must not be cropped");
+});
+
 test("landing content never depends on animation or JS to be visible, and counts/filter are garnish", async () => {
   const css = await read("public/assets/home-landing.css");
   assert.doesNotMatch(css, /\.platform-card[^}]*opacity:\s*0/s, "platform cards must not start hidden (white-grid lesson)");

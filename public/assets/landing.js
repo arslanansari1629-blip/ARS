@@ -60,3 +60,40 @@ const fmtK = (n) =>
     if (stat) stat.textContent = String(total);
   });
 })();
+
+/* ---- coming-soon platform selection ----
+   One pick per device, saved locally (no account, no upload): the
+   selected card wears a check + brand ring, the status line names it,
+   and re-selecting another card simply moves the pick. */
+(() => {
+  const grid = document.querySelector("#soonGrid");
+  if (!grid) return;
+  const cards = [...grid.querySelectorAll("[data-soon]")];
+  const status = document.querySelector("#soonStatus");
+  const KEY = "ars:soon:selected";
+  const paint = (pick) => {
+    cards.forEach((card) => {
+      const on = card.dataset.soon === pick;
+      card.classList.toggle("selected", on);
+      card.setAttribute("aria-checked", on ? "true" : "false");
+      const cta = card.querySelector(".soon-select");
+      if (cta) cta.textContent = on ? "✓ Selected — yehi pehle lao" : "Select this platform";
+    });
+    if (status) {
+      const picked = cards.find((c) => c.dataset.soon === pick);
+      status.textContent = picked
+        ? `✓ Tumne ${picked.querySelector(".soon-name")?.textContent || pick} select kiya — launch hote hi yahi section LIVE ho jayega.`
+        : "No platform selected yet — ek card select karo 👇";
+    }
+  };
+  let saved = null;
+  try { saved = localStorage.getItem(KEY); } catch { saved = null; }
+  paint(saved && cards.some((c) => c.dataset.soon === saved) ? saved : null);
+  cards.forEach((card) => {
+    card.addEventListener("click", () => {
+      const pick = card.dataset.soon;
+      try { localStorage.setItem(KEY, pick); } catch { /* private mode: selection still paints */ }
+      paint(pick);
+    });
+  });
+})();
