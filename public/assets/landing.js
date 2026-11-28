@@ -77,13 +77,13 @@ const fmtK = (n) =>
       card.classList.toggle("selected", on);
       card.setAttribute("aria-checked", on ? "true" : "false");
       const cta = card.querySelector(".soon-select");
-      if (cta) cta.textContent = on ? "✓ Selected — yehi pehle lao" : "Select this platform";
+      if (cta) cta.textContent = on ? "✓ Selected — launch par milte hain" : "Select — mujhe ye chahiye";
     });
     if (status) {
       const picked = cards.find((c) => c.dataset.soon === pick);
       status.textContent = picked
         ? `✓ Tumne ${picked.querySelector(".soon-name")?.textContent || pick} select kiya — launch hote hi yahi section LIVE ho jayega.`
-        : "No platform selected yet — ek card select karo 👇";
+        : "Abhi kuch select nahi hai — neeche wale card ko select karo 👇";
     }
   };
   let saved = null;

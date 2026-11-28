@@ -91,10 +91,14 @@ test("Coming Soon section: logo cards with a working platform selection", async 
   const page = await read("public/index.html");
   assert.match(page, /id="comingSoon"/, "coming-soon section is missing");
   assert.match(page, /id="soonGrid"/, "selection grid is missing");
-  for (const [slug, logo] of [["Unacademy", "Unacademy.png"], ["vedantu", "vedantu.jpg"], ["byjus", "byjus.png"], ["aakash", "aakash.gif"]]) {
-    assert.match(page, new RegExp(`data-soon="${slug}"`), `${slug} selectable card is missing`);
-    assert.match(page, new RegExp(`/assets/platforms/${logo.replace(".", "\\.")}`), `${slug} logo must be a local asset`);
-    await access(new URL(`../public/assets/platforms/${logo}`, import.meta.url));
+  // One selectable teaser card wearing the owner-supplied logo — the
+  // earlier four guessed platforms (Unacademy/Vedantu/BYJU'S/Aakash)
+  // were removed on request.
+  assert.match(page, /data-soon="coming-next"/, "coming-next selectable card is missing");
+  assert.match(page, /\/assets\/platforms\/coming-next\.png/, "coming-soon logo must be a local asset");
+  await access(new URL("../public/assets/platforms/coming-next.png", import.meta.url));
+  for (const gone of ["data-soon=\"Unacademy\"", "data-soon=\"vedantu\"", "data-soon=\"byjus\"", "data-soon=\"aakash\""]) {
+    assert.doesNotMatch(page, new RegExp(gone), `removed teaser ${gone} must stay gone`);
   }
   assert.match(page, /id="soonStatus"/, "selection status line is missing");
   const js = await read("public/assets/landing.js");
