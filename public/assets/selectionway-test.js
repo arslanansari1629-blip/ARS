@@ -83,16 +83,32 @@ function renderHome() {
 async function showHome() {
   if (!allBatches.length) {
     view.innerHTML = skeleton(8);
-    const data = await api("/api/selectionway?view=batches");
+    let data;
+    try {
+      data = await api("/api/selectionway?view=batches");
+    } catch (e) {
+      data = await api("/api/selectionway?view=batches");
+    }
     allBatches = data.items || [];
   }
   renderHome();
 }
 
+let batchTopics = [];
+let batchIdNow = "";
+
 async function showBatch(batchId) {
+  batchIdNow = batchId;
   setCrumb('<a href="#/">← All batches</a>');
-  view.innerHTML = skeleton(6);
-  const data = await api("/api/selectionway?view=classes&id=" + encodeURIComponent(batchId));
+  view.innerHTML = skeleton(6) + '<p class="sw-msg">Batch load ho raha hai — bade batches (1000+ classes) me kuch seconds lag sakte hain…</p>';
+  let data;
+  try {
+    data = await api("/api/selectionway?view=classes&id=" + encodeURIComponent(batchId));
+  } catch (e) {
+    cache.delete("/api/selectionway?view=classes&id=" + encodeURIComponent(batchId));
+    data = await api("/api/selectionway?view=classes&id=" + encodeURIComponent(batchId));
+  }
+  batchTopics = data.topics || [];
   const c = data.course || {};
   paintStats({ classes: String(data.totalClasses || 0), notes: String(data.totalNotes || 0) });
   let html = '<div class="sw-batch-head">' +
@@ -106,7 +122,7 @@ async function showBatch(batchId) {
     (c.facultyName ? '<p class="sw-faculty">👨‍🏫 ' + esc(c.facultyName) + "</p>" : "") +
     "</div></div>";
   html += '<div class="sw-toolbar"><input id="swClassFilter" type="search" placeholder="Filter lectures in this batch…" aria-label="Filter lectures" /></div><div id="swTopics">';
-  html += topicsHtml(data.topics || [], "");
+  html += topicsHtml("");
   html += "</div>";
   view.innerHTML = html;
   const filter = document.getElementById("swClassFilter");
@@ -114,32 +130,63 @@ async function showBatch(batchId) {
   filter.addEventListener("input", () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      document.getElementById("swTopics").innerHTML = topicsHtml(data.topics || [], filter.value.toLowerCase().trim());
-      bindWatch(batchId);
+      document.getElementById("swTopics").innerHTML = topicsHtml(filter.value.toLowerCase().trim());
+      bindTopics();
     }, 200);
   });
-  bindWatch(batchId);
+  bindTopics();
 }
 
-function topicsHtml(topics, q) {
+/* Topics render as headers first; a topic's lecture rows are only
+   built when it is opened (or when a search forces matches open) —
+   a 1,300-class batch must not build 1,300 DOM rows up front. */
+function topicsHtml(q) {
   let html = "";
-  for (const t of topics) {
+  batchTopics.forEach((t, i) => {
     const classes = (t.classes || []).filter((c) => !q || (c.title + " " + c.teacherName + " " + c.sectionName).toLowerCase().includes(q));
-    if (!classes.length) continue;
-    html += '<h3 class="sw-h">' + esc(t.topicName) + ' <span class="sw-count">(' + classes.length + ")</span></h3><div class=\"sw-list\">";
-    for (const c of classes) {
-      const dur = c.duration ? Math.round(c.duration / 60) + " min" : "";
-      const bits = [c.sectionName, c.teacherName, dur, c.pdfCount ? "📄 " + c.pdfCount : ""].filter(Boolean).join(" · ");
-      html += '<div class="sw-class"><div><h4>' + esc(c.title) + "</h4><p>" + esc(bits) + "</p></div>" +
-        (c.hasVideo ? '<button type="button" class="sw-watch" data-watch="' + esc(c.id) + '">▶ Watch</button>' : '<span class="sw-novideo">No video</span>') + "</div>";
-    }
-    html += "</div>";
-  }
+    if (!classes.length) return;
+    html += '<div class="sw-topic"><button type="button" class="sw-topic-head" data-topic="' + i + '">' +
+      '<span>' + esc(t.topicName) + '</span><span class="sw-count">' + classes.length + ' lectures ▾</span></button>' +
+      '<div class="sw-topic-body" data-body="' + i + '"' + (q ? "" : " hidden") + ">" + (q ? classesHtml(classes) : "") + "</div></div>";
+  });
   return html || '<p class="sw-msg">No lectures match.</p>';
 }
 
-function bindWatch(batchId) {
-  view.querySelectorAll("[data-watch]").forEach((btn) => btn.addEventListener("click", () => openPlayer(batchId, btn.getAttribute("data-watch"))));
+function classesHtml(classes) {
+  let html = "";
+  for (const c of classes) {
+    const dur = c.duration ? Math.round(c.duration / 60) + " min" : "";
+    const bits = [c.sectionName, c.teacherName, dur, c.pdfCount ? "📄 " + c.pdfCount : ""].filter(Boolean).join(" · ");
+    html += '<div class="sw-class"><div><h4>' + esc(c.title) + "</h4><p>" + esc(bits) + "</p></div>" +
+      (c.hasVideo ? '<button type="button" class="sw-watch" data-watch="' + esc(c.id) + '">▶ Watch</button>' : '<span class="sw-novideo">No video</span>') + "</div>";
+  }
+  return html;
+}
+
+function bindTopics() {
+  view.querySelectorAll("[data-topic]").forEach((head) => head.addEventListener("click", () => {
+    const i = head.getAttribute("data-topic");
+    const body = view.querySelector('[data-body="' + i + '"]');
+    if (!body) return;
+    const open = body.hidden;
+    body.hidden = !open;
+    if (open && !body.innerHTML) {
+      const q = (document.getElementById("swClassFilter")?.value || "").toLowerCase().trim();
+      const t = batchTopics[Number(i)];
+      const classes = (t.classes || []).filter((c) => !q || (c.title + " " + c.teacherName + " " + c.sectionName).toLowerCase().includes(q));
+      body.innerHTML = classesHtml(classes);
+      bindWatch();
+    }
+  }));
+  bindWatch();
+}
+
+function bindWatch() {
+  view.querySelectorAll("[data-watch]").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", () => openPlayer(batchIdNow, btn.getAttribute("data-watch")));
+  });
 }
 
 function stopPlayer() {
@@ -149,9 +196,12 @@ function stopPlayer() {
   try { video.load(); } catch { /* noop */ }
 }
 
+const proxied = (u) => "/api/selectionway?view=proxy&url=" + encodeURIComponent(u);
+
 function setSource(url) {
   stopPlayer();
   if (!url) return;
+  url = proxied(url);
   if (/\.m3u8($|\?)/i.test(url) && HlsCtor && HlsCtor.isSupported()) {
     hls = new HlsCtor({ enableWorker: true });
     hls.loadSource(url);
@@ -188,7 +238,7 @@ async function openPlayer(batchId, classId) {
 
 function paintDownload(o) {
   const dl = document.getElementById("swDownload");
-  if (o && /\.mp4($|\?)/i.test(o.url)) { dl.href = o.url; dl.hidden = false; } else { dl.hidden = true; }
+  if (o && /\.mp4($|\?)/i.test(o.url)) { dl.href = proxied(o.url); dl.hidden = false; } else { dl.hidden = true; }
 }
 
 function closePlayer() {

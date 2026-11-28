@@ -181,3 +181,13 @@ html[data-perf="lite"] .sw-toolbar { backdrop-filter: none; -webkit-backdrop-fil
 .sw-pdf { padding: 8px 13px; border-radius: 999px; background: rgba(21, 128, 61, 0.1); color: #15803d; font-weight: 700; font-size: 12.5px; text-decoration: none; }
 .sw-toolbar { margin: 14px 0 6px; }
 .sw-toolbar input { width: 100%; max-width: 520px; padding: 10px 14px; border-radius: 999px; border: 1.5px solid var(--hair-2); background: var(--card); color: var(--ink); font-size: 13.5px; }
+.sw-topic { margin-bottom: 10px; }
+.sw-topic-head {
+  width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 15px 17px; border-radius: 16px; cursor: pointer; text-align: left;
+  background: var(--card); border: 1.5px solid var(--hair-2); color: var(--ink);
+  font: inherit; font-weight: 800; font-size: 15.5px; box-shadow: var(--lift-1);
+}
+.sw-topic-head:hover { border-color: #15803d; }
+.sw-topic-body { display: grid; gap: 10px; padding: 10px 2px 4px; }
+.sw-topic-body[hidden] { display: none; }

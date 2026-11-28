@@ -39,9 +39,13 @@ test("Selection Way ships in TEST MODE only: page exists, landing stays Coming S
   const js = await read("public/assets/selectionway-test.js");
   assert.match(js, /\/api\/selectionway\?view=batches/, "client must read the batches view");
   assert.match(js, /\/api\/selectionway\?view=play/, "client must resolve playback through the play view");
+  assert.match(js, /view=proxy/, "playback must ride the CORS stream proxy, not the raw CDN");
+  assert.match(js, /data-topic/, "topics must lazy-render instead of building every lecture row");
 
   const lib = await read("lib/selectionway.mjs");
   assert.match(lib, /api\/batches\/\$\{encodeURIComponent\(batchId\)\}\/classes/, "classes must come from the mapped upstream");
+  assert.match(lib, /view=proxy|swProxy/, "stream proxy must exist");
+  assert.match(lib, /endsWith\("\.hranker\.com"\)/, "proxy must stay confined to the platform CDNs");
   assert.ok(SW_SAMPLE_BATCH.length >= 20, "the operator's sample batch id is pinned");
   await access(new URL("../public/assets/platforms/coming-next.png", import.meta.url));
 });
