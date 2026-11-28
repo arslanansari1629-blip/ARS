@@ -34,6 +34,22 @@ test("Vidyakul native views are dispatched before probes", async () => {
   assert.match(src, /videoUrl/, "videoUrl extraction missing");
 });
 
+test("Vidyakul v2 engineering: cache, resume player, saved & filters", async () => {
+  const js = await read("public/assets/vidyakul-native.js");
+  assert.match(js, /sessionStorage/, "API responses must be cached");
+  assert.match(js, /ars:vk:pos:/, "per-lecture resume positions must persist");
+  assert.match(js, /ars:vk:saved/, "saved batches must persist");
+  assert.match(js, /ars:vk:recent/, "continue-watching must persist");
+  assert.match(js, /fillQualityLevels/, "HLS quality ladder must be surfaced");
+  const page = await read("public/vidyakul.html");
+  assert.match(page, /id="vkQuality"/, "player quality control missing");
+  assert.match(page, /id="vkSpeed"/, "player speed control missing");
+  assert.match(page, /id="vkStatBatches"/, "hero stats missing");
+  const css = await read("public/assets/vidyakul-native.css");
+  assert.match(css, /\.vk-toolbar\s*\{[^}]*position: sticky/, "glass toolbar must stick");
+  assert.match(css, /\.vk-skel/, "skeleton grid missing");
+});
+
 test("Vidyakul page is the live native client, not an embed", async () => {
   const page = await read("public/vidyakul.html");
   assert.match(page, /vidyakul-native\.js/, "live page must use the native client");
