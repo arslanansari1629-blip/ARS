@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Selection Way (TEST) — ArsVibe</title>
+<meta name="description" content="TEST MODE — Selection Way batches, classes, lectures and notes on ArsVibe. Not live yet." />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="theme-color" content="#14532d" />
+<link rel="stylesheet" href="/assets/arsvibe.css" />
+<link rel="stylesheet" href="/assets/selectionway-test.css" />
+<link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/assets/icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="canonical" href="https://arsvibe-pw-sepia.vercel.app/selectionway-test" />
+</head>
+<body data-page="selectionway">
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="nav" id="nav">
+  <div class="shell nav-inner">
+    <a class="brand" href="/">
+      <img class="brand-img" src="/assets/logo.svg" alt="ArsVibe" width="30" height="30" />
+      <span>ArsVibe<small>Selection Way · TEST</small></span>
+    </a>
+    <nav class="nav-links" id="navLinks">
+      <a href="/">Home</a>
+      <a href="/batches.html">Physics Wallah</a>
+      <a href="/allen.html">Allen</a>
+      <a href="/nexttopper">Next Toppers</a>
+      <a href="/vidyakul">Vidyakul</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="section">
+  <div class="shell">
+    <p class="sw-test-banner">🧪 <strong>TEST MODE</strong> — ye platform abhi live nahi hai. Sirf testing ke liye hai; home page par ye abhi bhi <em>Coming Soon</em> hai.</p>
+    <section class="sw-hero">
+      <div class="sw-hero-brand">
+        <img src="/assets/platforms/coming-next.png" alt="Selection Way logo" width="84" height="84" />
+        <h1>Selection Way<br /><span class="grad">Batches, Unlocked</span></h1>
+      </div>
+      <p>Selection Way (Study Hulk SW) ke saare batches — SSC, Railway, Banking, Defence, Teaching aur State exams — topics, lectures, recordings aur class notes ke saath.</p>
+      <form id="swSearch" class="sw-search">
+        <input id="swSearchInput" type="search" placeholder="Search batches… (e.g. Selection Batch, Maths Special)" aria-label="Search batches" autocomplete="off" />
+        <button type="submit">Search</button>
+      </form>
+      <div class="sw-stats">
+        <div class="sw-stat"><b id="swStatBatches">–</b><span>Batches</span></div>
+        <div class="sw-stat"><b id="swStatClasses">–</b><span>Classes (batch)</span></div>
+        <div class="sw-stat"><b id="swStatNotes">–</b><span>Notes (batch)</span></div>
+        <div class="sw-stat"><b id="swStatCats">–</b><span>Categories</span></div>
+      </div>
+    </section>
+
+    <nav id="swCrumbs" class="sw-crumbs" aria-label="Breadcrumb"></nav>
+    <section id="swView" class="sw-view"><p class="sw-msg">Loading batches…</p></section>
+  </div>
+</main>
+
+<div id="swPlayer" class="sw-player" hidden>
+  <div class="sw-player-box">
+    <button id="swPlayerClose" class="sw-player-close" aria-label="Close player">✕</button>
+    <video id="swVideo" controls playsinline></video>
+    <div class="sw-controls">
+      <label>Source / Quality
+        <select id="swSource" aria-label="Video source"></select>
+      </label>
+      <label>Speed
+        <select id="swSpeed" aria-label="Playback speed">
+          <option value="0.5">0.5×</option>
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+          <option value="1.75">1.75×</option>
+          <option value="2">2×</option>
+        </select>
+      </label>
+      <button id="swPip" type="button">⧉ PiP</button>
+      <button id="swFs" type="button">⛶ Fullscreen</button>
+      <a id="swDownload" class="sw-dl" href="#" target="_blank" rel="noopener" hidden>⬇ Download MP4</a>
+    </div>
+    <h2 id="swPlayerTitle"></h2>
+    <p id="swPlayerMeta"></p>
+    <div id="swPdfs" class="sw-pdfs"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+<script type="module" src="/assets/shell.mjs"></script>
+<script type="module" src="/assets/ui.js"></script>
+<script type="module" src="/assets/telemetry.js"></script>
+<script type="module" src="/assets/offline-boot.js"></script>
+<script type="module" src="/assets/selectionway-test.js"></script>
+</body>
+</html>

@@ -389,7 +389,7 @@ test("the Allen player has the Fullscreen Fit Engine: device-detecting auto-fit 
   assert.match(css, /100dvh/, "pseudo-fullscreen must use the dynamic viewport");
 
   const sw = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
-  assert.match(sw, /arsvibe-v57/, "cached-asset changes must bump the SW version");
+  assert.match(sw, /arsvibe-v58/, "cached-asset changes must bump the SW version");
 });
 
 test("the Allen page self-heals: fault-isolated wiring, versioned assets, boot watchdog", async () => {
